@@ -6,6 +6,7 @@ import { usePredictiveRunRate } from './hooks/usePredictiveRunRate';
 import { getFiscalMonthsRange } from './utils/dateHelpers';
 import { LoginGate } from './components/LoginGate';
 import { DateService } from './shared/services/date.service';
+import { MetricsService } from './shared/services/metrics.service';
 
 // Components
 import SDRSection from './components/SDRSection';
@@ -16,7 +17,8 @@ import LeadersAdminSection from './components/LeadersAdminSection';
 
 // Icons
 import { 
-  Users, Shield, Sparkles, FileText, RefreshCw, Info, Lock, LogOut, Calendar, Key
+  Users, Shield, Sparkles, FileText, RefreshCw, Info, Lock, LogOut, Calendar, Key,
+  Crown, AlertTriangle, X, ArrowUpRight
 } from 'lucide-react';
 
 export default function App() {
@@ -71,6 +73,7 @@ export default function App() {
     currentUser,
     activeTab,
     currentMonth,
+    sdrs,
     assessores,
     startDate,
     endDate,
@@ -115,6 +118,7 @@ export default function App() {
       currentUser: state.currentUser,
       activeTab: state.activeTab,
       currentMonth: state.currentMonth,
+      sdrs: state.sdrs,
       assessores: state.assessores,
       startDate: state.startDate,
       endDate: state.endDate,
@@ -171,6 +175,33 @@ export default function App() {
     thermStats,
     sdrPredictions,
   } = usePredictiveRunRate(derivedSdrsForActiveMonth, currentMonth);
+
+  // Banner state and calculations
+  const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
+
+  // Reset dismissal state whenever currentMonth changes
+  React.useEffect(() => {
+    setIsBannerDismissed(false);
+  }, [currentMonth]);
+
+  const promotedSDRsCount = React.useMemo(() => {
+    return sdrs.filter(s => s.promotedToAssessor).length;
+  }, [sdrs]);
+
+  const criticalSDRs = React.useMemo(() => {
+    const { elapsedDays, totalDays } = DateService.getElapsedDays(currentMonth);
+    let list = derivedSdrsForActiveMonth;
+    if (currentUser && currentUser.role !== 'admin' && currentUser.teamName) {
+      list = derivedSdrsForActiveMonth.filter(s => s.team === currentUser.teamName);
+    }
+    return list
+      .filter(s => s.active && !s.promotedToAssessor)
+      .map(sdr => {
+        const perf = MetricsService.calculateSDRPerformance(sdr, elapsedDays, totalDays);
+        return { sdr, perf };
+      })
+      .filter(item => item.perf.pacingTrend === 'ALERTA CRÍTICO');
+  }, [derivedSdrsForActiveMonth, currentMonth, currentUser]);
 
   // 4. Dynamic reference months list
   const fiscalMonths = getFiscalMonthsRange();
@@ -356,8 +387,17 @@ export default function App() {
                     {currentUser.role === 'admin' ? 'ADMIN' : 'LEADER'}
                   </span>
                 </div>
-                <p className="text-[10px] text-neutral-600 mt-0.5 max-w-md font-medium">
-                  Atuando como <strong className="text-black font-bold">{currentUser.name}</strong> {currentUser.teamName && `(${currentUser.teamName})`}
+                <p className="text-[10px] text-neutral-600 mt-0.5 max-w-md font-medium flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>Atuando como <strong className="text-black font-bold">{currentUser.name}</strong> {currentUser.teamName && `(${currentUser.teamName})`}</span>
+                  {promotedSDRsCount > 0 && (
+                    <>
+                      <span className="text-neutral-300">|</span>
+                      <span className="inline-flex items-center gap-1 text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded font-extrabold border border-amber-200">
+                        <Crown className="w-3 h-3 text-amber-500 animate-pulse" />
+                        {promotedSDRsCount} {promotedSDRsCount === 1 ? 'SDR Promovido' : 'SDRs Promovidos'}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -389,6 +429,12 @@ export default function App() {
                 <div className="bg-neutral-100 border border-neutral-300 px-3 py-1.5 rounded-lg text-neutral-700">
                   Assessores Ativos: <span className="text-neutral-900 font-black">{activeAssessoresCount}</span>
                 </div>
+                {promotedSDRsCount > 0 && (
+                  <div className="bg-amber-50 border border-amber-300 px-3 py-1.5 rounded-lg text-amber-800 flex items-center gap-1.5">
+                    <Crown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>SDRs Promovidos: <span className="text-amber-950 font-black">{promotedSDRsCount}</span></span>
+                  </div>
+                )}
               </div>
 
               {/* Reset defaults button for Admin only */}
@@ -928,6 +974,74 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* FLOATING BANNER ALERT FOR CRITICAL SDRs */}
+      {criticalSDRs.length > 0 && !isBannerDismissed && (
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-neutral-950 text-[#FAF9F5] border-2 border-neutral-900 rounded-2xl shadow-2xl p-5 animate-fade-in select-none">
+          <div className="flex items-start justify-between border-b border-neutral-800 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+              </span>
+              <h3 className="text-xs font-black uppercase tracking-widest text-[#FAF9F5] font-mono">
+                Alerta de Performance Crítica
+              </h3>
+            </div>
+            <button 
+              onClick={() => setIsBannerDismissed(true)}
+              className="text-neutral-400 hover:text-neutral-200 transition-colors p-0.5 cursor-pointer"
+              title="Dispensar Notificação"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {(() => {
+            const first = criticalSDRs[0];
+            const sdr = first.sdr;
+            const perf = first.perf;
+            
+            const callsPerScheduled = perf.callsPerScheduled > 0 ? perf.callsPerScheduled : 12;
+            const progressPercent = Math.round(((sdr.agendamentosCount || 0) / (sdr.metaAgendamentos || 20)) * 100);
+            const daysLeft = DateService.getElapsedBusinessDays(currentMonth).totalBusinessDays - DateService.getElapsedBusinessDays(currentMonth).elapsedBusinessDays;
+            const dailySDRRateRequired = daysLeft > 0 ? parseFloat((perf.gapToMeta / daysLeft).toFixed(1)) : perf.gapToMeta;
+
+            return (
+              <div className="space-y-3">
+                <p className="text-xs text-neutral-300 leading-relaxed font-sans">
+                  SDR <strong className="text-white font-extrabold">{sdr.name}</strong> está com ritmo crítico. Entregou <span className="text-red-450 font-bold">{sdr.agendamentosCount || 0} de {sdr.metaAgendamentos} agendamentos</span> ({progressPercent}% da meta) com projeção de fechar o mês com apenas <strong className="text-red-450">{perf.monthlyProjection}</strong>.
+                </p>
+
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-[10px] space-y-2 leading-relaxed">
+                  <span className="text-[9px] uppercase font-black text-amber-400 tracking-wider font-mono block">🎯 Ação Sugerida pelo Sistema:</span>
+                  <p className="text-neutral-300 font-medium">
+                    Inicie uma intervenção rápida de feedback. Recomendamos agendar um <strong className="text-white">Alinhamento 1:1</strong> focado em funil telefônico. 
+                    Estimule o aumento para <strong className="text-white">{Math.ceil(dailySDRRateRequired * callsPerScheduled)} ligações diárias individuais</strong> para superar o gap de <strong className="text-amber-400">{perf.gapToMeta} agendamentos</strong> restantes.
+                  </p>
+                </div>
+
+                <div className="flex gap-2.5 pt-1 items-center">
+                  {criticalSDRs.length > 1 && (
+                    <span className="text-[9px] font-bold text-neutral-400 uppercase font-mono">
+                      + {criticalSDRs.length - 1} outros críticos
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setActiveTab('sdrs');
+                    }}
+                    className="ml-auto flex items-center gap-1 bg-white hover:bg-neutral-200 text-neutral-950 font-black text-[10px] uppercase tracking-wider py-2 px-3.5 rounded-lg transition-colors cursor-pointer animate-pulse"
+                  >
+                    Intervir 1:1
+                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
     </div>
   );
