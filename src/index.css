@@ -5,12 +5,108 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Symmetrical White and Black definitions for extreme contrast */
+  --color-white: var(--white-override);
+  --color-black: var(--black-override);
+
+  /* Precise Neutral Overrides */
+  --color-neutral-50: var(--neutral-50-override);
+  --color-neutral-100: var(--neutral-100-override);
+  --color-neutral-200: var(--neutral-200-override);
+  --color-neutral-300: var(--neutral-300-override);
+  --color-neutral-400: var(--neutral-400-override);
+  --color-neutral-500: var(--neutral-500-override);
+  --color-neutral-600: var(--neutral-600-override);
+  --color-neutral-700: var(--neutral-700-override);
+  --color-neutral-800: var(--neutral-800-override);
+  --color-neutral-850: var(--neutral-850-override);
+  --color-neutral-900: var(--neutral-900-override);
+  --color-neutral-950: var(--neutral-950-override);
+
+  /* Precise Zinc Scale Overrides for total safety mapping */
+  --color-zinc-50: var(--neutral-50-override);
+  --color-zinc-100: var(--neutral-100-override);
+  --color-zinc-200: var(--neutral-200-override);
+  --color-zinc-300: var(--neutral-300-override);
+  --color-zinc-400: var(--neutral-400-override);
+  --color-zinc-550: var(--neutral-500-override);
+  --color-zinc-650: var(--neutral-600-override);
+  --color-zinc-900: var(--neutral-900-override);
+  --color-zinc-950: var(--neutral-950-override);
+
+  /* Native Tailwind Theme Mappings based on our high-contrast CSS variables */
+  --color-page-bg: var(--bg-page);
+  --color-page-text: var(--text-page);
+  --color-page-text-muted: var(--text-secondary);
+  --color-page-border: var(--border-primary);
+  --color-page-card: var(--bg-card);
+  --color-page-hover: var(--bg-hover);
+  --color-page-border-light: var(--border-light);
+  --color-brand-sand: var(--sand-override);
+}
+
+:root {
+  --bg-page: #f4f5f7;
+  --text-page: #0f172a;
+  --text-secondary: #64748b;
+  --border-primary: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f5f9;
+  --border-light: #e2e8f0;
+  --sand-override: #f8fafc;
+
+  /* Light mode pure black and white */
+  --white-override: #ffffff;
+  --black-override: #0f172a;
+
+  --neutral-50-override: #f8fafc;
+  --neutral-100-override: #f1f5f9;
+  --neutral-200-override: #e2e8f0;
+  --neutral-300-override: #cbd5e1;
+  --neutral-400-override: #64748b;
+  --neutral-500-override: #64748b;
+  --neutral-600-override: #475569;
+  --neutral-700-override: #334155;
+  --neutral-800-override: #f8fafc;
+  --neutral-850-override: #1e293b;
+  --neutral-900-override: #0f172a;
+  --neutral-950-override: #020617;
+}
+
+.dark {
+  --bg-page: #090a0f;
+  --text-page: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-primary: #1e293b;
+  --bg-card: #11131c;
+  --bg-hover: #1e293b;
+  --border-light: #1e293b;
+  --sand-override: #0b0e14;
+
+  /* Dark mode absolute inversion: white is black, black is white */
+  --white-override: #11131c;
+  --black-override: #f8fafc;
+
+  --neutral-50-override: #0c0e17;
+  --neutral-100-override: #161a26;
+  --neutral-200-override: #1e293b;
+  --neutral-300-override: #334155;
+  --neutral-400-override: #94a3b8;
+  --neutral-500-override: #94a3b8;
+  --neutral-600-override: #cbd5e1;
+  --neutral-700-override: #f1f5f9;
+  --neutral-800-override: #0f121d;
+  --neutral-850-override: #f8fafc;
+  --neutral-900-override: #f8fafc;
+  --neutral-950-override: #ffffff;
 }
 
 body {
-  background-color: #FAF9F5;
-  color: #111111;
+  background-color: var(--bg-page);
+  color: var(--text-page);
   font-family: var(--font-sans);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* Custom scrollbar and subtle transitions */
@@ -28,3 +124,37 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #D1D1CB;
 }
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Automatic highly-readable text utility classes adjusting based on background container context */
+@utility text-readability-util {
+  color: var(--text-page);
+}
+
+@utility text-readability-util-muted {
+  color: var(--text-secondary);
+}
+
+/* Inversely styled containers (e.g. dark colors in light mode, light colors in dark mode) */
+.bg-neutral-950 .text-readability-util,
+.bg-neutral-900 .text-readability-util,
+.bg-neutral-800 .text-readability-util,
+.bg-stone-900 .text-readability-util,
+.bg-black .text-readability-util {
+  color: #ffffff !important;
+}
+
+.bg-neutral-950 .text-readability-util-muted,
+.bg-neutral-900 .text-readability-util-muted,
+.bg-neutral-800 .text-readability-util-muted,
+.bg-stone-900 .text-readability-util-muted,
+.bg-black .text-readability-util-muted {
+  color: #9ca3af !important;
+}
+

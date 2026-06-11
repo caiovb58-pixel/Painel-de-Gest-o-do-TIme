@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TeamLeader } from '../types';
 import { 
   Key, UserPlus, Trash2, Edit2, Check, X, Shield, Lock, Users, 
-  Settings, Link2, Wifi, WifiOff, RefreshCw, Send, AlertCircle
+  Settings, Link2, Wifi, WifiOff, RefreshCw, Send, AlertCircle, Search
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { IntegrationService } from '../shared/services/integration.service';
@@ -21,24 +21,50 @@ export default function LeadersAdminSection({
   onDeleteLeader,
 }: LeadersAdminSectionProps) {
   // Pull integration settings directly from global Zustand Store
-  const { integrationSettings, updateIntegrationSettings } = useAppStore();
+  const { 
+    integrationSettings, 
+    updateIntegrationSettings,
+    sdrs = [],
+    assessores = [],
+    teams = []
+  } = useAppStore();
+
+  // Local states for custom teams selection and viewing options
+  const [selectedTeamsFilter, setSelectedTeamsFilter] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'teams' | 'sdrs'>('teams');
+  const [sdrSearchAdmin, setSdrSearchAdmin] = useState('');
+
+  // Predefined role designation options specifically requested:
+  const PREDEFINED_TITLES = [
+    'Líder de SDR',
+    'Líder de SDR PJ',
+    'Líder de SDR VMB',
+    'Líder de SDR Advisor',
+    'Líder de Assessores Tier 1',
+    'Líder de Assessores Tier 2',
+    'Líder de Assessores Tier 3'
+  ];
 
   // Input form states for leaders
   const [formData, setFormData] = useState({
     name: '',
     teamName: '',
-    leaderTitle: '',
     passcode: ''
   });
+  
+  const [titleType, setTitleType] = useState('Líder de SDR');
+  const [customTitle, setCustomTitle] = useState('');
 
   const [formError, setFormError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState({
     name: '',
     teamName: '',
-    leaderTitle: '',
     passcode: ''
   });
+
+  const [editTitleType, setEditTitleType] = useState('Líder de SDR');
+  const [customEditTitle, setCustomEditTitle] = useState('');
 
   // Local Webhook settings editor
   const [webhookUrlInput, setWebhookUrlInput] = useState(() => integrationSettings.webhookUrl);
@@ -49,7 +75,9 @@ export default function LeadersAdminSection({
     e.preventDefault();
     setFormError('');
 
-    if (!formData.name.trim() || !formData.teamName.trim() || !formData.leaderTitle.trim() || !formData.passcode.trim()) {
+    const resolvedTitle = titleType === 'Outro' ? customTitle.trim() : titleType;
+
+    if (!formData.name.trim() || !formData.teamName.trim() || !resolvedTitle || !formData.passcode.trim()) {
       setFormError('Todos os campos são obrigatórios para o cadastro.');
       return;
     }
@@ -64,7 +92,7 @@ export default function LeadersAdminSection({
     onAddLeader({
       name: formData.name.trim(),
       teamName: formData.teamName.trim(),
-      leaderTitle: formData.leaderTitle.trim(),
+      leaderTitle: resolvedTitle,
       passcode: formData.passcode.trim()
     });
 
@@ -72,9 +100,10 @@ export default function LeadersAdminSection({
     setFormData({
       name: '',
       teamName: '',
-      leaderTitle: '',
       passcode: ''
     });
+    setCustomTitle('');
+    setTitleType('Líder de SDR');
   };
 
   const handleStartEdit = (leader: TeamLeader) => {
@@ -82,13 +111,22 @@ export default function LeadersAdminSection({
     setEditFormData({
       name: leader.name,
       teamName: leader.teamName,
-      leaderTitle: leader.leaderTitle,
       passcode: leader.passcode
     });
+
+    if (PREDEFINED_TITLES.includes(leader.leaderTitle)) {
+      setEditTitleType(leader.leaderTitle);
+      setCustomEditTitle('');
+    } else {
+      setEditTitleType('Outro');
+      setCustomEditTitle(leader.leaderTitle);
+    }
   };
 
   const handleSaveEdit = (id: string) => {
-    if (!editFormData.name.trim() || !editFormData.teamName.trim() || !editFormData.leaderTitle.trim() || !editFormData.passcode.trim()) {
+    const resolvedTitle = editTitleType === 'Outro' ? customEditTitle.trim() : editTitleType;
+
+    if (!editFormData.name.trim() || !editFormData.teamName.trim() || !resolvedTitle || !editFormData.passcode.trim()) {
       alert('Preencha todos os campos do gestor.');
       return;
     }
@@ -103,7 +141,7 @@ export default function LeadersAdminSection({
     onUpdateLeader(id, {
       name: editFormData.name.trim(),
       teamName: editFormData.teamName.trim(),
-      leaderTitle: editFormData.leaderTitle.trim(),
+      leaderTitle: resolvedTitle,
       passcode: editFormData.passcode.trim()
     });
 
@@ -173,6 +211,188 @@ export default function LeadersAdminSection({
     });
   };
 
+  // Grouping logic for separate visualization of available teams
+  const sdrTeams = leaders.filter(l => l.leaderTitle.toUpperCase().includes('SDR'));
+  const advisorTeams = leaders.filter(l => l.leaderTitle.toUpperCase().includes('ASSESSOR'));
+  const otherTeams = leaders.filter(l => !l.leaderTitle.toUpperCase().includes('SDR') && !l.leaderTitle.toUpperCase().includes('ASSESSOR'));
+
+  // Logic to calculate unique teams and get active / inactive states with participant counters
+  const allTeamNames = Array.from(new Set([
+    ...teams,
+    ...leaders.map(l => l.teamName),
+    ...sdrs.map(s => s.team || '').filter(Boolean),
+    ...assessores.map(a => a.team || '').filter(Boolean)
+  ])).filter(Boolean);
+
+  const teamData = allTeamNames.map(teamName => {
+    const teamSdrs = sdrs.filter(s => s.team === teamName);
+    const teamAssessores = assessores.filter(a => a.team === teamName);
+    const leader = leaders.find(l => l.teamName.toLowerCase().trim() === teamName.toLowerCase().trim());
+    
+    const activeSdrs = teamSdrs.filter(s => s.active).length;
+    const activeAssessores = teamAssessores.filter(a => a.active).length;
+    
+    const totalParticipants = teamSdrs.length + teamAssessores.length;
+    const activeParticipants = activeSdrs + activeAssessores;
+    
+    // Team is active if it has active participants or if it has an assigned leader
+    const isActive = activeParticipants > 0;
+
+    return {
+      name: teamName,
+      leader,
+      totalSdr: teamSdrs.length,
+      activeSdr: activeSdrs,
+      totalAssessor: teamAssessores.length,
+      activeAssessor: activeAssessores,
+      totalParticipants,
+      activeParticipants,
+      isActive
+    };
+  });
+
+  const activeTeams = teamData.filter(t => t.isActive);
+  const inactiveTeams = teamData.filter(t => !t.isActive);
+
+  const renderLeaderCard = (l: TeamLeader) => {
+    const isEditing = editingId === l.id;
+    return (
+      <div 
+        key={l.id} 
+        className={`p-4 border transition-all rounded-xl flex flex-col justify-between gap-4 ${
+          isEditing 
+            ? 'bg-neutral-50 border-neutral-900 ring-1 ring-neutral-950/5' 
+            : 'bg-[#FCFBF8] hover:bg-white border-neutral-250 hover:border-neutral-400 hover:shadow-xs'
+        }`}
+      >
+        {isEditing ? (
+          <div className="space-y-3 w-full">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-neutral-400">Nome do Gestor</label>
+                <input 
+                  type="text"
+                  value={editFormData.name}
+                  onChange={e => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-medium"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-neutral-400">Canal / Equipe</label>
+                <input 
+                  type="text"
+                  value={editFormData.teamName}
+                  onChange={e => setEditFormData(prev => ({ ...prev, teamName: e.target.value }))}
+                  className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-bold text-neutral-800"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-neutral-400">Cargo</label>
+                <select
+                  value={editTitleType}
+                  onChange={e => setEditTitleType(e.target.value)}
+                  className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-bold text-neutral-800 cursor-pointer"
+                >
+                  {PREDEFINED_TITLES.map(title => (
+                    <option key={title} value={title}>{title}</option>
+                  ))}
+                  <option value="Outro">Customizado / Outro</option>
+                </select>
+                {editTitleType === 'Outro' && (
+                  <input 
+                    type="text"
+                    placeholder="Título Personalizado"
+                    value={customEditTitle}
+                    onChange={e => setCustomEditTitle(e.target.value)}
+                    className="w-full mt-1.5 p-2 bg-white border border-neutral-300 rounded text-xs font-medium focus:outline-none"
+                    required
+                  />
+                )}
+              </div>
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-neutral-400">Senha (Passcode)</label>
+                <input 
+                  type="text"
+                  value={editFormData.passcode}
+                  onChange={e => setEditFormData(prev => ({ ...prev, passcode: e.target.value }))}
+                  className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                onClick={() => setEditingId(null)}
+                className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-neutral-650 bg-neutral-200 hover:bg-neutral-300 rounded flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3 h-3" /> Cancelar
+              </button>
+              <button
+                onClick={() => handleSaveEdit(l.id)}
+                className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white bg-black hover:opacity-95 rounded flex items-center gap-1 cursor-pointer"
+              >
+                <Check className="w-3 h-3 text-white" /> Salvar Alterações
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between gap-2 w-full">
+            
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-extrabold text-neutral-900 text-xs">
+                  {l.name}
+                </span>
+                <span className="text-[9px] bg-black text-brand-sand font-black px-1.5 py-0.5 rounded leading-none">
+                  {l.teamName}
+                </span>
+              </div>
+              
+              <p className="text-[10px] font-medium text-neutral-500 font-sans">
+                {l.leaderTitle}
+              </p>
+
+              <div className="flex items-center gap-3 pt-1.5">
+                <div className="flex items-center gap-1 text-[10px] text-neutral-600 font-mono">
+                  <Key className="w-3 h-3 text-neutral-400" />
+                  <span>Chave:</span>
+                  <span className="font-bold text-neutral-900 bg-neutral-100 border border-neutral-200 px-1 rounded">
+                    {l.passcode}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleStartEdit(l)}
+                className="p-1.5 text-neutral-500 hover:text-black hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                title="Editar Gestor comercial"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Deseja revogar o acesso comercial de ${l.name} (${l.teamName})?`)) {
+                    onDeleteLeader(l.id);
+                  }
+                }}
+                className="p-1.5 text-neutral-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Remover Acesso do Gestor"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 text-left font-sans pb-12">
       
@@ -180,7 +400,7 @@ export default function LeadersAdminSection({
       <div className="bg-white border-2 border-neutral-900 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1 px-2.5 bg-black text-[#FAF9F5] text-[9px] font-black uppercase tracking-widest rounded leading-none">
+            <span className="p-1 px-2.5 bg-black text-brand-sand text-[9px] font-black uppercase tracking-widest rounded leading-none">
               Acesso Master
             </span>
             <h2 className="text-xl font-black uppercase tracking-tight text-neutral-950 font-display">
@@ -253,17 +473,35 @@ export default function LeadersAdminSection({
 
             <div className="space-y-1">
               <label className="block text-[9px] font-black text-neutral-500 uppercase tracking-widest">
-                Cargo / Título Oficial
+                Designação da Liderança
               </label>
-              <input
-                type="text"
-                placeholder="Ex: Supervisor Comercial B2B, Team Leader Alpha..."
-                value={formData.leaderTitle}
-                onChange={e => setFormData(prev => ({ ...prev, leaderTitle: e.target.value }))}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-medium focus:outline-none focus:border-neutral-900 focus:bg-white transition-colors"
-                required
-              />
+              <select
+                value={titleType}
+                onChange={e => setTitleType(e.target.value)}
+                className="w-full px-3 py-2 bg-neutral-100 border border-neutral-300 rounded-lg text-xs font-black uppercase text-neutral-800 cursor-pointer focus:outline-none focus:border-neutral-900 transition-colors"
+              >
+                {PREDEFINED_TITLES.map(title => (
+                  <option key={title} value={title}>{title}</option>
+                ))}
+                <option value="Outro">Customizado / Outro</option>
+              </select>
             </div>
+
+            {titleType === 'Outro' && (
+              <div className="space-y-1 animate-fade-in">
+                <label className="block text-[9px] font-black text-neutral-500 uppercase tracking-widest">
+                  Título Personalizado
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Head de Distribuição, Supervisor Comercial..."
+                  value={customTitle}
+                  onChange={e => setCustomTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-medium focus:outline-none focus:border-neutral-900 focus:bg-white transition-colors"
+                  required
+                />
+              </div>
+            )}
 
             <div className="space-y-1">
               <label className="block text-[9px] font-black text-neutral-500 uppercase tracking-widest">
@@ -284,7 +522,7 @@ export default function LeadersAdminSection({
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-850 text-[#FAF9F5] hover:text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-850 text-brand-sand hover:text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               <UserPlus className="w-4 h-4" />
               Salvar e Cadastrar Gestor
@@ -307,138 +545,404 @@ export default function LeadersAdminSection({
               </span>
             </div>
 
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+            <div className="space-y-5 max-h-[465px] overflow-y-auto pr-1">
               {leaders.length === 0 ? (
                 <div className="p-8 text-center text-xs text-neutral-450">
                   Nenhum líder cadastrado no momento. Cadastre gestores no painel de controle esquerdo.
                 </div>
               ) : (
-                leaders.map(l => {
-                  const isEditing = editingId === l.id;
-                  return (
-                    <div 
-                      key={l.id} 
-                      className={`p-4 border transition-all rounded-xl flex flex-col justify-between gap-4 ${
-                        isEditing 
-                          ? 'bg-neutral-50 border-neutral-900 ring-1 ring-neutral-950/5' 
-                          : 'bg-[#FCFBF8] hover:bg-white border-neutral-250 hover:border-neutral-400 hover:shadow-xs'
-                      }`}
-                    >
-                      {isEditing ? (
-                        <div className="space-y-3 w-full">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[8px] font-black uppercase text-neutral-400">Nome do Gestor</label>
-                              <input 
-                                type="text"
-                                value={editFormData.name}
-                                onChange={e => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
-                                className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-medium"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[8px] font-black uppercase text-neutral-400">Canal / Equipe</label>
-                              <input 
-                                type="text"
-                                value={editFormData.teamName}
-                                onChange={e => setEditFormData(prev => ({ ...prev, teamName: e.target.value }))}
-                                className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-bold text-neutral-800"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[8px] font-black uppercase text-neutral-400">Cargo</label>
-                              <input 
-                                type="text"
-                                value={editFormData.leaderTitle}
-                                onChange={e => setEditFormData(prev => ({ ...prev, leaderTitle: e.target.value }))}
-                                className="w-full p-2 bg-white border border-neutral-300 rounded text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[8px] font-black uppercase text-neutral-400">Senha (Passcode)</label>
-                              <input 
-                                type="text"
-                                value={editFormData.passcode}
-                                onChange={e => setEditFormData(prev => ({ ...prev, passcode: e.target.value }))}
-                                className="w-full p-2 bg-white border border-neutral-300 rounded text-xs font-mono font-bold"
-                              />
-                            </div>
-                          </div>
+                <div className="space-y-5">
+                  {sdrTeams.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 pb-1 border-b border-neutral-100">
+                        <span className="w-2.0 h-2.0 rounded-full bg-indigo-500 inline-block shrink-0" />
+                        <h4 className="text-[10px] font-mono font-black uppercase text-neutral-600 tracking-wider">
+                          Equipes de Prospecção & SDR ({sdrTeams.length})
+                        </h4>
+                      </div>
+                      <div className="space-y-2.5">
+                        {sdrTeams.map(l => renderLeaderCard(l))}
+                      </div>
+                    </div>
+                  )}
 
-                          <div className="flex gap-2 justify-end pt-1">
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-neutral-600 bg-neutral-200 hover:bg-neutral-300 rounded flex items-center gap-1 cursor-pointer"
-                            >
-                              <X className="w-3 h-3" /> Cancelar
-                            </button>
-                            <button
-                              onClick={() => handleSaveEdit(l.id)}
-                              className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white bg-black hover:opacity-95 rounded flex items-center gap-1 cursor-pointer"
-                            >
-                              <Check className="w-3 h-3 text-white" /> Salvar Alterações
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start justify-between gap-2 w-full">
-                          
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-extrabold text-neutral-900 text-xs">
-                                {l.name}
-                              </span>
-                              <span className="text-[9px] bg-black text-[#FAF9F5] font-black px-1.5 py-0.5 rounded leading-none">
-                                {l.teamName}
-                              </span>
-                            </div>
-                            
-                            <p className="text-[10px] font-medium text-neutral-500 font-sans">
-                              {l.leaderTitle}
-                            </p>
+                  {advisorTeams.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 pb-1 border-b border-neutral-100 pt-1">
+                        <span className="w-2.0 h-2.0 rounded-full bg-emerald-500 inline-block shrink-0" />
+                        <h4 className="text-[10px] font-mono font-black uppercase text-neutral-600 tracking-wider">
+                          Mesas de Distribuição & Assessores ({advisorTeams.length})
+                        </h4>
+                      </div>
+                      <div className="space-y-2.5">
+                        {advisorTeams.map(l => renderLeaderCard(l))}
+                      </div>
+                    </div>
+                  )}
 
-                            <div className="flex items-center gap-3 pt-1.5">
-                              <div className="flex items-center gap-1 text-[10px] text-neutral-600 font-mono">
-                                <Key className="w-3 h-3 text-neutral-400" />
-                                <span>Chave:</span>
-                                <span className="font-bold text-neutral-900 bg-neutral-100 border border-neutral-200 px-1 rounded">
-                                  {l.passcode}
+                  {otherTeams.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 pb-1 border-b border-neutral-100 pt-1">
+                        <span className="w-2.0 h-2.0 rounded-full bg-amber-500 inline-block shrink-0" />
+                        <h4 className="text-[10px] font-mono font-black uppercase text-neutral-600 tracking-wider">
+                          Outras Células & Gestão Geral ({otherTeams.length})
+                        </h4>
+                      </div>
+                      <div className="space-y-2.5">
+                        {otherTeams.map(l => renderLeaderCard(l))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Divisão de Times Ativos vs Inativos & Filtro Inteligente */}
+          <div className="bg-white border-2 border-neutral-900 p-6 rounded-2xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-neutral-105 gap-3">
+              <div className="space-y-0.5 text-left">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-neutral-900" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-neutral-900 font-display">
+                    Saúde Operacional dos Times Comerciais
+                  </h3>
+                </div>
+                <p className="text-[10px] text-neutral-500 font-sans leading-tight">
+                  Selecione os times específicos que deseja analisar ou veja a listagem integrada de SDRs.
+                </p>
+              </div>
+              
+              {/* Tabs Switch */}
+              <div className="flex bg-neutral-100 p-0.5 rounded-lg border border-neutral-250 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('teams')}
+                  className={`px-3 py-1 text-[9px] uppercase font-black tracking-wider rounded-md transition-all cursor-pointer ${
+                    viewMode === 'teams' 
+                      ? 'bg-neutral-900 text-white shadow-3xs' 
+                      : 'text-neutral-500 hover:text-black'
+                  }`}
+                >
+                  Filtrar por Times
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('sdrs')}
+                  className={`px-3 py-1 text-[9px] uppercase font-black tracking-wider rounded-md transition-all cursor-pointer ${
+                    viewMode === 'sdrs' 
+                      ? 'bg-neutral-900 text-white shadow-3xs' 
+                      : 'text-neutral-500 hover:text-black'
+                  }`}
+                >
+                  Todos os SDRs
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Multi-select Filters */}
+            <div className="bg-[#FAF9F5] p-3.5 rounded-xl border border-neutral-200/90 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/50 pb-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] font-mono font-black uppercase tracking-wider text-neutral-500">
+                    Times Selecionados:
+                  </span>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamsFilter([])}
+                    className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      selectedTeamsFilter.length === 0
+                        ? 'bg-neutral-900 text-white'
+                        : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-650'
+                    }`}
+                  >
+                    Visualizar Todos ({allTeamNames.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTeamsFilter(allTeamNames)}
+                    className="text-[9px] font-bold uppercase text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-250 cursor-pointer transition-all"
+                  >
+                    Marcar Todos
+                  </button>
+                </div>
+              </div>
+
+              {allTeamNames.length === 0 ? (
+                <p className="text-[10px] text-neutral-400 italic text-left">Nenhum canal/equipe comercial registrado.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {allTeamNames.map(name => {
+                    const isSelected = selectedTeamsFilter.includes(name);
+                    const sdrCount = sdrs.filter(s => s.team === name).length;
+                    const assessorCount = assessores.filter(a => a.team === name).length;
+                    
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedTeamsFilter(prev => prev.filter(t => t !== name));
+                          } else {
+                            setSelectedTeamsFilter(prev => [...prev, name]);
+                          }
+                        }}
+                        className={`text-[9.5px] font-extrabold px-2.5 py-1 rounded-md border flex items-center gap-1.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-white border-neutral-900 text-neutral-950 ring-1 ring-neutral-900 shadow-3xs'
+                            : 'bg-neutral-50 border-neutral-250 hover:border-neutral-400 text-neutral-550'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-neutral-300'}`} />
+                        <span className="uppercase">{name}</span>
+                        <span className="text-[8px] opacity-75 font-mono">
+                          ({sdrCount + assessorCount})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {viewMode === 'teams' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Times Ativos */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-emerald-100 text-left">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                    <h4 className="text-[10px] font-mono font-black uppercase text-emerald-800 tracking-wider">
+                      Times Ativos ({activeTeams.filter(t => selectedTeamsFilter.length === 0 || selectedTeamsFilter.includes(t.name)).length})
+                    </h4>
+                  </div>
+
+                  {activeTeams.filter(t => selectedTeamsFilter.length === 0 || selectedTeamsFilter.includes(t.name)).length === 0 ? (
+                    <div className="p-4 border border-dashed border-neutral-200 rounded-xl text-center text-[10px] text-neutral-450 leading-relaxed font-semibold">
+                      Sem times ativos correspondentes ao filtro.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                      {activeTeams
+                        .filter(t => selectedTeamsFilter.length === 0 || selectedTeamsFilter.includes(t.name))
+                        .map(team => (
+                          <div 
+                            key={team.name}
+                            className="bg-[#F4FBF7] border border-emerald-250 p-3.5 rounded-xl space-y-2 transition-all hover:bg-emerald-50/45 text-left"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-0.5">
+                                <span className="block text-xs font-black text-emerald-950 uppercase font-display">
+                                  {team.name}
                                 </span>
+                                {team.leader ? (
+                                  <span className="block text-[9px] text-neutral-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                                    Gestor: {team.leader.name} ({team.leader.leaderTitle})
+                                  </span>
+                                ) : (
+                                  <span className="block text-[9px] text-neutral-400 italic text-left">
+                                    Sem gestor atribuído
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[8px] bg-emerald-600 text-white font-mono font-black px-1.5 py-0.5 rounded leading-none shrink-0 uppercase tracking-wider">
+                                {team.activeParticipants} ATIVOS
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[10px] pt-1.5 border-t border-emerald-150">
+                              <div className="bg-white/80 p-1.5 rounded border border-emerald-100">
+                                <span className="block text-[8px] text-neutral-400 uppercase font-mono">SDRs</span>
+                                <strong className="block text-emerald-950 font-extrabold font-mono pt-0.5 text-[11px]">
+                                  {team.activeSdr} <span className="text-[9px] font-normal text-neutral-500">({team.totalSdr} tot)</span>
+                                </strong>
+                              </div>
+                              <div className="bg-white/80 p-1.5 rounded border border-emerald-100">
+                                <span className="block text-[8px] text-neutral-400 uppercase font-mono">Assessores</span>
+                                <strong className="block text-emerald-950 font-extrabold font-mono pt-0.5 text-[11px]">
+                                  {team.activeAssessor} <span className="text-[9px] font-normal text-neutral-500">({team.totalAssessor} tot)</span>
+                                </strong>
                               </div>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleStartEdit(l)}
-                              className="p-1.5 text-neutral-500 hover:text-black hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
-                              title="Editar Gestor comercial"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm(`Deseja revogar o acesso comercial de ${l.name} (${l.teamName})?`)) {
-                                  onDeleteLeader(l.id);
-                                }
-                              }}
-                              className="p-1.5 text-neutral-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                              title="Remover Acesso do Gestor"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                        </div>
-                      )}
+                      ))}
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  )}
+                </div>
+
+                {/* Times Inativos */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-neutral-200 text-left">
+                    <span className="w-2.5 h-2.5 rounded-full bg-neutral-400 shrink-0" />
+                    <h4 className="text-[10px] font-mono font-black uppercase text-neutral-500 tracking-wider">
+                      Times Inativos ({inactiveTeams.filter(t => selectedTeamsFilter.length === 0 || selectedTeamsFilter.includes(t.name)).length})
+                    </h4>
+                  </div>
+
+                  {inactiveTeams.filter(t => selectedTeamsFilter.length === 0 || selectedTeamsFilter.includes(t.name)).length === 0 ? (
+                    <div className="p-4 border border-dashed border-neutral-200 rounded-xl text-center text-[10px] text-neutral-450 font-medium">
+                      Nenhum time comercial inativo correspondente ao filtro.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                      {inactiveTeams
+                        .filter(t => selectedTeamsFilter.length === 0 || selectedTeamsFilter.includes(t.name))
+                        .map(team => (
+                          <div 
+                            key={team.name}
+                            className="bg-neutral-50/70 border border-neutral-200 p-3.5 text-left rounded-xl space-y-2 transition-all hover:bg-neutral-100/40"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-0.5">
+                                <span className="block text-xs font-black text-neutral-700 uppercase font-display">
+                                  {team.name}
+                                </span>
+                                {team.leader ? (
+                                  <span className="block text-[9px] text-neutral-500 font-medium">
+                                    Gestor: {team.leader.name}
+                                  </span>
+                                ) : (
+                                  <span className="block text-[9px] text-neutral-400 italic">
+                                    Sem gestor atribuído
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[8px] bg-neutral-250 text-neutral-600 font-mono font-black px-1.5 py-0.5 rounded leading-none shrink-0 font-bold">
+                                INATIVO
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[10px] pt-1.5 border-t border-neutral-200">
+                              <div className="bg-white p-1.5 rounded border border-neutral-200">
+                                <span className="block text-[8px] text-neutral-400 uppercase font-mono">SDRs</span>
+                                <strong className="block text-neutral-600 font-semibold font-mono pt-0.5 text-[11px]">
+                                  {team.totalSdr} <span className="text-[9px] font-normal text-neutral-400">Total</span>
+                                </strong>
+                              </div>
+                              <div className="bg-white p-1.5 rounded border border-neutral-200">
+                                <span className="block text-[8px] text-neutral-400 uppercase font-mono">Assessores</span>
+                                <strong className="block text-neutral-600 font-semibold font-mono pt-0.5 text-[11px]">
+                                  {team.totalAssessor} <span className="text-[9px] font-normal text-neutral-400">Total</span>
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* TODOS OS SDRS AO MESMO TEMPO (Tabela Geral de Ativos/Inativos) */
+              <div className="space-y-3 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-neutral-100">
+                  <h4 className="text-[10px] font-mono font-black uppercase text-neutral-850 tracking-wider">
+                    Lista Integrada de SDRs ({
+                      sdrs.filter(s => {
+                        const matchesTeam = selectedTeamsFilter.length === 0 || (s.team && selectedTeamsFilter.includes(s.team));
+                        const matchesSearch = s.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
+                                              (s.team && s.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
+                        return matchesTeam && matchesSearch;
+                      }).length
+                    })
+                  </h4>
+                  
+                  {/* Search box with Search icon */}
+                  <div className="relative max-w-full sm:max-w-xs flex-grow sm:flex-grow-0">
+                    <input
+                      type="text"
+                      placeholder="Buscar SDR por nome ou equipe..."
+                      value={sdrSearchAdmin}
+                      onChange={(e) => setSdrSearchAdmin(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-black transition-all"
+                    />
+                    <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                  </div>
+                </div>
+
+                {sdrs.filter(s => {
+                  const matchesTeam = selectedTeamsFilter.length === 0 || (s.team && selectedTeamsFilter.includes(s.team));
+                  const matchesSearch = s.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
+                                        (s.team && s.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
+                  return matchesTeam && matchesSearch;
+                }).length === 0 ? (
+                  <div className="p-8 border border-dashed border-neutral-205 rounded-xl text-center text-xs text-neutral-450 font-medium">
+                    Nenhum SDR comercial localizado para os critérios aplicados.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white shadow-3xs max-h-[380px] overflow-y-auto">
+                    <table className="w-full text-[11px] border-collapse">
+                      <thead>
+                        <tr className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 font-mono font-black uppercase text-[8.5px] tracking-wider sticky top-0 bg-neutral-50 z-10 text-left">
+                          <th className="p-2.5 text-left pl-3.5">Nome do SDR</th>
+                          <th className="p-2.5 text-left">Segmentação / Time</th>
+                          <th className="p-2.5 text-center">Status</th>
+                          <th className="p-2.5 text-right font-mono">Agendamentos</th>
+                          <th className="p-2.5 text-right font-mono">Efetivações</th>
+                          <th className="p-2.5 text-right font-mono pr-3.5">Taxa Conv.</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100">
+                        {sdrs
+                          .filter(s => {
+                            const matchesTeam = selectedTeamsFilter.length === 0 || (s.team && selectedTeamsFilter.includes(s.team));
+                            const matchesSearch = s.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
+                                                  (s.team && s.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
+                            return matchesTeam && matchesSearch;
+                          })
+                          .map(sdr => {
+                            const conversionRate = sdr.agendamentosCount > 0 
+                              ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100) 
+                              : 0;
+
+                            // Derive profile type text tag
+                            let tagClass = 'bg-neutral-100 text-neutral-650 border border-neutral-200';
+                            const sdrTeamNameUpper = (sdr.team || '').toUpperCase();
+                            if (sdrTeamNameUpper.includes('PJ')) {
+                              tagClass = 'bg-blue-50 text-blue-800 border border-blue-200';
+                            } else if (sdrTeamNameUpper.includes('VMB')) {
+                              tagClass = 'bg-purple-50 text-purple-800 border border-purple-200';
+                            } else if (sdrTeamNameUpper.includes('TIER') || sdrTeamNameUpper.includes('ASSESSOR') || sdrTeamNameUpper.includes('ADVISOR') || sdrTeamNameUpper.includes('ADVISORY')) {
+                              tagClass = 'bg-emerald-50 text-emerald-800 border border-emerald-200';
+                            } else if (sdrTeamNameUpper.includes('PF') || sdrTeamNameUpper.includes('HUNTER')) {
+                              tagClass = 'bg-amber-50 text-amber-800 border border-amber-200';
+                            }
+
+                            return (
+                              <tr key={sdr.id} className="hover:bg-neutral-50/55 transition-colors">
+                                <td className="p-2.5 pl-3.5 font-bold text-neutral-900">{sdr.name}</td>
+                                <td className="p-2.5">
+                                  <span className={`inline-block px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${tagClass}`}>
+                                    {sdr.team || 'Sem Equipe'}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {sdr.active ? (
+                                    <span className="inline-flex items-center gap-1 text-[8.5px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-150 uppercase tracking-wider">
+                                      Ativo
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[8.5px] font-black text-neutral-450 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 uppercase tracking-wider">
+                                      Inativo
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-right font-mono font-extrabold text-neutral-800">{sdr.agendamentosCount}</td>
+                                <td className="p-2.5 text-right font-mono font-extrabold text-neutral-800">{sdr.efetivacoesCount}</td>
+                                <td className="p-2.5 text-right font-mono font-black text-emerald-750 pr-3.5">
+                                  {conversionRate}%
+                                </td>
+                              </tr>
+                            );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

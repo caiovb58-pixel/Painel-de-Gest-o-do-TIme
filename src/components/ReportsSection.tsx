@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { SDR, Assessor, MatchResult } from '../types';
+import { SDR, Assessor, MatchResult, ProductType, NegocioFechado } from '../types';
 import { 
   FileText, Copy, TrendingUp, Users, CheckCircle2, 
   RefreshCw, Compass, BarChart3, ChevronRight, CheckCircle, AlertCircle,
   Sparkles, PhoneCall, Zap, Flame, Award, ShieldAlert, Target, Calendar,
-  Download, Table, Info
+  Download, Table, Info, Trash2, Plus, Coins, Briefcase, Layers, HeartHandshake, Check
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, BarChart, Bar
 } from 'recharts';
 import { DateService } from '../shared/services/date.service';
+import { useProductPacing } from '../hooks/useProductPacing';
+import { useAppStore } from '../store/useAppStore';
 
 interface InfoTooltipProps {
   title: string;
@@ -35,7 +37,7 @@ function InfoTooltip({ title, formula, description, align = 'center' }: InfoTool
   return (
     <div className="group relative inline-block ml-1.5 z-30">
       <Info className="w-3.5 h-3.5 text-neutral-400 hover:text-neutral-900 cursor-help transition-all" />
-      <div className={`pointer-events-none absolute bottom-full mb-2 hidden group-hover:block w-76 bg-neutral-950 text-[#FAF9F5] text-[11px] rounded-xl p-3.5 shadow-2xl border border-neutral-800 animate-fade-in leading-relaxed ${alignClasses[align]}`}>
+      <div className={`pointer-events-none absolute bottom-full mb-2 hidden group-hover:block w-76 bg-neutral-950 text-brand-sand text-[11px] rounded-xl p-3.5 shadow-2xl border border-neutral-800 animate-fade-in leading-relaxed ${alignClasses[align]}`}>
         <div className="font-extrabold text-white uppercase tracking-wider text-[9px] pb-1.5 border-b border-neutral-800 mb-2 flex items-center justify-between">
           <span className="text-amber-400 font-mono tracking-wide">🔍 {title}</span>
           <span className="text-[8px] bg-neutral-900 text-neutral-400 px-1.5 py-0.5 rounded leading-none uppercase font-mono font-bold font-sans">Métrica</span>
@@ -71,8 +73,120 @@ export default function ReportsSection({
   currentMonth,
 }: ReportsSectionProps) {
   const [copied, setCopied] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'visual' | 'whatsapp' | 'intelligence'>('visual');
+  const [activeSubTab, setActiveSubTab] = useState<'visual' | 'whatsapp' | 'intelligence' | 'wealth'>('wealth');
   const [showAffinityDetails, setShowAffinityDetails] = useState(false);
+
+  const pacing = useProductPacing();
+  const addNegocio = useAppStore(state => state.addNegocio);
+  const deleteNegocio = useAppStore(state => state.deleteNegocio);
+  const updateNegocio = useAppStore(state => state.updateNegocio);
+
+  // Form State for registering new closed deals (negocios_fechados)
+  const [showLaunchForm, setShowLaunchForm] = useState(false);
+  const [newClient, setNewClient] = useState('');
+  const [newProduct, setNewProduct] = useState<ProductType>('INVESTIMENTOS_XP');
+  const [newCreateDate, setNewCreateDate] = useState('25-05-2026'); // dynamic default
+  const [newCloseDate, setNewCloseDate] = useState('25-06-2026');   // dynamic default
+  const [newVolume, setNewVolume] = useState<string>('5000000');
+  const [newSdrId, setNewSdrId] = useState('');
+  const [newAssessorId, setNewAssessorId] = useState('');
+  const [newStatus, setNewStatus] = useState<'GANHO' | 'PERDIDO' | 'EM_NEGOCIACAO'>('GANHO');
+  const [newOrigemCliente, setNewOrigemCliente] = useState<'TROCA_ASSESSORIA' | 'ABERTURA_CONTA'>('ABERTURA_CONTA');
+  const [newSituacaoCliente, setNewSituacaoCliente] = useState<'ATIVO_APORTANDO' | 'INATIVO_SEM_APORTES'>('ATIVO_APORTANDO');
+  
+  // Filters for Transaction table list
+  const [filterOrigem, setFilterOrigem] = useState<string>('todos');
+  const [filterSituacao, setFilterSituacao] = useState<string>('todos');
+  const [filterStatus, setFilterStatus] = useState<string>('todos');
+
+  const [selectedProducts, setSelectedProducts] = useState<Array<{ produtoCategoria: ProductType; receitaEstimada: string }>>([
+    { produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: '50000' }
+  ]);
+
+  const addProductRow = () => {
+    setSelectedProducts(prev => [
+      ...prev,
+      { produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: '10000' }
+    ]);
+  };
+
+  const removeProductRow = (index: number) => {
+    setSelectedProducts(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateProductRow = (index: number, field: 'produtoCategoria' | 'receitaEstimada', value: string) => {
+    setSelectedProducts(prev => {
+      const nextArr = [...prev];
+      if (nextArr[index]) {
+        nextArr[index] = { ...nextArr[index], [field]: value };
+      }
+      return nextArr;
+    });
+  };
+
+  const handleLaunchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClient.trim()) return;
+
+    if (selectedProducts.length === 0) {
+      alert("Por favor, adicione ao menos um produto.");
+      return;
+    }
+
+    const parseFormattedDate = (dStr: string) => {
+      const pts = dStr.split('-');
+      if (pts.length === 3) {
+        if (pts[2].length === 4) {
+          return `${pts[2]}-${pts[1]}-${pts[0]}T00:00:00Z`;
+        }
+      }
+      try {
+        return new Date(dStr).toISOString();
+      } catch {
+        return new Date().toISOString();
+      }
+    };
+
+    const sdrObj = sdrs.find(s => s.id === newSdrId);
+    const assrObj = assessores.find(a => a.id === newAssessorId);
+
+    const parsedProducts = selectedProducts.map(p => ({
+      produtoCategoria: p.produtoCategoria,
+      receitaEstimada: parseFloat(p.receitaEstimada) || 0
+    }));
+
+    const totalRevenueSum = parsedProducts.reduce((sum, p) => sum + p.receitaEstimada, 0);
+
+    addNegocio({
+      clientName: newClient,
+      produtoCategoria: parsedProducts[0]?.produtoCategoria || 'INVESTIMENTOS_XP',
+      dataCriacaoLead: parseFormattedDate(newCreateDate),
+      dataFechamento: parseFormattedDate(newCloseDate),
+      volumeFinanceiro: parseFloat(newVolume) || 0,
+      receitaEstimada: totalRevenueSum,
+      sdrId: newSdrId || undefined,
+      sdrName: sdrObj?.name || '',
+      assessorId: newAssessorId || undefined,
+      assessorName: assrObj?.name || '',
+      status: newStatus,
+      produtos: parsedProducts,
+      origemCliente: newOrigemCliente,
+      situacaoCliente: newSituacaoCliente
+    });
+
+    // Reset fields
+    setNewClient('');
+    setNewVolume('5000000');
+    setSelectedProducts([
+      { produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: '50000' }
+    ]);
+    setNewSdrId('');
+    setNewAssessorId('');
+    setNewStatus('GANHO');
+    setNewOrigemCliente('ABERTURA_CONTA');
+    setNewSituacaoCliente('ATIVO_APORTANDO');
+    setShowLaunchForm(false);
+  };
 
   const activeSDRs = sdrs.filter(s => s.active);
   const [selectedSdrIdForEvolution, setSelectedSdrIdForEvolution] = useState<string>(activeSDRs[0]?.id || '');
@@ -496,7 +610,7 @@ export default function ReportsSection({
         {/* Simple Header */}
         <div className="bg-white border-2 border-neutral-900 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <span className="p-1 px-2.5 bg-black text-[#FAF9F5] text-[9px] font-black uppercase tracking-widest rounded leading-none">
+            <span className="p-1 px-2.5 bg-black text-brand-sand text-[9px] font-black uppercase tracking-widest rounded leading-none">
               Relatório Geral
             </span>
             <h2 className="text-lg font-black uppercase tracking-tight text-neutral-950 font-display">
@@ -509,7 +623,7 @@ export default function ReportsSection({
         </div>
 
         {/* Master Elegant Empty State Box */}
-        <div className="bg-[#FAF9F5] border-2 border-dashed border-neutral-300 rounded-3xl p-6 sm:p-10 md:p-12 text-center max-w-4xl mx-auto space-y-8">
+        <div className="bg-brand-sand border-2 border-dashed border-neutral-300 rounded-3xl p-6 sm:p-10 md:p-12 text-center max-w-4xl mx-auto space-y-8">
           
           <div className="flex justify-center">
             <div className="relative w-48 h-24 flex items-center justify-center animate-fade-in">
@@ -534,7 +648,7 @@ export default function ReportsSection({
           </div>
 
           <div className="space-y-3 max-w-xl mx-auto">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#111] text-[#FAF9F5] text-[9px] font-black uppercase tracking-widest rounded-full font-mono">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#111] text-brand-sand text-[9px] font-black uppercase tracking-widest rounded-full font-mono">
               <BarChart3 className="w-3.5 h-3.5 text-amber-400" /> Analítico Bloqueado
             </span>
             <h3 className="text-lg font-black text-neutral-950 font-display uppercase tracking-tight">
@@ -606,54 +720,65 @@ export default function ReportsSection({
     <div className="space-y-6 animate-fade-in font-sans">
       
       {/* Symmetrical Master Banner */}
-      <div className="bg-white border-2 border-neutral-900 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#121318] border-2 border-neutral-900 dark:border-neutral-700 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
-            <span className="p-1 px-2.5 bg-black text-[#FAF9F5] text-[9px] font-black uppercase tracking-widest rounded leading-none">
+            <span className="p-1 px-2.5 bg-black dark:bg-white text-brand-sand dark:text-black text-[9px] font-black uppercase tracking-widest rounded leading-none">
               Relatório Geral
             </span>
           </div>
-          <h2 className="text-lg font-black uppercase tracking-tight text-neutral-950 font-display">
+          <h2 className="text-lg font-black uppercase tracking-tight text-neutral-950 dark:text-white font-display">
             Métricas de Desempenho Mensal
           </h2>
-          <p className="text-xs text-neutral-600 max-w-2xl">
-            Vigência atual do rodízio configurada de <strong className="text-black font-semibold">{formatDateVal(startDate)}</strong> a <strong className="text-black font-semibold">{formatDateVal(endDate)}</strong>.
+          <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-2xl">
+            Vigência atual do rodízio configurada de <strong className="text-black dark:text-white font-semibold">{formatDateVal(startDate)}</strong> a <strong className="text-black dark:text-white font-semibold">{formatDateVal(endDate)}</strong>.
           </p>
         </div>
         
         {/* Sub-Tab navigation selectors with clean offwhite style */}
-        <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-300 gap-1 self-start md:self-auto shrink-0 font-display mt-2 md:mt-0">
+        <div className="flex bg-neutral-100 dark:bg-neutral-800/80 p-1 rounded-xl border border-neutral-300 dark:border-neutral-700 gap-1 self-start md:self-auto shrink-0 font-display mt-2 md:mt-0 overflow-x-auto">
           <button
-            onClick={() => setActiveSubTab('visual')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all ${
-              activeSubTab === 'visual'
-                ? 'bg-white text-black shadow-3xs font-black'
-                : 'text-neutral-500 hover:text-black'
+            onClick={() => setActiveSubTab('wealth')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
+              activeSubTab === 'wealth'
+                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
             }`}
           >
-            <BarChart3 className="w-3.5 h-3.5" />
-            Painel Analítico
+            <Briefcase className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 font-bold" />
+            Métricas Wealth / Fechamentos
+          </button>
+          <button
+            onClick={() => setActiveSubTab('visual')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
+              activeSubTab === 'visual'
+                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-black dark:text-white animate-pulse" />
+            Painel SDR & Funis
           </button>
           <button
             onClick={() => setActiveSubTab('whatsapp')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
               activeSubTab === 'whatsapp'
-                ? 'bg-white text-black shadow-3xs font-black'
-                : 'text-neutral-500 hover:text-black'
+                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
             }`}
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-black dark:text-white" />
             Exportar CSV / WhatsApp
           </button>
           <button
             onClick={() => setActiveSubTab('intelligence')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
               activeSubTab === 'intelligence'
-                ? 'bg-white text-black shadow-3xs font-black'
-                : 'text-neutral-500 hover:text-black'
+                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
             Inteligência de Performance
           </button>
         </div>
@@ -813,7 +938,7 @@ export default function ReportsSection({
 
       {/* Interactive Match Affinity Auditor Breakdown Drawer */}
       {showAffinityDetails && matchAffinities.length > 0 && (
-        <div className="bg-[#FAF9F5] border-2 border-neutral-900 rounded-2xl p-6 shadow-3xs space-y-4 animate-fade-in">
+        <div className="bg-brand-sand border-2 border-neutral-900 rounded-2xl p-6 shadow-3xs space-y-4 animate-fade-in">
           <div className="flex justify-between items-start border-b border-neutral-300 pb-3">
             <div>
               <h4 className="text-xs font-black uppercase text-neutral-950 tracking-wider flex items-center gap-1.5 font-display">
@@ -916,7 +1041,855 @@ export default function ReportsSection({
         </div>
       )}
 
-      {activeSubTab === 'visual' ? (
+      {activeSubTab === 'wealth' ? (
+        <div className="space-y-6">
+          
+          {/* Top Symmetrical Dashboard BRL Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-1">Receita Comercial (Ganho)</span>
+              <div className="text-3xl font-black text-black tracking-tight font-display">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(pacing.summary.totalRevenue)}
+              </div>
+              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Volume direto originado e ganho na base de wealth management.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Captação Total (Net New Money)</span>
+              <div className="text-3xl font-black text-black tracking-tight font-display text-emerald-650">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(pacing.summary.totalVolume)}
+              </div>
+              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Volume financeiro líquido alocado e faturado corporativo.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Contratos Ganhos</span>
+              <div className="text-3xl font-black text-black tracking-tight font-display">
+                {pacing.summary.wonCount} <span className="text-xs text-neutral-400 font-normal">deals</span>
+              </div>
+              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Transações com status GAINED concluídas com sucesso.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
+              <span className="text-[10px] font-black text-amber-600 bg-amber-50 rounded border border-amber-200 px-1.5 py-0.5 leading-none uppercase tracking-widest inline-block mb-1.5 font-mono text-[9px] font-extrabold">
+                ⚡ Predictor Pacing
+              </span>
+              <div className="text-3xl font-black text-black tracking-tight font-display">
+                {pacing.summary.avgSalesCycleGlobal} <span className="text-xs text-neutral-400 font-normal">dias úteis</span>
+              </div>
+              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Média global do ciclo de vendas (lead creation ➔ win).</p>
+            </div>
+          </div>
+
+          {/* Quick-Access Deal Registry (Lançador de Negócios) Form Drawer */}
+          <div className="bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-2 font-display">
+                  <Coins className="w-4.5 h-4.5 text-indigo-600" />
+                  Registro e Lançamento de Negócios Fechados
+                </h3>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  Insira novos contratos concluídos para recalcular em tempo real o Roi dos SDRs, o Funil Wave e a Coorte de Conversão.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLaunchForm(!showLaunchForm)}
+                className="px-4 py-2 bg-neutral-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-3xs cursor-pointer"
+              >
+                {showLaunchForm ? (
+                  <>Ocultar Painel</>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Registrar Novo Contrato
+                  </>
+                )}
+              </button>
+            </div>
+
+            {showLaunchForm && (
+              <form onSubmit={handleLaunchSubmit} className="mt-5 pt-5 border-t border-dashed border-neutral-200 grid grid-cols-1 md:grid-cols-3 gap-4.5 animate-fade-in">
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Nome do Cliente / Operação</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Grupo JBS, Dr. Rodrigo Barros"
+                    value={newClient}
+                    onChange={(e) => setNewClient(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Volume Financeiro (R$ Captação)</label>
+                  <input
+                    type="number"
+                    required
+                    value={newVolume}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setNewVolume(v);
+                      const parsed = parseFloat(v);
+                      if (!isNaN(parsed)) {
+                        const estimated = String(Math.round(parsed * 0.01));
+                        setSelectedProducts(prev => {
+                          if (prev.length > 0) {
+                            return prev.map((item, idx) => idx === 0 ? { ...item, receitaEstimada: estimated } : item);
+                          } else {
+                            return [{ produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: estimated }];
+                          }
+                        });
+                      }
+                    }}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Status do Negócio</label>
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value as any)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-bold"
+                  >
+                    <option value="GANHO">🟩 GANHO (Concluído)</option>
+                    <option value="EM_NEGOCIACAO">🟨 EM NEGOCIAÇÃO</option>
+                    <option value="PERDIDO">🟥 PERDIDO</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Origem do Cliente</label>
+                  <select
+                    value={newOrigemCliente}
+                    onChange={(e) => setNewOrigemCliente(e.target.value as any)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-bold"
+                  >
+                    <option value="ABERTURA_CONTA">🆕 Abertura de Conta</option>
+                    <option value="TROCA_ASSESSORIA">🔄 Troca de Assessoria</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Situação do Cliente</label>
+                  <select
+                    value={newSituacaoCliente}
+                    onChange={(e) => setNewSituacaoCliente(e.target.value as any)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-bold"
+                  >
+                    <option value="ATIVO_APORTANDO">📈 ATIVO (Fazendo Aportes)</option>
+                    <option value="INATIVO_SEM_APORTES">📉 INATIVO (Sem Aportes)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">SDR Responsável (Origem)</label>
+                  <select
+                    value={newSdrId}
+                    onChange={(e) => setNewSdrId(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-bold"
+                  >
+                    <option value="">-- Sem SDR / Direto ao Assessor --</option>
+                    {activeSDRs.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.team || 'Mesa Geral'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Assessor Vinculado (Fechamento)</label>
+                  <select
+                    value={newAssessorId}
+                    onChange={(e) => setNewAssessorId(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900 font-bold"
+                  >
+                    <option value="">-- Selecione o Assessor --</option>
+                    {activeAssessores.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Data Criação do Lead</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="DD-MM-YYYY"
+                    value={newCreateDate}
+                    onChange={(e) => setNewCreateDate(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Data de Fechamento</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="DD-MM-YYYY"
+                    value={newCloseDate}
+                    onChange={(e) => setNewCloseDate(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+
+                {/* Sub-Card: Composition of Products and specific revenues */}
+                <div className="md:col-span-3 bg-neutral-50 p-4.5 rounded-xl border border-neutral-250 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-1.5 font-display">
+                        <Briefcase className="w-4 h-4 text-indigo-600" />
+                        Composição de Produtos &amp; Receitas Individuais
+                      </h4>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        Adicione todos os produtos contratados por este cliente. Cada um com sua receita independente.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addProductRow}
+                      className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                      Adicionar Produto
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {selectedProducts.map((p, index) => (
+                      <div key={index} className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-lg border border-neutral-200 animate-fade-in">
+                        <div className="flex-1 w-full">
+                          <label className="block text-[9px] font-mono font-black text-neutral-400 uppercase mb-0.5">Produto #{index + 1}</label>
+                          <select
+                            value={p.produtoCategoria}
+                            onChange={(e) => updateProductRow(index, 'produtoCategoria', e.target.value as ProductType)}
+                            className="w-full text-xs p-2 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none font-bold"
+                          >
+                            <option value="INVESTIMENTOS_XP">Investimentos XP</option>
+                            <option value="OPERACAO_COMPROMISSADA">Operação Compromissada</option>
+                            <option value="CAMBIO">Câmbio</option>
+                            <option value="PREVIDENCIA">Previdência</option>
+                            <option value="SEGURO_VIDA">Seguro de Vida</option>
+                            <option value="SEGURO_EM_VIDA">Seguro em Vida</option>
+                            <option value="RESPONSABILIDADE_CIVIL">Responsabilidade Civil</option>
+                            <option value="CONSORCIO_IMOBILIARIO">Consórcio Imobiliário</option>
+                            <option value="CONSORCIO_AUTOMOTIVO">Consórcio Automotivo</option>
+                            <option value="SUCESSAO_PATRIMONIAL">Sucessão Patrimonial</option>
+                            <option value="CONTABILIDADE">Contabilidade</option>
+                          </select>
+                        </div>
+
+                        <div className="w-full sm:w-64">
+                          <label className="block text-[9px] font-mono font-black text-neutral-400 uppercase mb-0.5">Receita Estimada (Comissão R$)</label>
+                          <input
+                            type="number"
+                            required
+                            value={p.receitaEstimada}
+                            onChange={(e) => updateProductRow(index, 'receitaEstimada', e.target.value)}
+                            placeholder="Ex/ 15000"
+                            className="w-full text-xs p-2 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none font-mono font-black"
+                          />
+                        </div>
+
+                        {selectedProducts.length > 1 && (
+                          <div className="self-end pb-0.5">
+                            <button
+                              type="button"
+                              onClick={() => removeProductRow(index)}
+                              className="p-1.5 text-neutral-400 hover:text-red-650 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Remover este produto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-2 border-t border-dashed border-neutral-200 flex justify-between items-center text-xs font-mono font-black text-neutral-800">
+                    <span>Total de Produtos: {selectedProducts.length}</span>
+                    <span className="text-indigo-600">
+                      Receita Total Somada: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(
+                        selectedProducts.reduce((sum, p) => sum + (parseFloat(p.receitaEstimada) || 0), 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono font-black text-neutral-500 uppercase mb-1">Data de Fechamento</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="DD-MM-YYYY"
+                    value={newCloseDate}
+                    onChange={(e) => setNewCloseDate(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-neutral-50 border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+
+                <div className="md:col-span-3 flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowLaunchForm(false)}
+                    className="px-4 py-2 border border-neutral-300 rounded-xl text-xs font-bold uppercase text-neutral-700 hover:bg-neutral-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-black hover:bg-neutral-900 text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer shadow-3xs flex items-center gap-1.5"
+                  >
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    Gravar Negócio no Banco
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          {/* Market Share Product Mix & Sales Cycle section */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Product Mix breakdown table */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs space-y-4">
+              <div>
+                <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-1.5 font-display">
+                  <Briefcase className="w-4.5 h-4.5 text-neutral-800" />
+                  Divisão de Negócios (Market Share & Product Mix)
+                </h4>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  Demonstrativo consolidado por linha de produtos Wealth, acompanhando o ciclo médio de fechamento por categoria comercial de cada lead faturado.
+                </p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-neutral-100 border-b border-neutral-300 text-neutral-600 font-mono text-[9px] font-black uppercase">
+                      <th className="p-2.5">Linha de Negócio</th>
+                      <th className="p-2.5 text-right">Volume (Captação)</th>
+                      <th className="p-2.5 text-right">Comissões (Receita)</th>
+                      <th className="p-2.5 text-center">Ciclo Médio</th>
+                      <th className="p-2.5 text-center">Vendas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-150 font-mono">
+                    {pacing.productStats.map((item) => {
+                      const sharePercent = pacing.summary.totalRevenue > 0 
+                        ? Math.round((item.totalRevenue / pacing.summary.totalRevenue) * 100)
+                        : 0;
+                      
+                      const labels: Record<ProductType, string> = {
+                        'INVESTIMENTOS_XP': 'Alocação XP',
+                        'OPERACAO_COMPROMISSADA': 'Compromissada',
+                        'CAMBIO': 'Câmbio',
+                        'PREVIDENCIA': 'Previdência',
+                        'SEGURO_VIDA': 'Seguro de Vida',
+                        'SEGURO_EM_VIDA': 'Seguro em Vida',
+                        'RESPONSABILIDADE_CIVIL': 'Civil Corp',
+                        'CONSORCIO_IMOBILIARIO': 'Consórcio Imob',
+                        'CONSORCIO_AUTOMOTIVO': 'Consórcio Auto',
+                        'SUCESSAO_PATRIMONIAL': 'Sucessão Fam',
+                        'CONTABILIDADE': 'Contabilidade B2B'
+                      };
+
+                      return (
+                        <tr key={item.category} className="hover:bg-neutral-50">
+                          <td className="p-2.5 font-sans font-bold text-neutral-900 truncate max-w-44">
+                            {labels[item.category] || item.category}
+                          </td>
+                          <td className="p-2.5 text-right text-neutral-600 font-bold">
+                            {item.totalVolume > 0 ? (
+                              new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(item.totalVolume)
+                            ) : (
+                              <span className="text-neutral-300">—</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right font-black text-indigo-750">
+                            {item.totalRevenue > 0 ? (
+                              <div className="flex flex-col items-end leading-none">
+                                <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(item.totalRevenue)}</span>
+                                <span className="text-[8.5px] text-neutral-400 font-medium mt-0.5">{sharePercent}% mix</span>
+                              </div>
+                            ) : (
+                              <span className="text-neutral-300">—</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-center font-bold">
+                            {item.averageCycleDays > 0 ? (
+                              <span className="p-1 px-2 bg-neutral-100 rounded text-neutral-800 text-[10px]">
+                                {item.averageCycleDays} dias
+                              </span>
+                            ) : (
+                              <span className="text-neutral-300">—</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-center text-neutral-800 font-extrabold">
+                            {item.dealCount > 0 ? (
+                              <span className="font-mono">{item.dealCount} deals</span>
+                            ) : (
+                              <span className="text-neutral-300 font-normal">0</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Product Mix Bar Chart */}
+            <div className="lg:col-span-5 bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs flex flex-col justify-between">
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase text-neutral-700 tracking-wider flex items-center gap-1.5 font-display">
+                  <BarChart3 className="w-4 h-4 text-black" />
+                  Faturamento por Linha (BRL)
+                </h4>
+                <div className="h-64 pt-2.5">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={pacing.productStats.filter(p => p.totalRevenue > 0).slice(0, 6).map(p => {
+                        const mapper: Record<ProductType, string> = {
+                          'INVESTIMENTOS_XP': 'XP',
+                          'OPERACAO_COMPROMISSADA': 'Comprom.',
+                          'CAMBIO': 'Câmbio',
+                          'PREVIDENCIA': 'Previd.',
+                          'SEGURO_VIDA': 'Seg. Vida',
+                          'SEGURO_EM_VIDA': 'Seg. em Vida',
+                          'RESPONSABILIDADE_CIVIL': 'RC Corp',
+                          'CONSORCIO_IMOBILIARIO': 'Cons. Imob',
+                          'CONSORCIO_AUTOMOTIVO': 'Cons. Auto',
+                          'SUCESSAO_PATRIMONIAL': 'Sucessão',
+                          'CONTABILIDADE': 'Contab.'
+                        };
+                        return {
+                          name: mapper[p.category] || p.category,
+                          Receita: p.totalRevenue,
+                        };
+                      })}
+                      margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f2f2f2" />
+                      <XAxis dataKey="name" style={{ fontSize: '9px', fontWeight: 'bold' }} />
+                      <YAxis tickFormatter={(v) => 'R$ ' + (v / 1000) + 'k'} style={{ fontSize: '9px', fontWeight: 'bold' }} />
+                      <Tooltip formatter={(v: any) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v), 'Receita']} contentStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                      <Bar dataKey="Receita" fill="#111" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <p className="text-[10px] text-neutral-500 font-mono leading-relaxed mt-2 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+                💡 O grafico exibe as 6 categorias líderes em receita faturada. A alocação geral e as operações garantidas permanecem como os geradores de taxas táticas mais rentáveis.
+              </p>
+            </div>
+          </div>
+
+          {/* Symmetrical 2D Cohort Conversion Matrix */}
+          <div className="bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs space-y-4">
+            <div>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-1.5 font-display">
+                    <Table className="w-4.5 h-4.5 text-indigo-600" />
+                    Coorte de Conversão (Lead Gen Month vs Win Month)
+                  </h4>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    Cruzamento matricial ligando a captação temporal: mês em que o lead foi criado (origem) vs mês fiscal em que houve a confirmação ganha do negócio.
+                  </p>
+                </div>
+                <span className="p-1 px-2.5 bg-neutral-100 text-neutral-800 text-[9px] font-black font-mono rounded border border-neutral-250">
+                  METRIC: VOLUME BRUTO
+                </span>
+              </div>
+            </div>
+
+            {pacing.cohortMatrix.creationMonths.length === 0 ? (
+              <div className="p-8 text-center bg-neutral-50 border border-dashed border-neutral-250 rounded-xl">
+                <p className="text-xs text-neutral-500 font-medium">Você precisa cadastrar negócios vencidos (GANHO) que tenham as datas de criação dadas para popular a matriz de coorte.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-[11px]">
+                  <thead>
+                    <tr className="bg-neutral-100 border-b-2 border-neutral-300 font-mono text-[9px] font-black uppercase text-neutral-600">
+                      <th className="p-3 border-r border-neutral-200">Mês de Geração</th>
+                      {pacing.cohortMatrix.closingMonths.map((m) => {
+                        const parts = m.split('-');
+                        return (
+                          <th key={m} className="p-3 text-center border-r border-neutral-200">
+                            Closed {parts[1]}/{parts[0]}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200 font-mono">
+                    {pacing.cohortMatrix.creationMonths.map((rowM) => {
+                      const rowParts = rowM.split('-');
+                      return (
+                        <tr key={rowM} className="hover:bg-neutral-50">
+                          <td className="p-3 font-sans font-black text-neutral-950 bg-neutral-50/50 border-r border-neutral-200 font-display">
+                            Lead Gen {rowParts[1]}/{rowParts[0]}
+                          </td>
+                          {pacing.cohortMatrix.closingMonths.map((colM) => {
+                            const cell = pacing.cohortMatrix.cells[rowM]?.[colM];
+                            const isWinFuture = colM >= rowM;
+                            
+                            return (
+                              <td 
+                                key={colM} 
+                                className={`p-3 text-center border-r border-neutral-200 text-[11px] leading-tight transition-all ${
+                                  cell && cell.volume > 0 
+                                    ? 'bg-emerald-50/50 font-bold text-emerald-950 hover:bg-emerald-100/70' 
+                                    : !isWinFuture 
+                                    ? 'bg-neutral-100/40 text-neutral-300' 
+                                    : 'text-neutral-350'
+                                }`}
+                              >
+                                {cell && cell.volume > 0 ? (
+                                  <div className="space-y-0.5">
+                                    <div className="font-extrabold text-neutral-900">
+                                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(cell.volume)}
+                                    </div>
+                                    <div className="text-[8.5px] text-neutral-500 font-normal">
+                                      {cell.count} contrato(s)
+                                    </div>
+                                  </div>
+                                ) : !isWinFuture ? (
+                                  <span className="text-[9px] font-bold text-neutral-300 italic">impossível</span>
+                                ) : (
+                                  <span className="text-neutral-300 font-light">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SDR ROI / Efficiency Rating Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Efficiency ranking table */}
+            <div className="lg:col-span-8 bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs space-y-4">
+              <div>
+                <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-1.5 font-display">
+                  <Award className="w-4.5 h-4.5 text-indigo-600" />
+                  Ranking de SDRs por ROI e Faturamento
+                </h4>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  Eficiência direta de originação e geração por SDR. Classificação ordenada pela soma cumulativa de comissão estimada gasta em contratos ganhos.
+                </p>
+              </div>
+
+              {pacing.sdrRoiRanking.length === 0 ? (
+                <div className="p-8 text-center bg-neutral-50 border border-dashed border-neutral-250 rounded-xl">
+                  <p className="text-xs text-neutral-500">Nenhuma transação cadastrada ganha com SDR associado com sucesso.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b border-neutral-300 text-neutral-600 font-mono text-[9px] font-black uppercase">
+                        <th className="p-2.5 text-center">Rank</th>
+                        <th className="p-2.5">SDR Profissional</th>
+                        <th className="p-2.5 text-right">Volume Ganhos</th>
+                        <th className="p-2.5 text-right">Receita/ROI Estimado</th>
+                        <th className="p-2.5 text-center">Ciclo Médio</th>
+                        <th className="p-2.5 text-center">Deals</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-150 font-mono">
+                      {pacing.sdrRoiRanking.map((sdr, index) => {
+                        const placementMedals = ['🥇', '🥈', '🥉'];
+                        return (
+                          <tr key={sdr.sdrId} className="hover:bg-neutral-50">
+                            <td className="p-2.5 text-center text-xs font-bold text-neutral-900">
+                              {placementMedals[index] || `${index + 1}º`}
+                            </td>
+                            <td className="p-2.5">
+                              <span className="font-sans font-bold text-neutral-900 block">{sdr.sdrName}</span>
+                              <span className="text-[8.5px] uppercase text-neutral-450 block">SDR Alocado</span>
+                            </td>
+                            <td className="p-2.5 text-right text-neutral-600 font-medium">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(sdr.totalVolume)}
+                            </td>
+                            <td className="p-2.5 text-right text-xs font-black text-indigo-750">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(sdr.totalRevenue)}
+                            </td>
+                            <td className="p-2.5 text-center font-bold">
+                              <span className="inline-block p-1 px-1.5 bg-neutral-100 rounded text-neutral-700 text-[10px]">
+                                {sdr.averageCycleDays} dias
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-center text-neutral-900 font-black">
+                              {sdr.closedCount} ganhos
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Efficiency analytics message box */}
+            <div className="lg:col-span-4 bg-white rounded-2xl border-2 border-neutral-900 p-5 shadow-3xs flex flex-col justify-between">
+              <div className="space-y-3.5">
+                <span className="p-1 px-2.5 bg-[#111] text-white text-[8px] font-black uppercase tracking-widest rounded leading-none inline-block">
+                  Audit Insight
+                </span>
+                <h4 className="text-xs font-black uppercase font-display select-none">Métricas SDR ROI</h4>
+                <p className="text-[11px] text-neutral-600 leading-relaxed font-sans">
+                  Diferente do simples volume de reuniões agendadas, o **SDR ROI** mede qual profissional gerou o maior retorno econômico de fato faturado (receitas de comissões estimadas em contratos de wealth ganhas).
+                </p>
+                <p className="text-[11px] text-neutral-600 leading-relaxed font-sans border-t border-dashed border-neutral-200 pt-3">
+                  Profissionais com ciclos de vendas curtos garantem maior rotatividade por lead, reduzindo os custos de aquisição do cliente (CAC).
+                </p>
+              </div>
+
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-[10.5px] font-mono leading-none flex items-center justify-between text-neutral-500 mt-4.5">
+                <span>Vigência Corrente</span>
+                <strong className="text-neutral-900">{currentMonth}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Transaction table log */}
+          <div className="bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-1.5 font-display">
+                  <Layers className="w-4.5 h-4.5 text-black" />
+                  Fila Geral de Oportunidades & Histórico de Fechamento
+                </h4>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
+                  Tabela geral de auditoria e exclusão direta de qualquer contrato para manter a higienização da integridade do Neon DB.
+                </p>
+              </div>
+            </div>
+
+            {pacing.negocios.length === 0 ? (
+              <div className="p-8 text-center bg-neutral-50 border border-dashed border-neutral-250 rounded-xl">
+                <p className="text-xs text-neutral-400 font-medium">Nenhum contrato cadastrado na mesa. Use o botão "Registrar Novo Contrato" para iniciar.</p>
+              </div>
+            ) : (() => {
+              const filteredNegocios = [...pacing.negocios].filter((deal) => {
+                const dealOrigem = deal.origemCliente || 'ABERTURA_CONTA';
+                const dealSituacao = deal.situacaoCliente || 'ATIVO_APORTANDO';
+                
+                const matchOrigem = filterOrigem === 'todos' || dealOrigem === filterOrigem;
+                const matchSituacao = filterSituacao === 'todos' || dealSituacao === filterSituacao;
+                const matchStatus = filterStatus === 'todos' || deal.status === filterStatus;
+                
+                return matchOrigem && matchSituacao && matchStatus;
+              });
+
+              return (
+                <div className="space-y-4">
+                  {/* Interactive Filters Bar */}
+                  <div className="bg-neutral-50 p-3.5 border-2 border-neutral-200 rounded-xl flex flex-wrap items-center gap-4 text-xs font-mono">
+                    <div className="flex items-center gap-2">
+                      <span className="text-neutral-500 font-black uppercase text-[9px] tracking-wider">Origem:</span>
+                      <select
+                        value={filterOrigem}
+                        onChange={(e) => setFilterOrigem(e.target.value)}
+                        className="bg-white p-1.5 px-2 border border-neutral-350 rounded-lg font-bold text-neutral-950 focus:outline-none"
+                      >
+                        <option value="todos">⭐ Todos</option>
+                        <option value="ABERTURA_CONTA">🆕 Abertura de Conta</option>
+                        <option value="TROCA_ASSESSORIA">🔄 Troca de Assessoria</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-neutral-500 font-black uppercase text-[9px] tracking-wider">Atividade:</span>
+                      <select
+                        value={filterSituacao}
+                        onChange={(e) => setFilterSituacao(e.target.value)}
+                        className="bg-white p-1.5 px-2 border border-neutral-350 rounded-lg font-bold text-neutral-950 focus:outline-none"
+                      >
+                        <option value="todos">⭐ Todos</option>
+                        <option value="ATIVO_APORTANDO">📈 Ativo (Aportamentos)</option>
+                        <option value="INATIVO_SEM_APORTES">📉 Inativo (Sem Aportes)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-neutral-500 font-black uppercase text-[9px] tracking-wider">Status:</span>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="bg-white p-1.5 px-2 border border-neutral-350 rounded-lg font-bold text-neutral-950 focus:outline-none"
+                      >
+                        <option value="todos">⭐ Todos</option>
+                        <option value="GANHO">🟩 GANHO</option>
+                        <option value="EM_NEGOCIACAO">🟨 EM NEGOCIAÇÃO</option>
+                        <option value="PERDIDO">🟥 PERDIDO</option>
+                      </select>
+                    </div>
+
+                    {(filterOrigem !== 'todos' || filterSituacao !== 'todos' || filterStatus !== 'todos') && (
+                      <button
+                        onClick={() => {
+                          setFilterOrigem('todos');
+                          setFilterSituacao('todos');
+                          setFilterStatus('todos');
+                        }}
+                        className="px-2.5 py-1 text-[10px] bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold uppercase transition-all cursor-pointer"
+                      >
+                        Limpar Filtros
+                      </button>
+                    )}
+
+                    <div className="ml-auto text-[10.5px] font-black text-neutral-600 bg-neutral-200 px-2 py-0.5 rounded-md leading-none uppercase">
+                      Total: {filteredNegocios.length} / {pacing.negocios.length}
+                    </div>
+                  </div>
+
+                  {filteredNegocios.length === 0 ? (
+                    <div className="p-8 text-center bg-neutral-50 border border-dashed border-neutral-250 rounded-xl">
+                      <p className="text-xs text-neutral-500 font-bold">Nenhum contrato corresponde aos filtros selecionados.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-neutral-150 border-b border-neutral-300 text-neutral-650 font-mono text-[9px] font-black uppercase">
+                            <th className="p-2.5">Data Gen</th>
+                            <th className="p-2.5">Cliente</th>
+                            <th className="p-2.5">Origem</th>
+                            <th className="p-2.5">Atividade</th>
+                            <th className="p-2.5">Linha / Canal</th>
+                            <th className="p-2.5 text-right">Volume</th>
+                            <th className="p-2.5 text-right">Receita Est.</th>
+                            <th className="p-2.5">SDR / Assessor</th>
+                            <th className="p-2.5 text-center">Status</th>
+                            <th className="p-2.5 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-200 font-mono">
+                          {filteredNegocios.reverse().map((deal) => {
+                            const createFormatted = deal.dataCriacaoLead ? deal.dataCriacaoLead.substring(0, 10).split('-').reverse().join('/') : '—';
+                            const dealOrigem = deal.origemCliente || 'ABERTURA_CONTA';
+                            const dealSituacao = deal.situacaoCliente || 'ATIVO_APORTANDO';
+                            
+                            const badgeStatus: Record<string, string> = {
+                              'GANHO': 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                              'EM_NEGOCIACAO': 'bg-amber-50 text-amber-800 border-amber-200',
+                              'PERDIDO': 'bg-red-50 text-red-800 border-red-200'
+                            };
+
+                            return (
+                              <tr key={deal.id} className="hover:bg-neutral-50">
+                                <td className="p-2.5 text-neutral-500 text-[10px] whitespace-nowrap">
+                                  {createFormatted}
+                                </td>
+                                <td className="p-2.5 font-sans font-bold text-neutral-900 truncate max-w-40">
+                                  {deal.clientName}
+                                </td>
+                                <td className="p-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextOrigem = dealOrigem === 'TROCA_ASSESSORIA' ? 'ABERTURA_CONTA' : 'TROCA_ASSESSORIA';
+                                      updateNegocio(deal.id, { origemCliente: nextOrigem });
+                                    }}
+                                    className="p-1 px-1.5 rounded text-[8px] font-black tracking-wide uppercase whitespace-nowrap select-none hover:opacity-80 active:scale-95 transition-all text-left bg-neutral-100 border border-neutral-300 text-neutral-800 cursor-pointer"
+                                    title="Clique para alternar a Origem do Cliente"
+                                  >
+                                    {dealOrigem === 'TROCA_ASSESSORIA' ? '🔄 Troca' : '🆕 Abertura'}
+                                  </button>
+                                </td>
+                                <td className="p-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextSituacao = dealSituacao === 'INATIVO_SEM_APORTES' ? 'ATIVO_APORTANDO' : 'INATIVO_SEM_APORTES';
+                                      updateNegocio(deal.id, { situacaoCliente: nextSituacao });
+                                    }}
+                                    className={`p-1 px-1.5 rounded text-[8px] font-black tracking-wide uppercase whitespace-nowrap select-none hover:opacity-80 active:scale-95 transition-all text-left cursor-pointer ${
+                                      dealSituacao === 'ATIVO_APORTANDO'
+                                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                        : 'bg-red-50 border border-red-250 text-red-700'
+                                    }`}
+                                    title="Clique para alternar a Atividade do Cliente"
+                                  >
+                                    {dealSituacao === 'ATIVO_APORTANDO' ? '📈 Ativo' : '📉 Inativo'}
+                                  </button>
+                                </td>
+                                <td className="p-2.5 font-sans font-medium text-neutral-600">
+                                  <div className="flex flex-wrap gap-1.5 max-w-xs">
+                                    {deal.produtos && deal.produtos.length > 0 ? (
+                                      deal.produtos.map((p, idx) => (
+                                        <span key={idx} className="p-1 px-1.5 bg-neutral-100 border border-neutral-200 dark:border-neutral-700 rounded text-neutral-800 dark:text-neutral-300 text-[9px] uppercase font-mono tracking-tight font-extrabold leading-none" title={`Receita: R$ ${p.receitaEstimada}`}>
+                                          {p.produtoCategoria}: R$ {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(p.receitaEstimada)}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="p-1 px-1.5 bg-neutral-100 border border-neutral-200 dark:border-neutral-700 rounded text-neutral-800 dark:text-neutral-300 text-[9px] uppercase font-mono tracking-tight font-extrabold leading-none">
+                                        {deal.produtoCategoria}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2.5 text-right text-neutral-900 font-bold">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(deal.volumeFinanceiro)}
+                                </td>
+                                <td className="p-2.5 text-right text-indigo-750 font-black">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(deal.receitaEstimada)}
+                                </td>
+                                <td className="p-2.5 font-sans">
+                                  <div className="leading-tight">
+                                    <span className="text-neutral-900 font-semibold text-[10.5px] block">{deal.sdrName || 'Direto'}</span>
+                                    <span className="text-[9px] text-neutral-450 block font-mono font-sans">Assr: {deal.assessorName || 'Sem assessor'}</span>
+                                  </div>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <span className={`inline-block p-1 px-2.5 rounded border text-[9px] font-semibold leading-none font-sans ${badgeStatus[deal.status] || 'bg-neutral-100'}`}>
+                                    {deal.status === 'GANHO' ? 'GANHO' : deal.status === 'PERDIDO' ? 'PERDIDO' : 'EM NEGOCIAÇÃO'}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(`Excluir permanentemente o negócio de ${deal.clientName}?`)) {
+                                        deleteNegocio(deal.id);
+                                      }
+                                    }}
+                                    className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-all"
+                                    title="Deletar Contrato"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+        </div>
+      ) : activeSubTab === 'visual' ? (
         <div className="space-y-6">
           
           {/* NEW: Dynamic monthly tracking graph */}
@@ -1161,7 +2134,7 @@ export default function ReportsSection({
                   <button
                     type="button"
                     onClick={handleExportSdrCSV}
-                    className="w-full py-2 bg-black hover:bg-neutral-900 text-[#FAF9F5] text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2 bg-black hover:bg-neutral-900 text-brand-sand text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Baixar SDRs (CSV)
@@ -1180,7 +2153,7 @@ export default function ReportsSection({
                   <button
                     type="button"
                     onClick={handleExportMatchesCSV}
-                    className="w-full py-2 bg-black hover:bg-neutral-900 text-[#FAF9F5] text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2 bg-black hover:bg-neutral-900 text-brand-sand text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Baixar Pareamentos (CSV)
@@ -1199,7 +2172,7 @@ export default function ReportsSection({
                   <button
                     type="button"
                     onClick={handleExportTeamsCSV}
-                    className="w-full py-2 bg-black hover:bg-neutral-900 text-[#FAF9F5] text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full py-2 bg-black hover:bg-neutral-900 text-brand-sand text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Baixar Equipes (CSV)
@@ -1225,7 +2198,7 @@ export default function ReportsSection({
               <button
                 type="button"
                 onClick={handleCopyToClipboard}
-                className="px-3.5 py-1.5 text-xs font-black bg-black text-[#FAF9F5] hover:text-white rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:bg-neutral-850 shrink-0"
+                className="px-3.5 py-1.5 text-xs font-black bg-black text-brand-sand hover:text-white rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:bg-neutral-850 shrink-0"
               >
                 {copied ? <CheckCircle className="w-3.5 h-3.5 text-white animate-pulse" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copiado!' : 'Copiar Texto'}
@@ -1306,7 +2279,7 @@ export default function ReportsSection({
                       </div>
                       <div className="text-right space-y-0.5">
                         <div className="text-[10px] font-black text-neutral-400 uppercase leading-none">Célula Ativa</div>
-                        <div className="font-bold text-[#faf9f5] bg-black px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider leading-none">CRM-PRO</div>
+                        <div className="font-bold text-brand-sand bg-black px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider leading-none">CRM-PRO</div>
                       </div>
                     </div>
                   </>
@@ -1488,7 +2461,7 @@ export default function ReportsSection({
                   </div>
                 );
               })() : (
-                <p className="text-xs text-neutral-400 italic">Selecione um profissional para ver seu scorecard.</p>
+                <p className="text-xs text-neutral-400 italic">Selecione um profissional para ver seu painel de desempenho.</p>
               )}
             </div>
 

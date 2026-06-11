@@ -131,4 +131,41 @@ export interface TeamCampaign {
   reward?: string;
 }
 
+export type ProductType = 
+  | 'INVESTIMENTOS_XP'
+  | 'OPERACAO_COMPROMISSADA'
+  | 'CAMBIO'
+  | 'PREVIDENCIA'
+  | 'SEGURO_VIDA'
+  | 'SEGURO_EM_VIDA'
+  | 'RESPONSABILIDADE_CIVIL'
+  | 'CONSORCIO_IMOBILIARIO'
+  | 'CONSORCIO_AUTOMOTIVO'
+  | 'SUCESSAO_PATRIMONIAL'
+  | 'CONTABILIDADE';
+
+export interface NegocioFechadoProduto {
+  produtoCategoria: ProductType;
+  receitaEstimada: number;
+}
+
+export interface NegocioFechado {
+  id: string;
+  sdrId?: string;
+  sdrName?: string;
+  assessorId?: string;
+  assessorName?: string;
+  clientName: string;
+  dataCriacaoLead: string;
+  dataFechamento: string;
+  produtoCategoria: ProductType;
+  status: 'GANHO' | 'PERDIDO' | 'EM_NEGOCIACAO';
+  volumeFinanceiro: number;
+  receitaEstimada: number;
+  produtos?: NegocioFechadoProduto[];
+  origemCliente?: 'TROCA_ASSESSORIA' | 'ABERTURA_CONTA';
+  situacaoCliente?: 'ATIVO_APORTANDO' | 'INATIVO_SEM_APORTES';
+}
+
+
 

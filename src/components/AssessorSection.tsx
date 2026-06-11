@@ -503,7 +503,7 @@ export default function AssessorSection({
                           {isDeleting ? (
                             <div 
                               onClick={(e) => e.stopPropagation()} 
-                              className="absolute inset-0 bg-neutral-950/95 backdrop-blur-[1px] rounded-xl z-30 flex flex-col items-center justify-center p-4 text-center text-[#FAF9F5] select-none animate-fade-in"
+                              className="absolute inset-0 bg-neutral-950/95 backdrop-blur-[1px] rounded-xl z-30 flex flex-col items-center justify-center p-4 text-center text-brand-sand select-none animate-fade-in"
                             >
                               <div className="w-9 h-9 bg-red-500/15 border border-red-500/40 rounded-full flex items-center justify-center text-red-400 mb-2.5 animate-pulse">
                                 <AlertTriangle className="w-5 h-5" />

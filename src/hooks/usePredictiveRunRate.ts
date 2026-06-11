@@ -61,23 +61,29 @@ export function usePredictiveRunRate(derivedSdrsForActiveMonth: SDR[], currentMo
 
   // Predictive Run-Rate / Forecasting logic
   const sdrPredictions = useMemo(() => {
-    const { elapsedBusinessDays, totalBusinessDays } = DateService.getElapsedBusinessDays(currentMonth);
-    const workDaysPassed = elapsedBusinessDays;
-
     return derivedSdrsForActiveMonth.map(sdr => {
+      // Calcular dias úteis decorridos e totais de forma proporcional para este SDR específico,
+      // baseando-se em sua data de admissão e no mês que está sendo avaliado.
+      const { elapsedBusinessDays: sdrElapsedDays, totalBusinessDays: sdrTotalDays } = 
+        DateService.getSdrBusinessDays(sdr.admissionDate, currentMonth);
+
       const realizado = sdr.agendamentosCount || 0;
       const meta = sdr.metaAgendamentos || 20;
 
-      // Média de agendamento por dia útil: (realizado) / (dias úteis decorridos)
-      const dailyAvg = workDaysPassed > 0 ? (realizado / workDaysPassed) : 0;
+      // Média de agendamento por dia útil considerando apenas o período em que este SDR esteve ativo no mês
+      const dailyAvg = sdrElapsedDays > 0 ? (realizado / sdrElapsedDays) : 0;
 
-      // Projeção de Fechamento (Run Rate): média diária anterior multiplicada pelo total de dias úteis do mês
-      const forecastValue = dailyAvg * totalBusinessDays;
+      // Projeção de Fechamento (Run Rate): média diária anterior multiplicada pelo total de dias de atividade do SDR neste mês
+      const forecastValue = sdrElapsedDays > 0 ? (dailyAvg * sdrTotalDays) : 0;
       const forecastPercent = meta > 0 ? (forecastValue / meta) * 100 : 0;
 
       // Tag de Status do Fechamento
       let statusPreditivo: 'OUTLIER' | 'NO_CAMINHO' | 'EM_RISCO' = 'EM_RISCO';
-      if (forecastValue > meta * 1.25 && realizado > meta * 1.25) {
+      
+      if (sdrElapsedDays === 0) {
+        // Se ainda não iniciou ou não teve dias úteis decorridos de atividade neste mês, assume "NO_CAMINHO" por segurança
+        statusPreditivo = 'NO_CAMINHO';
+      } else if (forecastValue > meta * 1.25 && realizado > meta * 1.25) {
         statusPreditivo = 'OUTLIER';
       } else if (forecastValue >= meta) {
         statusPreditivo = 'NO_CAMINHO';

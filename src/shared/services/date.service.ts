@@ -156,6 +156,74 @@ export const DateService = {
   },
 
   /**
+   * Determina de forma proporcional o total de dias úteis e dias úteis decorridos do SDR com base na sua data de admissão (admissionDate), 
+   * garantindo que novas admissões no meio do mês tenham métricas justas e balanceadas.
+   */
+  getSdrBusinessDays(admissionDateStr: string | undefined, monthKey: string): { elapsedBusinessDays: number; totalBusinessDays: number } {
+    try {
+      const [year, month] = monthKey.split('-').map(Number);
+      const parsedMonth = parse(monthKey, 'yyyy-MM', new Date());
+      const daysInMonth = getDaysInMonth(parsedMonth);
+
+      let effectiveStartDay = 1;
+      if (admissionDateStr) {
+        const [admYear, admMonth, admDay] = admissionDateStr.split('-').map(Number);
+        if (!isNaN(admYear) && !isNaN(admMonth) && !isNaN(admDay)) {
+          if (admYear < year || (admYear === year && admMonth < month)) {
+            effectiveStartDay = 1;
+          } else if (admYear > year || (admYear === year && admMonth > month)) {
+            effectiveStartDay = daysInMonth + 1;
+          } else {
+            effectiveStartDay = admDay;
+          }
+        }
+      }
+
+      let totalBusinessDays = 0;
+      for (let day = effectiveStartDay; day <= daysInMonth; day++) {
+        const d = new Date(year, month - 1, day);
+        const dayOfWeek = d.getDay();
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !HOLIDAYS_2026.includes(dateStr)) {
+          totalBusinessDays++;
+        }
+      }
+
+      // Dynamic baseline: always the actual current date
+      const today = new Date();
+      const baselineYear = today.getFullYear();
+      const baselineMonth = today.getMonth() + 1; // 1-indexed
+      const baselineDay = today.getDate();
+
+      let elapsedBusinessDays = 0;
+      if (year < baselineYear || (year === baselineYear && month < baselineMonth)) {
+        // Mês passado: 100% decorrido
+        elapsedBusinessDays = totalBusinessDays;
+      } else if (year > baselineYear || (year === baselineYear && month > baselineMonth)) {
+        // Mês futuro: 0% decorrido
+        elapsedBusinessDays = 0;
+      } else {
+        // Mês corrente: calcula apenas de effectiveStartDay até baselineDay
+        const upperDayLimit = Math.min(baselineDay, daysInMonth);
+        for (let day = effectiveStartDay; day <= upperDayLimit; day++) {
+          const d = new Date(year, month - 1, day);
+          const dayOfWeek = d.getDay();
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          
+          if (dayOfWeek !== 0 && dayOfWeek !== 6 && !HOLIDAYS_2026.includes(dateStr)) {
+            elapsedBusinessDays++;
+          }
+        }
+      }
+
+      return { elapsedBusinessDays, totalBusinessDays };
+    } catch (e) {
+      return { elapsedBusinessDays: 15, totalBusinessDays: 20 };
+    }
+  },
+
+  /**
    * Add exactly 30 days to a start date and return in standard ISO format "YYYY-MM-DD"
    */
   calculateEndPeriod(startDateStr: string): string {

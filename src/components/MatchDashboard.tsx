@@ -3,7 +3,7 @@ import { SDR, Assessor, MatchResult } from '../types';
 import { 
   Sparkles, UserCheck, Shield, ChevronRight, Play, HelpCircle, 
   Download, Calendar, AlertCircle, ArrowUpRight, Award, Flame, Gauge, 
-  Settings, ArrowRight 
+  Settings, ArrowRight, Trash2, Plus
 } from 'lucide-react';
 
 interface MatchDashboardProps {
@@ -16,6 +16,9 @@ interface MatchDashboardProps {
   onUpdateStartDate: (date: string) => void;
   onUpdateEndDate: (date: string) => void;
   onUpdateMatchDates?: (sdrId: string, assessorId: string, startDate: string, endDate: string) => void;
+  onUpdateMatchAssessor?: (sdrId: string, oldAssessorId: string, newAssessorId: string, newAssessorName: string) => void;
+  onAddManualMatch?: (match: MatchResult) => void;
+  onDeleteMatch?: (sdrId: string, assessorId: string) => void;
 }
 
 export default function MatchDashboard({
@@ -28,16 +31,70 @@ export default function MatchDashboard({
   onUpdateStartDate,
   onUpdateEndDate,
   onUpdateMatchDates,
+  onUpdateMatchAssessor,
+  onAddManualMatch,
+  onDeleteMatch,
 }: MatchDashboardProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null); // 'sdrId-assessorId'
   const [tempStartDate, setTempStartDate] = useState('');
   const [tempEndDate, setTempEndDate] = useState('');
+  const [tempAssessorId, setTempAssessorId] = useState('');
 
-  const handleSaveDates = (sdrId: string, assessorId: string) => {
+  const [showManualAddForm, setShowManualAddForm] = useState(false);
+  const [newMatchSdrId, setNewMatchSdrId] = useState('');
+  const [newMatchAssessorId, setNewMatchAssessorId] = useState('');
+  const [newMatchStartDate, setNewMatchStartDate] = useState(startDate);
+  const [newMatchEndDate, setNewMatchEndDate] = useState(endDate);
+
+  React.useEffect(() => {
+    setNewMatchStartDate(startDate);
+    setNewMatchEndDate(endDate);
+  }, [startDate, endDate]);
+
+  const handleSaveDates = (sdrId: string, oldAssessorId: string) => {
     if (onUpdateMatchDates) {
-      onUpdateMatchDates(sdrId, assessorId, tempStartDate, tempEndDate);
+      onUpdateMatchDates(sdrId, oldAssessorId, tempStartDate, tempEndDate);
+    }
+    if (tempAssessorId && tempAssessorId !== oldAssessorId && onUpdateMatchAssessor) {
+      const selectedAssr = assessores.find(a => a.id === tempAssessorId);
+      if (selectedAssr) {
+        onUpdateMatchAssessor(sdrId, oldAssessorId, selectedAssr.id, selectedAssr.name);
+      }
     }
     setEditingKey(null);
+  };
+
+  const handleAddManualMatch = () => {
+    if (!newMatchSdrId || !newMatchAssessorId) {
+      alert('Selecione um SDR e um Assessor.');
+      return;
+    }
+    
+    const sdr = sdrs.find(s => s.id === newMatchSdrId);
+    const assr = assessores.find(a => a.id === newMatchAssessorId);
+    
+    if (sdr && assr) {
+      const conversionRate = sdr.agendamentosCount > 0 
+        ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100) 
+        : 0;
+        
+      if (onAddManualMatch) {
+        onAddManualMatch({
+          sdrId: sdr.id,
+          sdrName: sdr.name,
+          sdrConversionRate: conversionRate,
+          assessorId: assr.id,
+          assessorName: assr.name,
+          startDate: newMatchStartDate,
+          endDate: newMatchEndDate,
+          isExclusive: false
+        });
+      }
+      
+      setShowManualAddForm(false);
+      setNewMatchSdrId('');
+      setNewMatchAssessorId('');
+    }
   };
 
   const activeSDRsCount = sdrs.filter(s => s.active).length;
@@ -273,7 +330,22 @@ export default function MatchDashboard({
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                setShowManualAddForm(!showManualAddForm);
+                if (!showManualAddForm) {
+                  setNewMatchSdrId('');
+                  setNewMatchAssessorId('');
+                }
+              }}
+              className="px-3.5 py-2.5 bg-black hover:bg-neutral-900 border border-neutral-900 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Adicionar pareamento de forma manual"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Pareamento Manual
+            </button>
+
             {matches.length > 0 && (
               <button
                 onClick={handleDownloadMatchesReport}
@@ -291,8 +363,103 @@ export default function MatchDashboard({
           </div>
         </div>
 
+        {showManualAddForm && (
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-5 mb-6 space-y-4 animate-fade-in text-left">
+            <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider font-mono flex items-center gap-1">
+              <Plus className="w-4 h-4 text-neutral-800" /> Novo Pareamento SDR ➔ Assessor
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">
+                  Selecionar SDR
+                </label>
+                <select
+                  value={newMatchSdrId}
+                  onChange={e => setNewMatchSdrId(e.target.value)}
+                  className="w-full bg-white border border-neutral-250 rounded-lg text-xs text-neutral-850 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black cursor-pointer font-bold"
+                >
+                  <option value="">-- Escolher SDR --</option>
+                  {sdrs.filter(s => s.active).map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">
+                  Selecionar Assessor
+                </label>
+                <select
+                  value={newMatchAssessorId}
+                  onChange={e => setNewMatchAssessorId(e.target.value)}
+                  className="w-full bg-white border border-neutral-250 rounded-lg text-xs text-neutral-850 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black cursor-pointer font-bold"
+                >
+                  <option value="">-- Escolher Assessor --</option>
+                  {assessores.filter(a => a.active).map(a => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">
+                  Data de Início
+                </label>
+                <input
+                  type="date"
+                  value={newMatchStartDate}
+                  onChange={e => {
+                    const nextV = e.target.value;
+                    setNewMatchStartDate(nextV);
+                    if (nextV) {
+                      const d = new Date(nextV + 'T12:00:00');
+                      d.setDate(d.getDate() + 30);
+                      setNewMatchEndDate(d.toISOString().substring(0, 10));
+                    }
+                  }}
+                  className="w-full bg-white border border-neutral-250 rounded-lg text-xs text-neutral-850 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-black font-mono cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-neutral-500 uppercase mb-1">
+                  Data de Término (Auto+30 dias)
+                </label>
+                <input
+                  type="date"
+                  value={newMatchEndDate}
+                  onChange={e => setNewMatchEndDate(e.target.value)}
+                  className="w-full bg-neutral-100 border border-neutral-200 rounded-lg text-xs text-neutral-500 px-3 py-2 cursor-not-allowed font-mono"
+                  disabled
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowManualAddForm(false)}
+                className="px-3 py-1.5 border border-neutral-250 rounded-lg bg-neutral-100 hover:bg-neutral-250 text-neutral-700 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleAddManualMatch}
+                className="px-4 py-1.5 bg-black hover:bg-neutral-900 border border-neutral-900 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+              >
+                Vincular Pareamento
+              </button>
+            </div>
+          </div>
+        )}
+
         {matches.length === 0 ? (
-          <div className="bg-[#FAF9F5] border-2 border-dashed border-neutral-300 rounded-3xl p-6 sm:p-10 md:p-12 text-center max-w-4xl mx-auto space-y-8 animate-fade-in">
+          <div className="bg-brand-sand border-2 border-dashed border-neutral-300 rounded-3xl p-6 sm:p-10 md:p-12 text-center max-w-4xl mx-auto space-y-8 animate-fade-in">
             {/* Minimal SVG Illustration showing relational nodes pairing */}
             <div className="flex justify-center">
               <div className="relative w-48 h-24">
@@ -317,7 +484,7 @@ export default function MatchDashboard({
             </div>
 
             <div className="space-y-3 max-w-xl mx-auto">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#111] text-[#FAF9F5] text-[9px] font-black uppercase tracking-widest rounded-full font-mono">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#111] text-brand-sand text-[9px] font-black uppercase tracking-widest rounded-full font-mono">
                 <Sparkles className="w-3 h-3 text-amber-400" /> Distribuição Inativa
               </span>
               <h3 className="text-lg font-black text-neutral-950 font-display uppercase tracking-tight">
@@ -332,7 +499,7 @@ export default function MatchDashboard({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-3xl mx-auto pt-2">
               <div className="bg-white border-2 border-neutral-900 p-4.5 rounded-2xl relative shadow-3xs hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
                 <div>
-                  <div className="absolute -top-3 left-4 bg-black text-[#FAF9F5] w-6 h-6 rounded-full flex items-center justify-center font-black text-xs font-mono">
+                  <div className="absolute -top-3 left-4 bg-black text-brand-sand w-6 h-6 rounded-full flex items-center justify-center font-black text-xs font-mono">
                     1
                   </div>
                   <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider font-display mb-1.5 pt-1.5">
@@ -346,7 +513,7 @@ export default function MatchDashboard({
 
               <div className="bg-white border-2 border-neutral-900 p-4.5 rounded-2xl relative shadow-3xs hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
                 <div>
-                  <div className="absolute -top-3 left-4 bg-black text-[#FAF9F5] w-6 h-6 rounded-full flex items-center justify-center font-black text-xs font-mono">
+                  <div className="absolute -top-3 left-4 bg-black text-brand-sand w-6 h-6 rounded-full flex items-center justify-center font-black text-xs font-mono">
                     2
                   </div>
                   <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider font-display mb-1.5 pt-1.5">
@@ -360,7 +527,7 @@ export default function MatchDashboard({
 
               <div className="bg-white border-2 border-neutral-900 p-4.5 rounded-2xl relative shadow-3xs hover:-translate-y-0.5 transition-transform flex flex-col justify-between">
                 <div>
-                  <div className="absolute -top-3 left-4 bg-black text-[#FAF9F5] w-6 h-6 rounded-full flex items-center justify-center font-black text-xs font-mono">
+                  <div className="absolute -top-3 left-4 bg-black text-brand-sand w-6 h-6 rounded-full flex items-center justify-center font-black text-xs font-mono">
                     3
                   </div>
                   <h4 className="text-xs font-black uppercase text-neutral-900 tracking-wider font-display mb-1.5 pt-1.5">
@@ -467,7 +634,7 @@ export default function MatchDashboard({
                       }`}>
                         <div className="text-[8px] uppercase tracking-widest font-black flex items-center justify-between mb-1 text-neutral-400">
                           <span>Assessor Alocado</span>
-                          {assrObj?.agendaLink && (
+                          {editingKey !== `${match.sdrId}-${match.assessorId}` && assrObj?.agendaLink && (
                             <a 
                               href={assrObj.agendaLink.startsWith('http') ? assrObj.agendaLink : `https://${assrObj.agendaLink}`}
                               target="_blank" 
@@ -478,17 +645,36 @@ export default function MatchDashboard({
                             </a>
                           )}
                         </div>
-                        <div className="font-bold text-neutral-900 text-xs">
-                          {match.assessorName}
-                        </div>
-                        <div className="text-[9px] text-neutral-400 mt-1 flex justify-between items-center gap-2 font-mono">
-                          <span>Sincronização ativada</span>
-                          {assrObj?.agendaLink && (
-                            <span className="text-[9px] text-neutral-500 max-w-[150px] truncate select-all" title={assrObj.agendaLink}>
-                              {assrObj.agendaLink}
-                            </span>
-                          )}
-                        </div>
+                        {editingKey === `${match.sdrId}-${match.assessorId}` ? (
+                          <div className="mt-1">
+                            <label className="block text-[8px] font-bold text-neutral-400 uppercase mb-0.5">Assessor do Rodízio:</label>
+                            <select
+                              value={tempAssessorId}
+                              onChange={e => setTempAssessorId(e.target.value)}
+                              className="w-full bg-white border border-neutral-350 rounded-lg text-xs text-neutral-800 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black font-semibold cursor-pointer"
+                            >
+                              {assessores.filter(a => a.active).map(a => (
+                                <option key={a.id} value={a.id}>
+                                  {a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-bold text-neutral-900 text-xs">
+                              {match.assessorName}
+                            </div>
+                            <div className="text-[9px] text-neutral-400 mt-1 flex justify-between items-center gap-2 font-mono">
+                              <span>Sincronização ativada</span>
+                              {assrObj?.agendaLink && (
+                                <span className="text-[9px] text-neutral-500 max-w-[150px] truncate select-all" title={assrObj.agendaLink}>
+                                  {assrObj.agendaLink}
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
 
                     </div>
@@ -507,66 +693,84 @@ export default function MatchDashboard({
                         </span>
                       </div>
 
-                      {onUpdateMatchDates && (
-                        <div className="w-full xl:w-auto flex justify-end">
-                          {editingKey === `${match.sdrId}-${match.assessorId}` ? (
-                            <div className="flex flex-wrap items-center gap-2 bg-white border border-neutral-250 p-2 rounded-lg shadow-xs z-10 animate-fade-in">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] text-neutral-400 font-bold uppercase">De:</span>
-                                <input
-                                  type="date"
-                                  value={tempStartDate}
-                                  onChange={e => {
-                                    const nextV = e.target.value;
-                                    setTempStartDate(nextV);
-                                    if (nextV) {
-                                      const d = new Date(nextV + 'T12:00:00');
-                                      d.setDate(d.getDate() + 30);
-                                      setTempEndDate(d.toISOString().substring(0, 10));
-                                    }
-                                  }}
-                                  className="bg-neutral-50 border border-neutral-350 rounded px-1.5 py-1 text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black font-mono w-28 cursor-pointer"
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] text-neutral-450 font-bold uppercase">Até (Auto 30d):</span>
-                                <input
-                                  type="date"
-                                  value={tempEndDate}
-                                  onChange={e => setTempEndDate(e.target.value)}
-                                  className="bg-neutral-100 border border-neutral-250 rounded px-1.5 py-1 text-xs text-neutral-500 font-mono w-28 cursor-not-allowed"
-                                  disabled
-                                />
-                              </div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleSaveDates(match.sdrId, match.assessorId)}
-                                  className="px-2 py-1 bg-black text-white text-[10px] font-bold rounded hover:bg-neutral-800 transition-colors cursor-pointer"
-                                >
-                                  Gravar
-                                </button>
-                                <button
-                                  onClick={() => setEditingKey(null)}
-                                  className="px-2 py-1 bg-neutral-150 text-neutral-600 text-[10px] font-bold rounded hover:bg-neutral-250 transition-colors cursor-pointer"
-                                >
-                                  X
-                                </button>
-                              </div>
+                      <div className="w-full xl:w-auto flex justify-end gap-2">
+                        {editingKey === `${match.sdrId}-${match.assessorId}` ? (
+                          <div className="flex flex-wrap items-center gap-2 bg-white border border-neutral-250 p-2 rounded-lg shadow-xs z-10 animate-fade-in">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] text-neutral-400 font-bold uppercase font-mono">De:</span>
+                              <input
+                                type="date"
+                                value={tempStartDate}
+                                onChange={e => {
+                                  const nextV = e.target.value;
+                                  setTempStartDate(nextV);
+                                  if (nextV) {
+                                    const d = new Date(nextV + 'T12:00:00');
+                                    d.setDate(d.getDate() + 30);
+                                    setTempEndDate(d.toISOString().substring(0, 10));
+                                  }
+                                }}
+                                className="bg-neutral-50 border border-neutral-350 rounded px-1.5 py-1 text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black font-mono w-28 cursor-pointer"
+                              />
                             </div>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setEditingKey(`${match.sdrId}-${match.assessorId}`);
-                                setTempStartDate(match.startDate || startDate);
-                                setTempEndDate(match.endDate || endDate);
-                              }}
-                              className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-700 transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              Editar Datas 🗓️
-                            </button>
-                          )}
-                        </div>
-                      )}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] text-neutral-450 font-bold uppercase font-mono">Até (Auto 30d):</span>
+                              <input
+                                type="date"
+                                value={tempEndDate}
+                                onChange={e => setTempEndDate(e.target.value)}
+                                className="bg-neutral-100 border border-neutral-250 rounded px-1.5 py-1 text-xs text-neutral-500 font-mono w-28 cursor-not-allowed"
+                                disabled
+                              />
+                            </div>
+                            <div className="flex gap-1.5 font-mono">
+                              <button
+                                onClick={() => handleSaveDates(match.sdrId, match.assessorId)}
+                                className="px-2.5 py-1 bg-black hover:bg-neutral-900 text-brand-sand text-[10px] font-black uppercase rounded transition-colors cursor-pointer animate-pulse"
+                              >
+                                Gravar
+                              </button>
+                              <button
+                                onClick={() => setEditingKey(null)}
+                                className="px-2.5 py-1 bg-neutral-150 hover:bg-neutral-250 text-neutral-600 text-[10px] font-bold rounded transition-colors cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {onUpdateMatchDates && (
+                              <button
+                                onClick={() => {
+                                  setEditingKey(`${match.sdrId}-${match.assessorId}`);
+                                  setTempStartDate(match.startDate || startDate);
+                                  setTempEndDate(match.endDate || endDate);
+                                  setTempAssessorId(match.assessorId);
+                                }}
+                                className="px-2.5 py-1 text-[10px] font-black uppercase rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-700 transition-all cursor-pointer flex items-center gap-1 font-mono"
+                              >
+                                ⚙️ Editar Relação
+                              </button>
+                            )}
+
+                            {onDeleteMatch && (
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Deseja remover o vínculo e rodízio entre SDR ${match.sdrName} e Assessor ${match.assessorName}?`)) {
+                                    onDeleteMatch(match.sdrId, match.assessorId);
+                                  }
+                                }}
+                                className="px-2.5 py-1 text-[10px] font-black uppercase rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 transition-all cursor-pointer flex items-center gap-1 font-mono"
+                                title="Excluir este pareamento"
+                              >
+                                <Trash2 className="w-3 h-3 text-red-600" />
+                                Excluir
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                   </div>

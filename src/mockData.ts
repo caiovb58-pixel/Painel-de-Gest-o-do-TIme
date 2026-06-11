@@ -1,4 +1,4 @@
-import { SDR, Assessor } from './types';
+import { SDR, Assessor, NegocioFechado } from './types';
 
 export const INITIAL_SDRS: SDR[] = [
   {
@@ -245,3 +245,147 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     team: 'Equipe Delta',
   }
 ];
+
+export const INITIAL_NEGOCIOS: NegocioFechado[] = [
+  {
+    id: 'neg-1',
+    sdrId: 'sdr-caio-1',
+    sdrName: 'Thiago Nobre',
+    assessorId: 'assr-caio-1',
+    assessorName: 'Marcel Costa (Horizon)',
+    clientName: 'Grupo Aliança',
+    dataCriacaoLead: '2026-03-05T00:00:00Z',
+    dataFechamento: '2026-05-10T00:00:00Z',
+    produtoCategoria: 'INVESTIMENTOS_XP',
+    status: 'GANHO',
+    volumeFinanceiro: 10000000,
+    receitaEstimada: 50000
+  },
+  {
+    id: 'neg-2',
+    sdrId: 'sdr-caio-2',
+    sdrName: 'Amanda Rebouças',
+    assessorId: 'assr-caio-2',
+    assessorName: 'Rafaela Nogueira (Vinci)',
+    clientName: 'Dra. Rebeca Carvalho',
+    dataCriacaoLead: '2026-04-12T00:00:00Z',
+    dataFechamento: '2026-05-18T00:00:00Z',
+    produtoCategoria: 'SUCESSAO_PATRIMONIAL',
+    status: 'GANHO',
+    volumeFinanceiro: 5000000,
+    receitaEstimada: 75000
+  },
+  {
+    id: 'neg-3',
+    sdrId: 'sdr-1',
+    sdrName: 'Ana Silva',
+    assessorId: 'assr-1',
+    assessorName: 'Mariana Lima (Ápice Invest)',
+    clientName: 'Holding JHB',
+    dataCriacaoLead: '2026-02-15T00:00:00Z',
+    dataFechamento: '2026-05-20T00:00:00Z',
+    produtoCategoria: 'OPERACAO_COMPROMISSADA',
+    status: 'GANHO',
+    volumeFinanceiro: 15000000,
+    receitaEstimada: 90000
+  },
+  {
+    id: 'neg-4',
+    sdrId: 'sdr-2',
+    sdrName: 'Bruno Ramos',
+    assessorId: 'assr-2',
+    assessorName: 'Rodrigo Mello (Sul Capital)',
+    clientName: 'Lojas Sul Var',
+    dataCriacaoLead: '2026-05-02T00:00:00Z',
+    dataFechamento: '2026-05-28T00:00:00Z',
+    produtoCategoria: 'CAMBIO',
+    status: 'GANHO',
+    volumeFinanceiro: 3500000,
+    receitaEstimada: 35000
+  },
+  {
+    id: 'neg-5',
+    sdrId: 'sdr-3',
+    sdrName: 'Carlos Oliveira',
+    assessorId: 'assr-1',
+    assessorName: 'Mariana Lima (Ápice Invest)',
+    clientName: 'Agro S.A.',
+    dataCriacaoLead: '2026-04-20T00:00:00Z',
+    dataFechamento: '2026-06-02T00:00:00Z',
+    produtoCategoria: 'INVESTIMENTOS_XP',
+    status: 'GANHO',
+    volumeFinanceiro: 20000000,
+    receitaEstimada: 100000
+  },
+  {
+    id: 'neg-6',
+    sdrId: 'sdr-caio-2',
+    sdrName: 'Amanda Rebouças',
+    assessorId: 'assr-caio-2',
+    assessorName: 'Rafaela Nogueira (Vinci)',
+    clientName: 'Clínica Médica Premium',
+    dataCriacaoLead: '2026-05-10T00:00:00Z',
+    dataFechamento: '2026-06-08T00:00:00Z',
+    produtoCategoria: 'SEGURO_EM_VIDA',
+    status: 'GANHO',
+    volumeFinanceiro: 1500000,
+    receitaEstimada: 22000
+  },
+  {
+    id: 'neg-7',
+    sdrId: 'sdr-1',
+    sdrName: 'Ana Silva',
+    assessorId: 'assr-1',
+    assessorName: 'Mariana Lima (Ápice Invest)',
+    clientName: 'Eduardo Fonseca',
+    dataCriacaoLead: '2026-04-05T00:00:00Z',
+    dataFechamento: '2026-06-05T00:00:00Z',
+    produtoCategoria: 'CONSORCIO_IMOBILIARIO',
+    status: 'GANHO',
+    volumeFinanceiro: 4000000,
+    receitaEstimada: 40000
+  },
+  {
+    id: 'neg-8',
+    sdrId: 'sdr-caio-1',
+    sdrName: 'Thiago Nobre',
+    assessorId: 'assr-caio-1',
+    assessorName: 'Marcel Costa (Horizon)',
+    clientName: 'Smart Logística',
+    dataCriacaoLead: '2026-05-15T00:00:00Z',
+    dataFechamento: '2026-06-09T00:00:00Z',
+    produtoCategoria: 'CONTABILIDADE',
+    status: 'GANHO',
+    volumeFinanceiro: 1200000,
+    receitaEstimada: 18000
+  },
+  {
+    id: 'neg-9',
+    sdrId: 'sdr-caio-1',
+    sdrName: 'Thiago Nobre',
+    assessorId: 'assr-caio-1',
+    assessorName: 'Marcel Costa (Horizon)',
+    clientName: 'Condomínio Solaris',
+    dataCriacaoLead: '2026-05-20T00:00:00Z',
+    dataFechamento: '2026-06-10T00:00:00Z',
+    produtoCategoria: 'RESPONSABILIDADE_CIVIL',
+    status: 'EM_NEGOCIACAO',
+    volumeFinanceiro: 600000,
+    receitaEstimada: 9000
+  },
+  {
+    id: 'neg-10',
+    sdrId: 'sdr-2',
+    sdrName: 'Bruno Ramos',
+    assessorId: 'assr-2',
+    assessorName: 'Rodrigo Mello (Sul Capital)',
+    clientName: 'Renato Albuquerque',
+    dataCriacaoLead: '2026-05-01T00:00:00Z',
+    dataFechamento: '2026-05-25T00:00:00Z',
+    produtoCategoria: 'PREVIDENCIA',
+    status: 'PERDIDO',
+    volumeFinanceiro: 2000000,
+    receitaEstimada: 15000
+  }
+];
+

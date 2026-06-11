@@ -14,14 +14,27 @@ import AssessorSection from './components/AssessorSection';
 import MatchDashboard from './components/MatchDashboard';
 import ReportsSection from './components/ReportsSection';
 import LeadersAdminSection from './components/LeadersAdminSection';
+import SyncHistory from './components/SyncHistory';
 
 // Icons
 import { 
   Users, Shield, Sparkles, FileText, RefreshCw, Info, Lock, LogOut, Calendar, Key,
-  Crown, AlertTriangle, X, ArrowUpRight
+  Crown, AlertTriangle, X, ArrowUpRight, Database, Sun, Moon, Workflow, TrendingUp, Search
 } from 'lucide-react';
 
 export default function App() {
+  const theme = 'light';
+  const [sidebarOpen, setSidebarOpen] = React.useState<boolean>(true);
+  const [searchQuery, setSearchQuery] = React.useState<string>('');
+  const [showSearchResults, setShowSearchResults] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', 'light');
+  }, []);
+
+  const ToggleThemeButton = () => null;
+
   // Environment variable and backend verification check
   const [envCheck, setEnvCheck] = React.useState<{
     checked: boolean;
@@ -113,6 +126,11 @@ export default function App() {
     resetToDefaults,
     disabledRotationTeams,
     toggleRotationForTeam,
+    updateMatchAssessor,
+    addManualMatch,
+    deleteMatch,
+    deleteOneOnOneLog,
+    syncFromSupabase,
   } = useAppStore(
     useShallow((state) => ({
       currentUser: state.currentUser,
@@ -130,6 +148,8 @@ export default function App() {
       disabledRotationTeams: state.disabledRotationTeams,
       toggleRotationForTeam: state.toggleRotationForTeam,
       addOneOnOneLog: state.addOneOnOneLog,
+      deleteOneOnOneLog: state.deleteOneOnOneLog,
+      syncFromSupabase: state.syncFromSupabase,
       addCampaign: state.addCampaign,
       deleteCampaign: state.deleteCampaign,
       updateCampaignStatus: state.updateCampaignStatus,
@@ -153,6 +173,9 @@ export default function App() {
       updateAssessor: state.updateAssessor,
       generateMatches: state.generateMatches,
       updateMatchDates: state.updateMatchDates,
+      updateMatchAssessor: state.updateMatchAssessor,
+      addManualMatch: state.addManualMatch,
+      deleteMatch: state.deleteMatch,
       addLeader: state.addLeader,
       updateLeader: state.updateLeader,
       deleteLeader: state.deleteLeader,
@@ -176,8 +199,40 @@ export default function App() {
     sdrPredictions,
   } = usePredictiveRunRate(derivedSdrsForActiveMonth, currentMonth);
 
+  // Database status tracking
+  const [dbStatus, setDbStatus] = React.useState<{ 
+    ok: boolean; 
+    databaseConnected: boolean; 
+    databaseType: string; 
+    databaseUrl: string; 
+    message: string;
+    lastError?: string | null;
+  } | null>(null);
+
+  // Automatic Background Synchronization with Neon/Local-Cache on mount
+  React.useEffect(() => {
+    syncFromSupabase()
+      .then((res) => {
+        if (res.success) {
+          console.log(`[Database Auto-Sync] Sincronização inicial concluída com sucesso: ${res.message}`);
+        } else {
+          console.warn(`[Database Auto-Sync] Aviso: ${res.message}`);
+        }
+      })
+      .catch((err) => {
+        console.error('[Database Auto-Sync] Erro inesperado durante a carga inicial:', err);
+      });
+
+    // Query server configuration and status
+    fetch("/api/db/status")
+      .then(res => res.json())
+      .then(info => setDbStatus(info))
+      .catch(err => console.error("Erro consultando status do Neon DB:", err));
+  }, [syncFromSupabase]);
+
   // Banner state and calculations
   const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
+  const [showSyncLogHistory, setShowSyncLogHistory] = React.useState(false);
 
   // Reset dismissal state whenever currentMonth changes
   React.useEffect(() => {
@@ -221,424 +276,589 @@ export default function App() {
   // --- 0. RENDER CONFIGURATION WARNING GATE ---
   if (envCheck.checked && !envCheck.ok && !bypassWarning) {
     return (
-      <div className="min-h-screen bg-[#FAF9F5] flex flex-col justify-between p-4 selection:bg-neutral-900 selection:text-white font-sans animate-fade-in">
-        
-        {/* Transparent header */}
-        <div className="w-full max-w-7xl mx-auto py-4 flex items-center justify-between border-b border-neutral-200">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#111] rounded flex items-center justify-center text-[#FAF9F5] font-black text-xs uppercase tracking-widest leading-none">
-              RD
+      <div className="w-full min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 transition-colors duration-250">
+        <div className="min-h-screen flex flex-col justify-between p-4 selection:bg-neutral-900 selection:text-white font-sans animate-fade-in">
+          
+          {/* Transparent header */}
+          <div className="w-full max-w-7xl mx-auto py-4 flex items-center justify-between border-b border-neutral-200">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-black leading-none border-2 border-neutral-900 shadow-sm animate-pulse">
+                <Workflow className="w-4 h-4 text-emerald-400" />
+              </div>
+              <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-display">
+                Corretora Rodízio Premium
+              </span>
             </div>
-            <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-display">
-              Corretora Rodízio Premium
+            <span className="text-[10px] font-black py-1.5 px-3 bg-amber-50 rounded-lg border border-amber-300 text-amber-800 uppercase tracking-widest font-mono">
+              Aviso de Sistema
             </span>
           </div>
-          <span className="text-[10px] font-black py-1.5 px-3 bg-amber-50 rounded-lg border border-amber-300 text-amber-800 uppercase tracking-widest font-mono">
-            Aviso de Sistema
-          </span>
-        </div>
 
-        {/* Crisp High-Contrast Warning Gate */}
-        <div className="w-full max-w-lg mx-auto py-12">
-          <div className="bg-white border-2 border-neutral-900 p-8 rounded-2xl shadow-3xs space-y-6">
-            
-            <div className="space-y-4">
-              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500 border-2 border-amber-400 mx-auto animate-bounce">
-                <Key className="w-6 h-6 text-amber-600" />
-              </div>
-              <div className="space-y-2 text-center animate-fade-in">
-                <span className="text-[9px] font-black tracking-widest uppercase bg-amber-100 border border-amber-300 text-amber-800 px-2 py-0.5 rounded font-mono">
-                  Configuração Requerida
-                </span>
-                <h1 className="text-xl font-black text-neutral-950 font-display uppercase tracking-tight">
-                  Chave Gemini API (GEMINI_API_KEY) Ausente
-                </h1>
-                <p className="text-xs text-neutral-600 leading-relaxed text-left bg-neutral-50 p-4 border border-neutral-250 rounded-xl mt-3">
-                  {envCheck.message}
-                </p>
-              </div>
+          {/* Crisp High-Contrast Warning Gate */}
+          <div className="w-full max-w-lg mx-auto py-12">
+            <div className="bg-white border-2 border-neutral-900 p-8 rounded-2xl shadow-3xs space-y-6">
+              
+              <div className="space-y-4">
+                <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500 border-2 border-amber-400 mx-auto animate-bounce">
+                  <Key className="w-6 h-6 text-amber-600" />
+                </div>
+                <div className="space-y-2 text-center animate-fade-in">
+                  <span className="text-[9px] font-black tracking-widest uppercase bg-amber-100 border border-amber-300 text-amber-800 px-2 py-0.5 rounded font-mono">
+                    Configuração Requerida
+                  </span>
+                  <h1 className="text-xl font-black text-neutral-950 font-display uppercase tracking-tight">
+                    Chave Gemini API (GEMINI_API_KEY) Ausente
+                  </h1>
+                  <p className="text-xs text-neutral-600 leading-relaxed text-left bg-neutral-50 p-4 border border-neutral-250 rounded-xl mt-3">
+                    {envCheck.message}
+                  </p>
+                </div>
 
-              <div className="border-t border-neutral-200 pt-4 space-y-3">
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-neutral-500 font-mono">Como configurar a chave de API:</h4>
-                <ol className="text-[11px] text-neutral-650 space-y-2 list-decimal pl-4 font-medium leading-relaxed">
-                  <li>Abra o menu de <strong className="text-neutral-900">Settings / Configurações</strong> no canto inferior esquerdo do AI Studio.</li>
-                  <li>Clique em <strong className="text-neutral-900">Secrets</strong> ou <strong className="text-neutral-900">Variáveis de Ambiente</strong>.</li>
-                  <li>Adicione uma nova variável com o nome <code className="bg-neutral-100 px-1 py-0.5 rounded font-mono font-bold text-black border border-neutral-250">GEMINI_API_KEY</code> e cole o seu token da Google Gemini.</li>
-                  <li>O AI Studio reiniciará o contêiner automaticamente para aplicar as alterações.</li>
-                </ol>
-              </div>
+                <div className="border-t border-neutral-200 pt-4 space-y-3">
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-neutral-500 font-mono">Como configurar a chave de API:</h4>
+                  <ol className="text-[11px] text-neutral-650 space-y-2 list-decimal pl-4 font-medium leading-relaxed">
+                    <li>Abra o menu de <strong className="text-neutral-900">Settings / Configurações</strong> no canto inferior esquerdo do AI Studio.</li>
+                    <li>Clique em <strong className="text-neutral-900">Secrets</strong> ou <strong className="text-neutral-900">Variáveis de Ambiente</strong>.</li>
+                    <li>Adicione uma nova variável com o nome <code className="bg-neutral-100 px-1 py-0.5 rounded font-mono font-bold text-black border border-neutral-250">GEMINI_API_KEY</code> e cole o seu token da Google Gemini.</li>
+                    <li>O AI Studio reiniciará o contêiner automaticamente para aplicar as alterações.</li>
+                  </ol>
+                </div>
 
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => setBypassWarning(true)}
-                  className="w-full py-2.5 bg-black hover:bg-neutral-900 text-[#FAF9F5] text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                >
-                  Continuar em Contingência Local
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setEnvCheck((prev) => ({ ...prev, checked: false }));
-                    try {
-                      const response = await fetch('/api/config/status');
-                      if (response.ok) {
-                        const data = await response.json();
-                        setEnvCheck({
-                          checked: true,
-                          ok: data.ok,
-                          message: data.message,
-                          missingKeys: data.missingKeys || [],
-                        });
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBypassWarning(true)}
+                    className="w-full py-2.5 bg-black hover:bg-neutral-900 text-brand-sand text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    Continuar em Contingência Local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setEnvCheck((prev) => ({ ...prev, checked: false }));
+                      try {
+                        const response = await fetch('/api/config/status');
+                        if (response.ok) {
+                          const data = await response.json();
+                          setEnvCheck({
+                            checked: true,
+                            ok: data.ok,
+                            message: data.message,
+                            missingKeys: data.missingKeys || [],
+                          });
+                        }
+                      } catch (e) {
+                        setEnvCheck((prev) => ({ ...prev, checked: true }));
                       }
-                    } catch (e) {
-                      setEnvCheck((prev) => ({ ...prev, checked: true }));
-                    }
-                  }}
-                  className="w-full sm:w-auto py-2.5 px-4 bg-white hover:bg-[#FAF9F5] text-neutral-900 border border-neutral-350 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap"
-                >
-                  Testar Novamente
-                </button>
+                    }}
+                    className="w-full sm:w-auto py-2.5 px-4 bg-white hover:bg-brand-sand text-neutral-900 border border-neutral-350 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    Testar Novamente
+                  </button>
+                </div>
               </div>
+
             </div>
-
           </div>
-        </div>
 
-        {/* Minimal Swiss footer */}
-        <div className="text-center text-[10px] text-neutral-450 uppercase font-bold tracking-widest pb-4">
-          Autenticador do Sistema &bull; Segurança Operacional
-        </div>
+          {/* Minimal Swiss footer */}
+          <div className="text-center text-[10px] text-neutral-450 uppercase font-bold tracking-widest pb-4">
+            Autenticador do Sistema &bull; Segurança Operacional
+          </div>
 
+        </div>
       </div>
     );
   }
 
+  // Unified Search logic for pages and data
+  const searchResults = React.useMemo(() => {
+    if (!searchQuery.trim()) return { pages: [], sdrs: [], assessores: [], leaders: [] };
+    const query = searchQuery.toLowerCase().trim();
+
+    // 1. Pages/Sections within the Hub
+    const allPages = [
+      { id: 'sdrs', label: 'Gestão de Time / SDRs', path: 'Menu → Gestão de Time' },
+      { id: 'assessores', label: 'Cadastro de Assessores', path: 'Menu → Assessores' },
+      { id: 'leaders-admin', label: 'Cadastro de Líderes de Equipe', path: 'Menu → Líderes' },
+      { id: 'matches', label: 'Painel de Rodízio de Leads', path: 'Menu → Painel de Rodízio' },
+      { id: 'reports', label: 'Relatórios, Desempenho e Métricas', path: 'Menu → Relatórios' },
+    ];
+    const filteredPages = allPages.filter(p => 
+      p.label.toLowerCase().includes(query) || p.path.toLowerCase().includes(query)
+    );
+
+    // 2. SDRs
+    const filteredSDRs = (derivedSdrsForActiveMonth || []).filter(s => 
+      s.name.toLowerCase().includes(query) || (s.team && s.team.toLowerCase().includes(query))
+    );
+
+    // 3. Assessores
+    const filteredAssessores = (assessores || []).filter(a => 
+      a.name.toLowerCase().includes(query) || (a.team && a.team.toLowerCase().includes(query))
+    );
+
+    // 4. Leaders / Líderes
+    const filteredLeaders = (leaders || []).filter(l => 
+      l.name.toLowerCase().includes(query) || (l.leaderTitle && l.leaderTitle.toLowerCase().includes(query))
+    );
+
+    return {
+      pages: filteredPages,
+      sdrs: filteredSDRs,
+      assessores: filteredAssessores,
+      leaders: filteredLeaders,
+    };
+  }, [searchQuery, derivedSdrsForActiveMonth, assessores, leaders]);
+
+  const hasSearchResults = 
+    searchResults.pages.length > 0 || 
+    searchResults.sdrs.length > 0 || 
+    searchResults.assessores.length > 0 || 
+    searchResults.leaders.length > 0;
+
+  const renderSearchResults = (onSelect?: () => void) => {
+    if (!searchQuery) return null;
+
+    return (
+      <div className="absolute top-full left-0 right-0 mt-1 bg-page-card border border-page-border rounded-xl shadow-xl z-50 max-h-[320px] overflow-y-auto divide-y divide-page-border text-left">
+        <div className="p-2 bg-[#f59e0b]/5 flex justify-between items-center border-b border-page-border">
+          <span className="text-[10px] font-black text-page-text-muted uppercase tracking-wider">
+            Resultados para "{searchQuery}"
+          </span>
+          <button 
+            type="button"
+            onClick={() => { setSearchQuery(''); setShowSearchResults(false); }}
+            className="text-[10px] font-extrabold text-[#f59e0b] hover:underline"
+          >
+            Limpar
+          </button>
+        </div>
+
+        {/* 1. Pages/Tab sections */}
+        {searchResults.pages.length > 0 && (
+          <div className="p-1.5">
+            <div className="px-1.5 py-0.5 text-[8.5px] font-black text-page-text-muted uppercase tracking-wider">Aba do Sistema</div>
+            <div className="space-y-0.5">
+              {searchResults.pages.map(page => (
+                <button
+                  key={page.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(page.id as any);
+                    setSearchQuery('');
+                    setShowSearchResults(false);
+                    if (onSelect) onSelect();
+                  }}
+                  className="w-full text-left px-2 py-1 hover:bg-page-hover rounded text-xs font-semibold text-page-text flex items-center justify-between transition cursor-pointer"
+                >
+                  <span className="truncate">{page.label}</span>
+                  <span className="text-[8px] text-[#f59e0b] bg-amber-500/10 px-1.5 py-0.5 rounded uppercase font-bold shrink-0">Ir</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 2. SDRs */}
+        {searchResults.sdrs.length > 0 && (
+          <div className="p-1.5">
+            <div className="px-1.5 py-0.5 text-[8.5px] font-black text-page-text-muted uppercase tracking-wider">SDRs Relacionados</div>
+            <div className="space-y-0.5">
+              {searchResults.sdrs.map(sdr => (
+                <button
+                  key={sdr.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('sdrs');
+                    setSearchQuery('');
+                    setShowSearchResults(false);
+                    if (onSelect) onSelect();
+                  }}
+                  className="w-full text-left px-2 py-1 hover:bg-page-hover rounded text-xs font-semibold text-page-text flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="truncate">
+                    <span className="block font-bold truncate">{sdr.name}</span>
+                    <span className="text-[9px] text-page-text-muted leading-tight truncate">{sdr.team || 'SDR Cadastrado'}</span>
+                  </div>
+                  <span className="text-[8px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">Time</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Assessores */}
+        {searchResults.assessores.length > 0 && (
+          <div className="p-1.5">
+            <div className="px-1.5 py-0.5 text-[8.5px] font-black text-page-text-muted uppercase tracking-wider">Assessores Relacionados</div>
+            <div className="space-y-0.5">
+              {searchResults.assessores.map(assr => (
+                <button
+                  key={assr.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('assessores');
+                    setSearchQuery('');
+                    setShowSearchResults(false);
+                    if (onSelect) onSelect();
+                  }}
+                  className="w-full text-left px-2 py-1 hover:bg-page-hover rounded text-xs font-semibold text-page-text flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="truncate">
+                    <span className="block font-bold truncate">{assr.name}</span>
+                    <span className="text-[9px] text-page-text-muted leading-tight truncate">{assr.team || 'Assessor'}</span>
+                  </div>
+                  <span className="text-[8px] text-amber-650 bg-amber-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">Assessor</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 4. Leaders */}
+        {searchResults.leaders.length > 0 && (
+          <div className="p-1.5">
+            <div className="px-1.5 py-0.5 text-[8.5px] font-black text-page-text-muted uppercase tracking-wider">Líderes Relacionados</div>
+            <div className="space-y-0.5">
+              {searchResults.leaders.map(ldr => (
+                <button
+                  key={ldr.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('leaders-admin');
+                    setSearchQuery('');
+                    setShowSearchResults(false);
+                    if (onSelect) onSelect();
+                  }}
+                  className="w-full text-left px-2 py-1 hover:bg-page-hover rounded text-xs font-semibold text-page-text flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="truncate">
+                    <span className="block font-bold truncate">{ldr.name}</span>
+                    <span className="text-[9px] text-page-text-muted leading-tight truncate">{ldr.leaderTitle || 'Liderança'}</span>
+                  </div>
+                  <span className="text-[8px] text-indigo-600 bg-indigo-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">Líder</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!hasSearchResults && (
+          <div className="p-3 text-xs text-page-text-muted italic text-center">
+            Nenhum resultado para "{searchQuery}"
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // --- 1. RENDER LOGIN SCREEN (FIRST PAGE ENTRANCE GATE) ---
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#FAF9F5] flex flex-col justify-between p-4 selection:bg-neutral-900 selection:text-white">
-        
-        {/* Transparent header */}
-        <div className="w-full max-w-7xl mx-auto py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#111] rounded flex items-center justify-center text-[#FAF9F5] font-black text-xs uppercase tracking-widest leading-none">
-              RD
-            </div>
-            <span className="text-xs font-black uppercase tracking-wider text-neutral-900 font-display">
-              Corretora Rodízio Premium
-            </span>
-          </div>
-          <span className="text-[10px] font-bold py-1 px-2.5 bg-[#FAF9F5] rounded border border-neutral-300 text-neutral-500 uppercase tracking-widest">
-            SAFE-NET v3.1
-          </span>
-        </div>
-
-        {/* Crisp High-Contrast Login Gate */}
-        <div className="w-full max-w-md mx-auto py-12">
-          <div className="bg-white border-2 border-neutral-900 p-8 rounded-2xl shadow-sm space-y-6">
-            
-            <div className="space-y-2 text-center">
-              <div className="w-12 h-12 bg-neutral-100 rounded-xl flex items-center justify-center text-black font-bold border border-neutral-900 mx-auto">
-                <Lock className="w-5 h-5 text-neutral-900" />
-              </div>
-              <h1 className="text-xl font-black text-neutral-950 font-display uppercase tracking-tight">
-                Log In Operacional
-              </h1>
-              <p className="text-xs text-neutral-600 leading-relaxed font-sans">
-                Insira suas credenciais de acesso para a gestão de rodízios, metas comerciais e análises automatizadas de performance por equipe.
-              </p>
-            </div>
-
-            <LoginGate onLogin={setCurrentUser} leaders={leaders} />
-
-          </div>
-        </div>
-
-        {/* Minimal Swiss footer */}
-        <div className="text-center text-[10px] text-neutral-400 uppercase font-bold tracking-widest pb-4">
-          Conselho Operacional de Investimentos &bull; Sistema Criptografado
-        </div>
-
-      </div>
+      <LoginGate onLogin={setCurrentUser} leaders={leaders} />
     );
   }
 
   // --- 2. RENDER THE LOGGED-IN SYSTEM ---
   return (
-    <div className="min-h-screen bg-[#FAF9F5] text-neutral-900 antialiased font-sans flex flex-col justify-between selection:bg-[#111] selection:text-white">
+    <div className="w-full min-h-screen bg-page-bg text-page-text transition-colors duration-150 flex selection:bg-neutral-900 selection:text-white relative">
       
-      {/* Pristine Swiss-Style Symmetrical Header */}
-      <header className="bg-white border-b-2 border-neutral-900 py-4 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            
-            {/* Logo and Session Info */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-black rounded flex items-center justify-center text-white font-black text-sm uppercase tracking-widest leading-none">
-                RD
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-sm font-black tracking-tight text-neutral-950 flex items-center gap-1.5 font-display uppercase">
-                    Painel de Gestão
-                  </h1>
-                  <span className="text-[9px] bg-black text-white font-black px-1.5 py-0.5 rounded leading-none uppercase tracking-widest">
-                    {currentUser.role === 'admin' ? 'ADMIN' : 'LEADER'}
-                  </span>
-                </div>
-                <p className="text-[10px] text-neutral-600 mt-0.5 max-w-md font-medium flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span>Atuando como <strong className="text-black font-bold">{currentUser.name}</strong> {currentUser.teamName && `(${currentUser.teamName})`}</span>
-                  {promotedSDRsCount > 0 && (
-                    <>
-                      <span className="text-neutral-300">|</span>
-                      <span className="inline-flex items-center gap-1 text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded font-extrabold border border-amber-200">
-                        <Crown className="w-3 h-3 text-amber-500 animate-pulse" />
-                        {promotedSDRsCount} {promotedSDRsCount === 1 ? 'SDR Promovido' : 'SDRs Promovidos'}
-                      </span>
-                    </>
-                  )}
-                </p>
-              </div>
+      {/* SIDEBAR FOR DESKTOP & MOBILE DRAWER */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-page-card text-page-text border-r border-page-border flex flex-col justify-between transition-all duration-300 ease-in-out ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } ${sidebarOpen ? 'md:relative md:translate-x-0' : 'md:hidden md:w-0'}`}>
+        <div className="flex flex-col h-full">
+          
+          {/* Symmetrical Brand / Logo Compartment */}
+          <div className="px-6 py-6 border-b border-page-border flex flex-col items-center">
+            <div className="w-11 h-11 bg-black dark:bg-white text-white dark:text-black font-black text-2xl flex items-center justify-center rounded-xl shadow-xs tracking-tighter transition-colors">
+              H
+            </div>
+            <div className="mt-2 text-center">
+              <span className="text-[11px] font-black uppercase tracking-wider text-page-text">HUB Liderança</span>
+              <div className="w-8 h-0.5 bg-[#f59e0b] mx-auto mt-1"></div>
+            </div>
+          </div>
+
+          {/* Search Button Compartment */}
+          <div className="px-4 py-3 relative">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-page-hover border border-page-border rounded-lg text-xs">
+              <Search className="w-3.5 h-3.5 text-page-text-muted shrink-0" />
+              <input
+                type="text"
+                placeholder="Pesquisar no Hub..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSearchResults(true);
+                }}
+                onFocus={() => setShowSearchResults(true)}
+                className="bg-transparent border-none text-[11px] text-page-text focus:outline-none w-full placeholder-page-text-muted/65"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-0.5 hover:bg-page-hover rounded-full transition"
+                >
+                  <X className="w-3 h-3 text-page-text-muted" />
+                </button>
+              )}
+            </div>
+            {showSearchResults && renderSearchResults(() => {})}
+          </div>
+
+          {/* Lateral Menu Items Navigation */}
+          <nav className="flex-grow px-3 py-2 space-y-1 overflow-y-auto custom-scrollbar">
+            <div className="px-3 py-1.5 text-[9px] font-black text-page-text-muted uppercase tracking-widest">
+              Favoritos & Módulos
             </div>
 
-            {/* Quick Symmetrical Actions, Month Picker & Logout */}
-            <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => { setActiveTab('sdrs'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                activeTab === 'sdrs'
+                  ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                  : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+              }`}
+            >
+              <Users className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+              Gestão de Time ({derivedSdrsForActiveMonth.length})
+            </button>
+
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={() => { setActiveTab('assessores'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                  activeTab === 'assessores'
+                    ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                    : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+                }`}
+              >
+                <Shield className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Cadastro Assessores ({assessores.length})
+              </button>
+            )}
+
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={() => { setActiveTab('leaders-admin'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                  activeTab === 'leaders-admin'
+                    ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                    : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+                }`}
+              >
+                <Key className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Cadastro Líderes ({leaders.length})
+              </button>
+            )}
+
+            <button
+              onClick={() => { setActiveTab('matches'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                activeTab === 'matches'
+                  ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                  : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+              Painel de Rodízio
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('reports'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                activeTab === 'reports'
+                  ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                  : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+              }`}
+            >
+              <FileText className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+              Relatórios e Métricas
+            </button>
+          </nav>
+
+          <div className="p-4 border-t border-page-border text-[9px] text-page-text-muted uppercase tracking-widest text-center font-bold">
+            HUB Liderança &bull; VMB PRO
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Drawer Overlay Backdrop */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 z-45 backdrop-blur-xs md:hidden"
+        />
+      )}
+
+      {/* RIGHT COLUMN MAIN LAYOUT */}
+      <div className="flex-grow flex flex-col min-h-screen bg-page-bg transition-colors duration-150">
+        
+        {/* PREMIUM TOP BAR COMPONENT */}
+        <header className="bg-page-card border-b border-page-border h-16 sticky top-0 z-40 flex items-center">
+          <div className="w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            
+            {/* Left Sector: Menu toggle + Search Input + Live badge */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="flex items-center justify-center p-2 rounded-lg bg-page-hover text-page-text hover:bg-page-border-light transition-all cursor-pointer"
+                title="Minimizar / Expandir Menu Lateral"
+              >
+                <Users className="w-4 h-4 text-[#f59e0b]" />
+              </button>
+
+              <div className="relative hidden lg:flex items-center gap-2 px-3 py-1.5 bg-page-hover border border-page-border rounded-lg text-xs w-60">
+                <Search className="w-3.5 h-3.5 text-page-text-muted shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar no Hub..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSearchResults(true);
+                  }}
+                  onFocus={() => setShowSearchResults(true)}
+                  className="bg-transparent border-none focus:outline-none text-page-text w-full text-[11px] placeholder-page-text-muted/65"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="p-0.5 hover:bg-page-hover rounded-full transition"
+                  >
+                    <X className="w-3 h-3 text-page-text-muted" />
+                  </button>
+                )}
+                {showSearchResults && renderSearchResults(() => {})}
+              </div>
+
+            </div>
+
+            {/* Right Sector: Switchees & User Info */}
+            <div className="flex items-center gap-3">
               
-              {/* Dynamic Reference Month Select Dropdown for goals definition */}
-              <div className="flex items-center gap-1.5 bg-neutral-100 border border-neutral-300 px-2.5 py-1.5 rounded-lg">
-                <Calendar className="w-3.5 h-3.5 text-neutral-700" />
-                <span className="text-[9px] font-bold text-neutral-550 uppercase tracking-wider">Mês Fiscal:</span>
+              {/* Reference Fiscal Month Picker */}
+              <div className="flex items-center gap-1.5 bg-white border border-page-border px-2.5 py-1 rounded-lg shadow-xs">
+                <Calendar className="w-3.5 h-3.5 text-page-text-muted shrink-0" />
+                <span className="text-[9px] font-bold text-page-text-muted uppercase tracking-wide hidden sm:inline">Mês Fiscal:</span>
                 <select
                   value={currentMonth}
                   onChange={e => setCurrentMonth(e.target.value)}
-                  className="bg-transparent border-none text-xs font-black text-neutral-900 focus:outline-none cursor-pointer"
+                  className="bg-transparent border-none text-[11px] font-black text-page-text focus:outline-none cursor-pointer"
                 >
                   {fiscalMonths.map((m) => (
-                    <option key={m.value} value={m.value}>
+                    <option key={m.value} value={m.value} className="bg-white text-page-text">
                       {m.label}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="hidden lg:flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-                <div className="bg-neutral-100 border border-neutral-300 px-3 py-1.5 rounded-lg text-neutral-700">
-                  SDRs Ativos: <span className="text-neutral-900 font-black">{activeSDRsCount}</span>
-                </div>
-                <div className="bg-neutral-100 border border-neutral-300 px-3 py-1.5 rounded-lg text-neutral-700">
-                  Assessores Ativos: <span className="text-neutral-900 font-black">{activeAssessoresCount}</span>
-                </div>
-                {promotedSDRsCount > 0 && (
-                  <div className="bg-amber-50 border border-amber-300 px-3 py-1.5 rounded-lg text-amber-800 flex items-center gap-1.5">
-                    <Crown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>SDRs Promovidos: <span className="text-amber-950 font-black">{promotedSDRsCount}</span></span>
-                  </div>
-                )}
+              {/* Status Indicator pills */}
+              <div className="hidden sm:flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-page-text-muted bg-white border border-page-border p-1 rounded-lg shadow-xs">
+                <div className="px-1.5 py-0.5">SDRs: <span className="text-page-text font-black">{activeSDRsCount}</span></div>
+                <div className="px-1.5 py-0.5 border-l border-page-border">ASSESSORES: <span className="text-page-text font-black">{activeAssessoresCount}</span></div>
               </div>
 
-              {/* Reset defaults button for Admin only */}
-              {currentUser.role === 'admin' && (
-                <button
-                  onClick={handleResetToDefaults}
-                  title="Restaurar dados de fábrica"
-                  className="p-2 text-neutral-500 hover:text-red-700 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer border border-neutral-350"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-              )}
+              {/* Profile Bubble */}
+              <div className="flex items-center gap-2 border-l border-neutral-200 dark:border-neutral-800 pl-3">
+                <div className="hidden sm:flex flex-col text-right">
+                  <span className="text-[11px] font-black leading-none text-page-text">{currentUser.name}</span>
+                  <span className="text-[8.5px] text-neutral-450 dark:text-neutral-550 font-black uppercase tracking-wider mt-0.5">
+                    {currentUser.role === 'admin' ? 'ADMINISTRADOR' : `LÍDER • ${currentUser.teamName || 'Sem Equipe'}`}
+                  </span>
+                </div>
+                
+                {/* Initials badge */}
+                <div className="w-8.5 h-8.5 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 flex items-center justify-center font-black text-xs uppercase shrink-0">
+                  {currentUser.name ? currentUser.name.substring(0, 2).toUpperCase() : 'CS'}
+                </div>
 
-              {/* Exit/Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-extrabold text-[10px] rounded-lg transition-colors cursor-pointer uppercase flex items-center gap-1.5"
-                title="Efetuar Logout do Sistema"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Sair
-              </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="p-1 text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded transition cursor-pointer"
+                  title="Sair do sistema"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+
             </div>
 
           </div>
+        </header>
 
-          {/* Symmetrical tab Menu Bar with Access Control Rules */}
-          <div className="flex space-x-1 border-t border-neutral-200 pt-3 mt-4 -mb-px overflow-x-auto scrollbar-none">
-            {currentUser.role === 'admin' ? (
-              <>
-                {/* 1. Gestão de Time */}
-                <button
-                  onClick={() => setActiveTab('sdrs')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'sdrs'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <Shield className="w-3.5 h-3.5 text-black" />
-                  Gestão de Time ({derivedSdrsForActiveMonth.length})
-                </button>
-
-                {/* 2. Cadastro de Assessores */}
-                <button
-                  onClick={() => setActiveTab('assessores')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'assessores'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 text-black" />
-                  Cadastro de Assessores ({assessores.length})
-                </button>
-
-                {/* 3. Cadastro de Líderes */}
-                <button
-                  onClick={() => setActiveTab('leaders-admin')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'leaders-admin'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <Key className="w-3.5 h-3.5 text-black" />
-                  Cadastro de Líderes ({leaders.length})
-                </button>
-
-                {/* 4. Painel de Rodízio */}
-                <button
-                  onClick={() => setActiveTab('matches')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'matches'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-black" />
-                  Painel de Rodízio
-                </button>
-
-                {/* 5. Relatórios e Métricas */}
-                <button
-                  onClick={() => setActiveTab('reports')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'reports'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5 text-black" />
-                  Relatórios e Métricas
-                </button>
-              </>
-            ) : (
-              <>
-                {/* 1. Gestão de Time */}
-                <button
-                  onClick={() => setActiveTab('sdrs')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'sdrs'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 text-black" />
-                  Gestão de Time ({derivedSdrsForActiveMonth.length})
-                </button>
-
-                {/* 2. Painel de Rodízio */}
-                <button
-                  onClick={() => setActiveTab('matches')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'matches'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-black" />
-                  Painel de Rodízio
-                </button>
-
-                {/* 3. Relatórios e Métricas */}
-                <button
-                  onClick={() => setActiveTab('reports')}
-                  className={`pb-2.5 pt-1 px-3.5 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                    activeTab === 'reports'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5 text-black" />
-                  Relatórios e Métricas
-                </button>
-              </>
-            )}
-          </div>
-
-        </div>
-      </header>
-
-      {/* Main Container Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-grow space-y-6">
+        {/* --- MAIN PAGE CONTENT --- */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-grow space-y-6">
         
+
+
         {/* --- HIGH-CONTRAST DYNAMIC AI GOALS THERMOMETER --- */}
         {activeTab === 'sdrs' && activeSDRsCount > 0 && (
-          <div className="bg-white border-2 border-neutral-900 p-5 rounded-2xl shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-            
-            {/* Thermometer Status Gauge metadata */}
-            <div className="lg:col-span-12 xl:col-span-6 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">
-                  Termômetro de Metas por IA
-                </span>
-                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${thermStats.labelColor}`}>
-                  {thermStats.temperature}
-                </span>
-              </div>
-              <h3 className="text-base font-black text-neutral-950 font-display uppercase tracking-tight">
-                Mês de Referência: {currentMonth.split('-')[1]}/2026
-              </h3>
-              <p className="text-xs text-neutral-600 leading-normal font-sans">
-                O time realizou <strong className="text-[#111111]">{thermStats.totalRealized} agendamentos</strong> frente à meta conjunta de <strong className="text-[#111111]">{thermStats.totalTarget}</strong>. Hoje (Dia {thermStats.currentDaysElapsed} de {thermStats.totalDaysInMonth}), espera-se linearmente estar em <strong>{thermStats.expectedProgress}%</strong> da meta.
-              </p>
-            </div>
-
-            {/* Visual Glass Thermometer bar */}
-            <div className="lg:col-span-12 xl:col-span-6 space-y-2">
-              <div className="flex justify-between items-end">
-                <div className="space-y-0.5">
-                  <span className="text-[8px] font-bold text-neutral-450 uppercase block">AVANÇO REAL COMERCIAL</span>
-                  <span className="font-mono font-black text-xs text-black">{thermStats.realizedProgress}% Concluído</span>
+          <div>
+            <div>
+              <div 
+                id="thermometer-main-card"
+                className="bg-white border border-page-border p-5 rounded-2xl shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-6 items-center"
+              >
+                
+                {/* Left Column wrapper matching div:nth-of-type(1) under Selector 1 */}
+                <div className="lg:col-span-12 xl:col-span-6 space-y-1">
+                  <h2 className="text-base font-black font-display uppercase tracking-tight text-page-text">
+                    Mês de Referência: {currentMonth.split('-')[1]}/2026
+                  </h2>
+                  <p className="text-xs leading-normal font-sans text-page-text-muted">
+                    O time realizou <strong className="text-page-text">{thermStats.totalRealized} agendamentos</strong> frente à meta conjunta de <strong className="text-page-text">{thermStats.totalTarget}</strong>. Hoje (Dia {thermStats.currentDaysElapsed} de {thermStats.totalDaysInMonth}), espera-se linearmente estar em {thermStats.expectedProgress}% da meta.
+                  </p>
                 </div>
-                <div className="text-right space-y-0.5">
-                  <span className="text-[8px] font-bold text-neutral-450 uppercase block">ALVO TEÓRICO LINEAR</span>
-                  <span className="font-mono text-xs text-neutral-600 font-bold">{thermStats.expectedProgress}%</span>
+
+                {/* Right Column wrapper matching div:nth-of-type(2) under Selector 1 */}
+                <div 
+                  className="lg:col-span-12 xl:col-span-6 space-y-2 p-5 rounded-xl border border-page-border bg-page-hover/50"
+                >
+                  <div className="flex justify-between items-end">
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] font-bold uppercase block text-page-text-muted">AVANÇO REAL COMERCIAL</span>
+                      <span className="font-mono font-black text-xs text-page-text">{thermStats.realizedProgress}% Concluído</span>
+                    </div>
+                    <div className="text-right space-y-0.5">
+                      <span className="text-[8px] font-bold uppercase block text-page-text-muted">ALVO TEÓRICO LINEAR</span>
+                      <span className="font-mono text-xs font-bold text-page-text-muted">{thermStats.expectedProgress}%</span>
+                    </div>
+                  </div>
+
+                  {/* Double progression bars */}
+                  <div className="relative w-full h-4 rounded-full overflow-hidden border bg-neutral-100 border-neutral-200">
+                    {/* Realized bar */}
+                    <div 
+                      className="h-full rounded-full transition-all duration-500 bg-emerald-500" 
+                      style={{ width: `${Math.min(100, thermStats.realizedProgress)}%` }}
+                    ></div>
+
+                    {/* Dotted cursor target mark representing EXPECTED day of month */}
+                    <div 
+                      className="absolute top-0 bottom-0 w-1 bg-amber-500 border-r border-dashed border-white"
+                      style={{ left: `${Math.min(99, thermStats.expectedProgress)}%` }}
+                      title="Alvo cronograma linear"
+                    ></div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[10px] font-mono font-bold leading-none text-page-text-muted">
+                    <span>Mês {currentMonth}</span>
+                    <span className={thermStats.progressGap >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                      Ritmo: {thermStats.progressGap > 0 ? '+' : ''}{thermStats.progressGap}% {thermStats.progressGap >= 0 ? 'Adiantado' : 'Atrasado'}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Double progression bars */}
-              <div className="relative w-full h-4 bg-neutral-100 border border-neutral-300 rounded-full overflow-hidden">
-                {/* Realized bar */}
-                <div 
-                  className="h-full rounded-full transition-all duration-500 bg-[#111]" 
-                  style={{ width: `${Math.min(100, thermStats.realizedProgress)}%` }}
-                ></div>
-
-                {/* Dotted cursor target mark representing EXPECTED day of month */}
-                <div 
-                  className="absolute top-0 bottom-0 w-1 bg-red-600 border-r border-dashed border-white"
-                  style={{ left: `${Math.min(99, thermStats.expectedProgress)}%` }}
-                  title="Alvocronograma linear"
-                ></div>
-              </div>
-
-              <div className="flex justify-between items-center text-[10px] font-mono font-bold leading-none">
-                <span className="text-neutral-500">Mês {currentMonth}</span>
-                <span className={thermStats.progressGap >= 0 ? 'text-green-700' : 'text-red-700'}>
-                  Ritmo: {thermStats.progressGap > 0 ? '+' : ''}{thermStats.progressGap}% {thermStats.progressGap >= 0 ? 'Adiantado' : 'Atrasado'}
-                </span>
               </div>
             </div>
-
           </div>
         )}
 
@@ -665,7 +885,7 @@ export default function App() {
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-xs font-black text-neutral-900 uppercase tracking-wider">Painel de Rodízio Opcional</h3>
-                  <p className="text-xs text-neutral-500 leading-relaxed max-w-md mx-auto">
+                  <p className="text-xs text-readability-util-muted leading-relaxed max-w-md mx-auto">
                     A ferramenta de rodízio equilibra as agendas de fechamento entre os SDRs de forma automática. Atualmente, esta ferramenta está desabilitada para a equipe <strong>{currentUser.teamName}</strong>.
                   </p>
                 </div>
@@ -690,6 +910,9 @@ export default function App() {
                 onUpdateStartDate={updateStartDate}
                 onUpdateEndDate={updateEndDate}
                 onUpdateMatchDates={updateMatchDates}
+                onUpdateMatchAssessor={updateMatchAssessor}
+                onAddManualMatch={addManualMatch}
+                onDeleteMatch={deleteMatch}
               />
             )
           )}
@@ -716,6 +939,7 @@ export default function App() {
                 onRevertPromotion={revertPromotion}
                 oneOnOneLogs={oneOnOneLogs}
                 onAddOneOnOneLog={addOneOnOneLog}
+                onDeleteOneOnOneLog={deleteOneOnOneLog}
                 campaigns={campaigns}
                 onAddCampaign={addCampaign}
                 onDeleteCampaign={deleteCampaign}
@@ -799,7 +1023,7 @@ export default function App() {
                     </div>
 
                     {/* Coluna 2 (Design System Off-white): NO CAMINHO */}
-                    <div className="bg-[#FAF9F5] border-2 border-neutral-900 rounded-xl p-4 flex flex-col space-y-3">
+                    <div className="bg-brand-sand border-2 border-neutral-900 rounded-xl p-4 flex flex-col space-y-3">
                       <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 bg-neutral-900 rounded-full shrink-0"></span>
@@ -807,7 +1031,7 @@ export default function App() {
                             No Ritmo de Sucesso
                           </h4>
                         </div>
-                        <span className="text-[9px] font-semibold font-mono px-1.5 py-0.5 bg-neutral-900 text-[#FAF9F5] rounded border border-neutral-900">
+                        <span className="text-[9px] font-semibold font-mono px-1.5 py-0.5 bg-neutral-900 text-brand-sand rounded border border-neutral-900">
                           ⚪ NO CAMINHO
                         </span>
                       </div>
@@ -977,14 +1201,14 @@ export default function App() {
 
       {/* FLOATING BANNER ALERT FOR CRITICAL SDRs */}
       {criticalSDRs.length > 0 && !isBannerDismissed && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-neutral-950 text-[#FAF9F5] border-2 border-neutral-900 rounded-2xl shadow-2xl p-5 animate-fade-in select-none">
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-neutral-950 text-brand-sand border-2 border-neutral-900 rounded-2xl shadow-2xl p-5 animate-fade-in select-none">
           <div className="flex items-start justify-between border-b border-neutral-800 pb-3 mb-3">
             <div className="flex items-center gap-2">
               <span className="flex h-2.5 w-2.5 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
               </span>
-              <h3 className="text-xs font-black uppercase tracking-widest text-[#FAF9F5] font-mono">
+              <h3 className="text-xs font-black uppercase tracking-widest text-brand-sand font-mono">
                 Alerta de Performance Crítica
               </h3>
             </div>
@@ -1043,6 +1267,7 @@ export default function App() {
         </div>
       )}
 
+      </div>
     </div>
   );
 }

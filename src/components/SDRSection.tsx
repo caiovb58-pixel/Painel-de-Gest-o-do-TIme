@@ -30,6 +30,7 @@ interface SDRSectionProps {
   onRevertPromotion: (sdrId: string) => void;
   oneOnOneLogs?: OneOnOneLog[];
   onAddOneOnOneLog?: (log: Omit<OneOnOneLog, 'id' | 'timestamp'>) => void;
+  onDeleteOneOnOneLog?: (id: string) => void;
   campaigns?: TeamCampaign[];
   onAddCampaign?: (campaign: Omit<TeamCampaign, 'id'>) => void;
   onDeleteCampaign?: (id: string) => void;
@@ -56,6 +57,7 @@ export default function SDRSection({
   onRevertPromotion,
   oneOnOneLogs = [],
   onAddOneOnOneLog,
+  onDeleteOneOnOneLog,
   campaigns = [],
   onAddCampaign,
   onDeleteCampaign,
@@ -73,17 +75,27 @@ export default function SDRSection({
   // 1:1 local states
   const activeSDRsOnly = useMemo(() => sdrs.filter(s => s.active), [sdrs]);
   
-  // A combined memo for easy lookup and select list rendering
+  // A combined memo for easy lookup and select list rendering with team information
   const allProfessionals = useMemo(() => {
-    const list: Array<{ id: string; name: string; isAssessor: boolean; active: boolean; professionalProfile?: string; data: any }> = [];
+    const list: Array<{ id: string; name: string; isAssessor: boolean; active: boolean; professionalProfile?: string; data: any; team?: string }> = [];
     sdrs.forEach(s => {
-      list.push({ id: s.id, name: `${s.name} (SDR)`, isAssessor: false, active: s.active, professionalProfile: s.professionalProfile, data: s });
+      list.push({ id: s.id, name: `${s.name} (SDR)`, isAssessor: false, active: s.active, professionalProfile: s.professionalProfile, data: s, team: s.team });
     });
     (assessores || []).forEach(a => {
-      list.push({ id: a.id, name: `${a.name} (Assessor)`, isAssessor: true, active: a.active, professionalProfile: a.professionalProfile, data: a });
+      list.push({ id: a.id, name: `${a.name} (Assessor)`, isAssessor: true, active: a.active, professionalProfile: a.professionalProfile, data: a, team: a.team });
     });
     return list;
   }, [sdrs, assessores]);
+
+  // Local state for 1:1 team selection filter
+  const [oneOnOneTeamFilter, setOneOnOneTeamFilter] = useState<string>('all');
+
+  const filteredProfessionals = useMemo(() => {
+    if (oneOnOneTeamFilter === 'all') {
+      return allProfessionals;
+    }
+    return allProfessionals.filter(p => p.team === oneOnOneTeamFilter);
+  }, [allProfessionals, oneOnOneTeamFilter]);
 
   const [sessionSdrId, setSessionSdrId] = useState<string>('');
   const [sessionLeaderName, setSessionLeaderName] = useState<string>('Líder do Time');
@@ -180,6 +192,27 @@ export default function SDRSection({
     if (activeFirst) return activeFirst;
     return allProfessionals[0] || null;
   }, [sessionSdrId, allProfessionals]);
+
+  // Team filtered One-on-One logs & schedules list for multi-team managers
+  const displayedOneOnOneLogs = useMemo(() => {
+    if (oneOnOneTeamFilter === 'all') {
+      return oneOnOneLogs;
+    }
+    return oneOnOneLogs.filter(log => {
+      const p = allProfessionals.find(prof => prof.id === log.sdrId);
+      return p && p.team === oneOnOneTeamFilter;
+    });
+  }, [oneOnOneLogs, allProfessionals, oneOnOneTeamFilter]);
+
+  const displayedOneOnOneSchedules = useMemo(() => {
+    if (oneOnOneTeamFilter === 'all') {
+      return oneOnOneSchedules;
+    }
+    return oneOnOneSchedules.filter(sched => {
+      const p = allProfessionals.find(prof => prof.id === sched.sdrId);
+      return p && p.team === oneOnOneTeamFilter;
+    });
+  }, [oneOnOneSchedules, allProfessionals, oneOnOneTeamFilter]);
 
   // Synchronize local edit states with selected professional
   useEffect(() => {
@@ -347,7 +380,7 @@ export default function SDRSection({
       }
     }
 
-    setSessionSuccess('Sessão One-on-One registrada com sucesso na base estratégica!');
+    setSessionSuccess('Sessão 1:1 registrada com sucesso na base estratégica!');
     
     // Clean states safely
     setSessionPsychNotes('');
@@ -494,6 +527,7 @@ export default function SDRSection({
 
   // Team Filter for the list
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'all' | 'PJ' | 'PF' | 'VMB' | 'ADVISOR'>('all');
   const [sdrSearchQuery, setSdrSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'tempo' | 'ranking' | 'efetivacao' | 'agendamento' | 'ligacao' | 'none'>('none');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -562,11 +596,6 @@ export default function SDRSection({
         });
       }
     } else {
-      if (efetivacoesCount > agendamentosCount) {
-        setError('O número de efetivações não pode ser superior ao de agendamentos');
-        return;
-      }
-
       onAddSDR({
         name: name.trim(),
         agendamentosCount: Number(agendamentosCount),
@@ -620,10 +649,6 @@ export default function SDRSection({
 
   const handleSaveEdit = (id: string) => {
     if (!editName.trim()) return;
-    if (editEfetivacoes > editAgendamentos) {
-      alert('Número de efetivações não pode ser maior do que agendamentos!');
-      return;
-    }
 
     if (onUpdateSDR) {
       onUpdateSDR(id, {
@@ -658,8 +683,22 @@ export default function SDRSection({
     ? Math.round(activeSDRs.reduce((sum, s) => sum + (s.metaEfetivacaoRate || 50), 0) / activeSDRs.length)
     : 0;
 
-  // Filter list by team and search query
+  // Filter list by category, team and search query
   const tempSDRs = sdrs.filter(s => {
+    // Check custom category classification (PJ, PF, VMB, ADVISOR)
+    if (selectedCategoryFilter !== 'all') {
+      const teamUpper = (s.team || '').toUpperCase();
+      const isPJ = teamUpper.includes('PJ');
+      const isVMB = teamUpper.includes('VMB') || s.team === 'Equipe do Caio';
+      const isADVISOR = teamUpper.includes('ADVISOR') || teamUpper.includes('ASSESSOR') || teamUpper.includes('TIER') || teamUpper.includes('ADVISORY');
+      const isPF = !isPJ && !isVMB && !isADVISOR && s.team !== 'Equipe do Caio';
+
+      if (selectedCategoryFilter === 'PJ' && !isPJ) return false;
+      if (selectedCategoryFilter === 'VMB' && !isVMB) return false;
+      if (selectedCategoryFilter === 'PF' && !isPF) return false;
+      if (selectedCategoryFilter === 'ADVISOR' && !isADVISOR) return false;
+    }
+
     const matchesTeamFilter = selectedTeamFilter === 'all' || s.team === selectedTeamFilter;
     if (!matchesTeamFilter) return false;
 
@@ -826,7 +865,7 @@ export default function SDRSection({
                     : 'text-neutral-550 hover:text-black'
                 }`}
               >
-                Sessões One-on-One (1:1) 🗣️
+                Sessões 1:1 🗣️
               </button>
             </div>
  
@@ -1140,13 +1179,145 @@ export default function SDRSection({
               )}
             </div>
 
+            {/* Row 0.5: Category Quick-Filters (PJ, PF, VMB) */}
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-dashed border-neutral-150">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] bg-neutral-900 text-neutral-100 font-mono font-black px-1.5 py-0.5 rounded leading-none uppercase tracking-wider block">
+                  Categoria
+                </span>
+                <span className="text-xs font-extrabold text-neutral-500 uppercase tracking-wider">Filtrar Time:</span>
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {/* Button Todos */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('all');
+                    setSelectedTeamFilter('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedCategoryFilter === 'all'
+                      ? 'bg-neutral-900 border border-neutral-900 text-white shadow-3xs'
+                      : 'bg-neutral-50 border border-neutral-200 hover:border-neutral-350 text-neutral-600'
+                  }`}
+                >
+                  Todos os SDRs
+                  <span className={`text-[9px] font-mono font-bold px-1 rounded-full ${selectedCategoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-neutral-200 text-neutral-600'}`}>
+                    {sdrs.length}
+                  </span>
+                </button>
+
+                {/* Button PJ */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('PJ');
+                    setSelectedTeamFilter('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedCategoryFilter === 'PJ'
+                      ? 'bg-blue-600 border border-blue-600 text-white shadow-3xs'
+                      : 'bg-blue-50/50 border border-blue-150 hover:border-blue-300 text-blue-900'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${selectedCategoryFilter === 'PJ' ? 'bg-white' : 'bg-blue-500'}`} />
+                  SDR PJ
+                  <span className={`text-[9px] font-mono font-bold px-1 rounded-full ${selectedCategoryFilter === 'PJ' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'}`}>
+                    {sdrs.filter(s => (s.team || '').toUpperCase().includes('PJ')).length}
+                  </span>
+                </button>
+
+                {/* Button PF */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('PF');
+                    setSelectedTeamFilter('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedCategoryFilter === 'PF'
+                      ? 'bg-amber-600 border border-amber-600 text-white shadow-3xs'
+                      : 'bg-amber-50/50 border border-amber-200 hover:border-amber-300 text-amber-900'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${selectedCategoryFilter === 'PF' ? 'bg-white' : 'bg-amber-500'}`} />
+                  SDR PF
+                  <span className={`text-[9px] font-mono font-bold px-1 rounded-full ${selectedCategoryFilter === 'PF' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                    {sdrs.filter(s => {
+                      const tUpper = (s.team || '').toUpperCase();
+                      const isPJ = tUpper.includes('PJ');
+                      const isVMB = tUpper.includes('VMB') || s.team === 'Equipe do Caio';
+                      const isADVISOR = tUpper.includes('ADVISOR') || tUpper.includes('ASSESSOR') || tUpper.includes('TIER') || tUpper.includes('ADVISORY');
+                      return !isPJ && !isVMB && !isADVISOR && s.team !== 'Equipe do Caio';
+                    }).length}
+                  </span>
+                </button>
+
+                {/* Button VMB */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('VMB');
+                    setSelectedTeamFilter('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedCategoryFilter === 'VMB'
+                      ? 'bg-purple-600 border border-purple-600 text-white shadow-3xs'
+                      : 'bg-purple-50/50 border border-purple-200 hover:border-purple-300 text-purple-900'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${selectedCategoryFilter === 'VMB' ? 'bg-white' : 'bg-purple-500'}`} />
+                  SDR VMB
+                  <span className={`text-[9px] font-mono font-bold px-1 rounded-full ${selectedCategoryFilter === 'VMB' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-800'}`}>
+                    {sdrs.filter(s => (s.team || '').toUpperCase().includes('VMB') || s.team === 'Equipe do Caio').length}
+                  </span>
+                </button>
+
+                {/* Button Advisor */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryFilter('ADVISOR');
+                    setSelectedTeamFilter('all');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedCategoryFilter === 'ADVISOR'
+                      ? 'bg-emerald-600 border border-emerald-600 text-white shadow-3xs'
+                      : 'bg-emerald-50/50 border border-emerald-250 hover:border-emerald-350 text-emerald-950'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${selectedCategoryFilter === 'ADVISOR' ? 'bg-white' : 'bg-emerald-500'}`} />
+                  SDR Advisor
+                  <span className={`text-[9px] font-mono font-bold px-1 rounded-full ${selectedCategoryFilter === 'ADVISOR' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {sdrs.filter(s => {
+                      const tUpper = (s.team || '').toUpperCase();
+                      return tUpper.includes('ADVISOR') || tUpper.includes('ASSESSOR') || tUpper.includes('TIER') || tUpper.includes('ADVISORY');
+                    }).length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
             {/* Row 1: Team Filter */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-dashed border-neutral-150">
               <div className="flex items-center gap-2 flex-wrap">
                 <Filter className="w-3.5 h-3.5 text-neutral-400" />
                 <span className="text-xs font-extrabold text-neutral-500 uppercase tracking-wider">Filtrar Canal:</span>
                 <div className="flex gap-1 flex-wrap">
-                  {['all', ...teams, ''].map(teamOpt => (
+                  {['all', ...teams.filter(t => {
+                    if (selectedCategoryFilter === 'all') return true;
+                    const teamUpper = t.toUpperCase();
+                    const isPJ = teamUpper.includes('PJ');
+                    const isVMB = teamUpper.includes('VMB') || t === 'Equipe do Caio';
+                    const isADVISOR = teamUpper.includes('ADVISOR') || teamUpper.includes('ASSESSOR') || teamUpper.includes('TIER') || teamUpper.includes('ADVISORY');
+                    const isPF = !isPJ && !isVMB && !isADVISOR && t !== 'Equipe do Caio';
+                    
+                    if (selectedCategoryFilter === 'PJ') return isPJ;
+                    if (selectedCategoryFilter === 'VMB') return isVMB;
+                    if (selectedCategoryFilter === 'PF') return isPF;
+                    if (selectedCategoryFilter === 'ADVISOR') return isADVISOR;
+                    return true;
+                  }), ''].map(teamOpt => (
                     <button
                       key={teamOpt}
                       onClick={() => setSelectedTeamFilter(teamOpt)}
@@ -1505,7 +1676,7 @@ export default function SDRSection({
                             {isDeleting ? (
                               <div 
                                 onClick={(e) => e.stopPropagation()} 
-                                className="absolute inset-0 bg-neutral-950/95 backdrop-blur-[1px] rounded-xl z-30 flex flex-col items-center justify-center p-4 text-center text-[#FAF9F5] select-none animate-fade-in"
+                                className="absolute inset-0 bg-neutral-950/95 backdrop-blur-[1px] rounded-xl z-30 flex flex-col items-center justify-center p-4 text-center text-brand-sand select-none animate-fade-in"
                               >
                                 <div className="w-9 h-9 bg-red-500/15 border border-red-500/40 rounded-full flex items-center justify-center text-red-400 mb-2.5 animate-pulse">
                                   <AlertCircle className="w-5 h-5" />
@@ -1572,9 +1743,14 @@ export default function SDRSection({
                             <div className="flex items-center justify-center gap-1 mt-1">
                               <button
                                 type="button"
-                                onClick={() => onUpdateSDRMetrics(sdr.id, Math.max(sdr.efetivacoesCount || 0, (sdr.agendamentosCount || 0) - 1), sdr.efetivacoesCount || 0)}
-                                disabled={(sdr.agendamentosCount || 0) === (sdr.efetivacoesCount || 0)}
+                                onClick={() => {
+                                  const currentAgend = sdr.agendamentosCount || 0;
+                                  const currentEfet = sdr.efetivacoesCount || 0;
+                                  onUpdateSDRMetrics(sdr.id, Math.max(0, currentAgend - 1), currentEfet);
+                                }}
+                                disabled={(sdr.agendamentosCount || 0) === 0}
                                 className="w-4.5 h-4.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center justify-center text-xs font-bold disabled:opacity-40 cursor-pointer"
+                                title="Decrementar agendamentos"
                               >
                                 -
                               </button>
@@ -1605,8 +1781,7 @@ export default function SDRSection({
                                 type="button"
                                 onClick={() => {
                                   const nextVal = (sdr.efetivacoesCount || 0) + 1;
-                                  const newAgend = Math.max(nextVal, sdr.agendamentosCount || 0);
-                                  onUpdateSDRMetrics(sdr.id, newAgend, nextVal);
+                                  onUpdateSDRMetrics(sdr.id, sdr.agendamentosCount || 0, nextVal);
                                 }}
                                 className="w-4.5 h-4.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center justify-center text-xs font-bold cursor-pointer"
                               >
@@ -1767,7 +1942,7 @@ export default function SDRSection({
                               setPromotingAgendaLink(`https://calendly.com/${sdr.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-')}`);
                               setPromotingRotation(true);
                             }}
-                            className="w-full py-1.5 bg-[#FAF9F5] border border-neutral-300 text-neutral-900 hover:bg-neutral-100 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-97 text-center"
+                            className="w-full py-1.5 bg-brand-sand border border-neutral-300 text-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-97 text-center"
                           >
                             <Crown className="w-3.5 h-3.5 text-amber-500" /> Promover a Assessor
                           </button>
@@ -2403,7 +2578,7 @@ export default function SDRSection({
                                   onRenameTeam(t, input.value.trim());
                                 }
                               }}
-                              className="p-2 bg-neutral-900 text-[#FAF9F5] hover:bg-black rounded-lg cursor-pointer"
+                              className="p-2 bg-neutral-900 text-brand-sand hover:bg-black rounded-lg cursor-pointer"
                               title="Salvar Novo Nome"
                             >
                               <Check className="w-3.5 h-3.5" />
@@ -2769,7 +2944,7 @@ export default function SDRSection({
           <div className="bg-white border-2 border-neutral-900 rounded-2xl p-6 shadow-3xs space-y-2">
             <h3 className="text-base font-black text-neutral-950 flex items-center gap-2 uppercase tracking-wide font-display">
               <Sparkles className="w-5 h-5 text-neutral-800 animate-pulse" />
-              Sessões de Desenvolvimento & Coaching Tático (One-on-One 1:1)
+              Sessões de Desenvolvimento & Mentoria Tática (Alinhamento 1:1)
             </h3>
             <p className="text-xs text-neutral-550">
               Registre reuniões individuais periódicas, avalie o alinhamento cultural/emocional e obtenha diagnósticos táticos automatizados fornecidos por inteligência artificial baseando-se no esforço telefônico de cada SDR.
@@ -2777,45 +2952,65 @@ export default function SDRSection({
           </div>
 
           {/* Sub-section tab selection for One-on-Ones */}
-          <div className="flex border-b border-neutral-300 pb-3 mt-4 gap-1 overflow-x-auto scrollbar-none">
-            <button
-              onClick={() => setOneOnOneSection('scheduler')}
-              className={`pb-2 pt-1 px-4 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                oneOnOneSection === 'scheduler'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-neutral-500 hover:text-black hover:border-neutral-300'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Planner & Lembretes
-              {oneOnOneSchedules.filter(s => s.status === 'AGENDADA' || s.status === 'REAGENDADA').length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-700 font-black rounded-full animate-pulse border border-red-250 leading-none">
-                  {oneOnOneSchedules.filter(s => s.status === 'AGENDADA' || s.status === 'REAGENDADA').length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setOneOnOneSection('registration')}
-              className={`pb-2 pt-1 px-4 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                oneOnOneSection === 'registration'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-neutral-500 hover:text-black hover:border-neutral-300'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-              Nova Sessão & Coaching IA
-            </button>
-            <button
-              onClick={() => setOneOnOneSection('history')}
-              className={`pb-2 pt-1 px-4 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                oneOnOneSection === 'history'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-neutral-500 hover:text-black hover:border-neutral-300'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              Histórico Geral ({oneOnOneLogs.length})
-            </button>
+          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-neutral-300 pb-3 mt-4 gap-4">
+            <div className="flex gap-1 overflow-x-auto scrollbar-none">
+              <button
+                onClick={() => setOneOnOneSection('scheduler')}
+                className={`pb-2 pt-1 px-4 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  oneOnOneSection === 'scheduler'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-neutral-500 hover:text-black hover:border-neutral-300'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Planejamento & Lembretes
+                {displayedOneOnOneSchedules.filter(s => s.status === 'AGENDADA' || s.status === 'REAGENDADA').length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[8px] bg-red-100 text-red-700 font-black rounded-full animate-pulse border border-red-250 leading-none">
+                    {displayedOneOnOneSchedules.filter(s => s.status === 'AGENDADA' || s.status === 'REAGENDADA').length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setOneOnOneSection('registration')}
+                className={`pb-2 pt-1 px-4 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  oneOnOneSection === 'registration'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-neutral-500 hover:text-black hover:border-neutral-300'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                Nova Sessão & Mentoria IA
+              </button>
+              <button
+                onClick={() => setOneOnOneSection('history')}
+                className={`pb-2 pt-1 px-4 font-black text-[10px] uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  oneOnOneSection === 'history'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-neutral-500 hover:text-black hover:border-neutral-300'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                Histórico Geral ({displayedOneOnOneLogs.length})
+              </button>
+            </div>
+
+            {/* Team selection filter specifically requested for 1:1 area */}
+            <div className="flex items-center gap-2 self-start md:self-auto bg-neutral-100 border border-neutral-300 py-1.5 px-3 rounded-lg">
+              <span className="text-[10px] font-black uppercase text-neutral-550 whitespace-nowrap">Equipe:</span>
+              <select
+                value={oneOnOneTeamFilter}
+                onChange={(e) => {
+                  setOneOnOneTeamFilter(e.target.value);
+                  setSessionSdrId(''); // Reset selected contributor when filter changes
+                }}
+                className="bg-transparent border-none text-xs font-black text-neutral-900 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Todas as Equipes</option>
+                {teams.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {oneOnOneSection === 'registration' && (
@@ -2854,7 +3049,7 @@ export default function SDRSection({
                     className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-neutral-50 text-neutral-800 cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black"
                   >
                     <option value="">-- Selecione o Colaborador --</option>
-                    {allProfessionals.map(p => (
+                    {filteredProfessionals.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} {!p.active ? ' (Inativo)' : ''}
                       </option>
@@ -3014,13 +3209,13 @@ export default function SDRSection({
                   >
                     <option value="NO_CAMINHO">🟢 NO CAMINHO (ENTREGA CONFORME)</option>
                     <option value="EM_RISCO">🚨 EM RISCO (ALERTA DE DESVIO)</option>
-                    <option value="OUTLIER">🌟 OUTLIER (SURPREENDENDO)</option>
+                    <option value="OUTLIER">🌟 DESTAQUE (SURPREENDENDO)</option>
                   </select>
                 </div>
 
                 {/* Next Date Picker */}
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-black uppercase text-neutral-550">Próximo One-on-One</label>
+                  <label className="block text-[10px] font-black uppercase text-neutral-550">Próxima Sessão 1:1</label>
                   <input
                     type="date"
                     value={sessionNextMeeting}
@@ -3376,17 +3571,17 @@ export default function SDRSection({
           <div className="bg-white border-2 border-neutral-900 rounded-2xl overflow-hidden shadow-3xs space-y-0.5 animate-fade-in">
             <div className="p-4 border-b-2 border-neutral-950 bg-neutral-50">
               <h4 className="text-xs font-black uppercase text-neutral-950 tracking-white font-display">
-                Histórico Geral de Alinhamento 1:1 ({oneOnOneLogs.length} Reuniões Registradas)
+                Histórico Geral de Alinhamento 1:1 ({displayedOneOnOneLogs.length} Reuniões Registradas)
               </h4>
             </div>
 
-            {oneOnOneLogs.length === 0 ? (
+            {displayedOneOnOneLogs.length === 0 ? (
               <div className="text-center py-16 text-neutral-400 text-xs border-dashed border-2 border-neutral-150 m-5 rounded-xl">
-                Nenhum registro de One-on-One encontrado para este ciclo mensal.
+                Nenhum registro de Sessão 1:1 encontrado para este ciclo mensal ou equipe selecionada.
               </div>
             ) : (
               <div className="divide-y divide-neutral-200">
-                {oneOnOneLogs.map((log) => {
+                {displayedOneOnOneLogs.map((log) => {
                   return (
                     <div key={log.id} className="p-5 hover:bg-neutral-50/70 transition-colors space-y-4">
                       
@@ -3422,11 +3617,25 @@ export default function SDRSection({
                               ? 'bg-red-50 text-red-700 border border-red-200' 
                               : 'bg-neutral-100 text-neutral-700 border border-neutral-300'
                           }`}>
-                            {log.status === 'OUTLIER' ? '🌟 OUTLIER' : log.status === 'EM_RISCO' ? '🚨 EM RISCO' : '🟢 NO CAMINHO'}
+                            {log.status === 'OUTLIER' ? '🌟 DESTAQUE' : log.status === 'EM_RISCO' ? '🚨 EM RISCO' : '🟢 NO CAMINHO'}
                           </span>
                           <span className="text-[9px] font-semibold text-neutral-500 font-mono">
                             Próxima data: {log.nextMeeting ? log.nextMeeting.split('-').reverse().join('/') : '—'}
                           </span>
+                          {onDeleteOneOnOneLog && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Deseja de fato excluir o registro de reunião individual de ${log.sdrName} realizada em ${new Date(log.timestamp).toLocaleDateString('pt-BR')}?`)) {
+                                  onDeleteOneOnOneLog(log.id);
+                                }
+                              }}
+                              className="p-1 px-1.5 hover:bg-red-50 text-neutral-450 hover:text-red-750 transition-colors rounded border border-transparent hover:border-red-150 cursor-pointer flex items-center justify-center shrink-0"
+                              title="Excluir este registro"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 animate-pulse" style={{ animationDuration: '3s' }} />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -3472,7 +3681,7 @@ export default function SDRSection({
                 {/* Lembrete de Reunião de Hoje */}
                 {(() => {
                   const today = new Date().toISOString().split('T')[0];
-                  const todayMeetings = oneOnOneSchedules.filter(s => s.dateTime.split('T')[0] === today && (s.status === 'AGENDADA' || s.status === 'REAGENDADA'));
+                  const todayMeetings = displayedOneOnOneSchedules.filter(s => s.dateTime.split('T')[0] === today && (s.status === 'AGENDADA' || s.status === 'REAGENDADA'));
                   
                   if (todayMeetings.length > 0) {
                     return (
@@ -3513,7 +3722,7 @@ export default function SDRSection({
                 {/* Lembrete de Reunião Atrasada */}
                 {(() => {
                   const now = new Date();
-                  const overdueMeetings = oneOnOneSchedules.filter(s => {
+                  const overdueMeetings = displayedOneOnOneSchedules.filter(s => {
                     const schedDate = new Date(s.dateTime);
                     return schedDate < now && (s.status === 'AGENDADA' || s.status === 'REAGENDADA');
                   });
@@ -3584,7 +3793,7 @@ export default function SDRSection({
                       <select
                         value={schedSdrId}
                         onChange={(e) => setSchedSdrId(e.target.value)}
-                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-[#FAF9F5] text-neutral-800 cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black"
+                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-brand-sand text-neutral-800 cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black"
                       >
                         <option value="">-- Selecione o Colaborador --</option>
                         {allProfessionals.map(p => (
@@ -3602,7 +3811,7 @@ export default function SDRSection({
                         value={schedLeader}
                         onChange={(e) => setSchedLeader(e.target.value)}
                         placeholder="Nome do Líder Responsável"
-                        className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-[#FAF9F5] text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black"
+                        className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-brand-sand text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black"
                       />
                     </div>
 
@@ -3613,7 +3822,7 @@ export default function SDRSection({
                           type="datetime-local"
                           value={schedDateTime}
                           onChange={(e) => setSchedDateTime(e.target.value)}
-                          className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2 bg-[#FAF9F5] text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black cursor-pointer"
+                          className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2 bg-brand-sand text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black cursor-pointer"
                         />
                       </div>
                     </div>
@@ -3623,7 +3832,7 @@ export default function SDRSection({
                       <select
                         value={schedTopic}
                         onChange={(e) => setSchedTopic(e.target.value)}
-                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2 bg-[#FAF9F5] text-neutral-800 cursor-pointer focus:outline-hidden"
+                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2 bg-brand-sand text-neutral-800 cursor-pointer focus:outline-hidden"
                       >
                         <option value="Alinhamento de Metas">Alinhamento de Metas & KPIs</option>
                         <option value="Pitch Comercial">Simulação de Pitch & Qualificação</option>
@@ -3642,13 +3851,13 @@ export default function SDRSection({
                         value={schedNotes}
                         onChange={(e) => setSchedNotes(e.target.value)}
                         placeholder="Ex: Discutir metas de agendamentos pendentes ou dificuldades..."
-                        className="w-full text-xs rounded-xl border border-neutral-300 p-2.5 bg-[#FAF9F5] text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black custom-scrollbar resize-none"
+                        className="w-full text-xs rounded-xl border border-neutral-300 p-2.5 bg-brand-sand text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black custom-scrollbar resize-none"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full py-2.5 bg-black hover:bg-neutral-900 text-[#FAF9F5] text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                      className="w-full py-2.5 bg-black hover:bg-neutral-900 text-brand-sand text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                     >
                       <Calendar className="w-4 h-4" />
                       Confirmar Planificação
@@ -3662,7 +3871,7 @@ export default function SDRSection({
                   <div className="bg-white border-2 border-neutral-900 rounded-2xl p-4.5 shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-50/20">
                     <div>
                       <h5 className="text-xs font-black uppercase text-neutral-900 font-display">Planejamento de Encontros</h5>
-                      <p className="text-[9.5px] text-neutral-500 font-medium">Filtre e controle o status do andamento dos One-on-Ones.</p>
+                      <p className="text-[9.5px] text-neutral-500 font-medium">Filtre e controle o status do andamento dos encontros 1:1.</p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -3672,7 +3881,7 @@ export default function SDRSection({
                         className="text-[9px] font-black uppercase rounded-lg border border-neutral-350 p-2 bg-white text-neutral-800 cursor-pointer focus:outline-hidden max-w-[130px]"
                       >
                         <option value="">Filtro: SDRs</option>
-                        {Array.from(new Set(oneOnOneSchedules.map(s => s.sdrName))).map(name => (
+                        {Array.from(new Set(displayedOneOnOneSchedules.map(s => s.sdrName))).map(name => (
                           <option key={name} value={name}>{name.split(' (')[0]}</option>
                         ))}
                       </select>
@@ -3694,7 +3903,7 @@ export default function SDRSection({
                   {/* List Board */}
                   <div className="bg-white border-2 border-neutral-900 rounded-2xl shadow-3xs overflow-hidden">
                     {(() => {
-                      const filtered = oneOnOneSchedules.filter(s => {
+                      const filtered = displayedOneOnOneSchedules.filter(s => {
                         if (schedFilterSdr && s.sdrName !== schedFilterSdr) return false;
                         if (schedFilterStatus && s.status !== schedFilterStatus) return false;
                         return true;
@@ -3725,7 +3934,7 @@ export default function SDRSection({
                                   </div>
 
                                   <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-[9px] font-mono bg-[#FAF9F5] text-neutral-700 px-2 py-0.5 rounded border border-neutral-300 flex items-center gap-1 font-bold">
+                                    <span className="text-[9px] font-mono bg-brand-sand text-neutral-700 px-2 py-0.5 rounded border border-neutral-300 flex items-center gap-1 font-bold">
                                       <Calendar className="w-3 h-3 text-neutral-500" />
                                       {dateFormatted}
                                     </span>
@@ -3773,7 +3982,7 @@ export default function SDRSection({
                                       type="button"
                                       onClick={() => handleCompleteAndGoToLog(sched)}
                                       title="Registrar ata e coaching tático desta reunião"
-                                      className="px-2.5 py-1.5 bg-black hover:bg-neutral-900 border border-black font-black uppercase text-[9px] text-[#FAF9F5] tracking-widest rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-3xs hover:border-neutral-950"
+                                      className="px-2.5 py-1.5 bg-black hover:bg-neutral-900 border border-black font-black uppercase text-[9px] text-brand-sand tracking-widest rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-3xs hover:border-neutral-950"
                                     >
                                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                                       Realizar 1:1

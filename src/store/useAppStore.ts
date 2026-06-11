@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { z } from 'zod';
 import { 
   SDR, Assessor, MatchResult, TeamLeader, TeamGoals, AuthUser, SDRMonthlyRecord,
-  AuditLog, OneOnOneLog, IntegrationSettings, TeamCampaign
+  AuditLog, OneOnOneLog, IntegrationSettings, TeamCampaign, NegocioFechado, NegociosArraySchema
 } from '../shared/types';
 import { 
   SDRSchema, AssessorSchema, MatchResultSchema, TeamLeaderSchema, TeamGoalsSchema,
@@ -10,9 +10,10 @@ import {
 } from '../shared/types';
 import { StorageService } from '../shared/services/storage.service';
 import { DateService } from '../shared/services/date.service';
-import { INITIAL_SDRS, INITIAL_ASSESSORES } from '../mockData';
+import { INITIAL_SDRS, INITIAL_ASSESSORES, INITIAL_NEGOCIOS } from '../mockData';
 import { generateMatches as runMatchingAlgo } from '../matchingEngine';
 import { IntegrationService } from '../shared/services/integration.service';
+// Removed Supabase in favor of full-stack Neon backend PostgreSQL & local cache endpoints
 
 const SDRsArraySchema = z.array(SDRSchema);
 const AssessoresArraySchema = z.array(AssessorSchema);
@@ -49,6 +50,7 @@ interface AppState {
   teamGoals: TeamGoals;
   teams: string[];
   campaigns: TeamCampaign[];
+  negocios: NegocioFechado[];
 
   // Auth Operations
   setCurrentUser: (user: AuthUser | null) => void;
@@ -81,6 +83,9 @@ interface AppState {
   consolidateMatches: (leaderName: string) => Promise<{ success: boolean; message: string }>;
   clearTemporaryMatches: () => void;
   updateMatchDates: (sdrId: string, assessorId: string, startDate: string, endDate: string) => void;
+  updateMatchAssessor: (sdrId: string, oldAssessorId: string, newAssessorId: string, newAssessorName: string) => void;
+  addManualMatch: (match: MatchResult) => void;
+  deleteMatch: (sdrId: string, assessorId: string) => void;
 
   // Leader operations
   addLeader: (leader: Omit<TeamLeader, 'id'>) => void;
@@ -96,6 +101,7 @@ interface AppState {
   
   // One-on-One operations
   addOneOnOneLog: (log: Omit<OneOnOneLog, 'id' | 'timestamp'>) => Promise<{ success: boolean; message: string }>;
+  deleteOneOnOneLog: (id: string) => void;
 
   // Integration operational control
   updateIntegrationSettings: (fields: Partial<IntegrationSettings>) => void;
@@ -105,9 +111,17 @@ interface AppState {
   deleteCampaign: (id: string) => void;
   updateCampaignStatus: (id: string, status: TeamCampaign['status']) => void;
 
+  // Negocios Operations
+  addNegocio: (negocio: Omit<NegocioFechado, 'id'>) => void;
+  deleteNegocio: (id: string) => void;
+  updateNegocio: (id: string, fields: Partial<NegocioFechado>) => void;
+
   // Rotation visibility setting to make matches optional per leader
   disabledRotationTeams: string[];
   toggleRotationForTeam: (teamName: string) => void;
+  syncFromSupabase: () => Promise<{ success: boolean; message: string }>;
+  syncFromDatabase: () => Promise<{ success: boolean; message: string }>;
+  saveToServer: () => Promise<{ success: boolean; message: string; savedToDb?: boolean }>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -179,6 +193,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {}
     return [];
   })() as TeamCampaign[],
+  negocios: StorageService.getValidated('rodizio_negocios', NegociosArraySchema, INITIAL_NEGOCIOS) as NegocioFechado[],
   disabledRotationTeams: (() => {
     try {
       const saved = localStorage.getItem('rodizio_disabled_rotation_teams');
@@ -261,6 +276,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     StorageService.set('rodizio_sdrs', nextSdrs);
     StorageService.set('rodizio_start_date', bounds.startDate);
     StorageService.set('rodizio_end_date', bounds.endDate);
+
+    get().saveToServer();
   },
 
   updateStartDate: (start) => {
@@ -322,6 +339,126 @@ export const useAppStore = create<AppState>((set, get) => ({
       : [...disabledRotationTeams, teamName];
     set({ disabledRotationTeams: nextList });
     StorageService.set('rodizio_disabled_rotation_teams', nextList);
+    get().saveToServer();
+  },
+
+  syncFromSupabase: async () => {
+    return get().syncFromDatabase();
+  },
+
+  syncFromDatabase: async () => {
+    try {
+      console.log("[useAppStore] Hydrating from full-stack service endpoints...");
+      const res = await fetch("/api/db/load");
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+      const data = await res.json();
+      
+      const updates: Partial<AppState> = {};
+      const parts: string[] = [];
+      
+      if (data.sdrs && Array.isArray(data.sdrs)) {
+        updates.sdrs = data.sdrs;
+        StorageService.set('rodizio_sdrs', data.sdrs);
+        parts.push(`SDRs (${data.sdrs.length})`);
+      }
+      if (data.assessores && Array.isArray(data.assessores)) {
+        updates.assessores = data.assessores;
+        StorageService.set('rodizio_assessores', data.assessores);
+        parts.push(`Assessores (${data.assessores.length})`);
+      }
+      if (data.oneOnOneLogs && Array.isArray(data.oneOnOneLogs)) {
+        updates.oneOnOneLogs = data.oneOnOneLogs;
+        StorageService.set('rodizio_one_on_one_logs', data.oneOnOneLogs);
+        parts.push(`Sessões 1:1 (${data.oneOnOneLogs.length})`);
+      }
+      if (data.negocios && Array.isArray(data.negocios)) {
+        updates.negocios = data.negocios;
+        StorageService.set('rodizio_negocios', data.negocios);
+        parts.push(`Negócios (${data.negocios.length})`);
+      }
+      if (data.matches && Array.isArray(data.matches)) {
+        updates.matches = data.matches;
+        updates.temporaryMatches = data.matches;
+        StorageService.set('rodizio_matches', data.matches);
+      }
+      if (data.campaigns && Array.isArray(data.campaigns)) {
+        updates.campaigns = data.campaigns;
+        localStorage.setItem('rodizio_campaigns', JSON.stringify(data.campaigns));
+      }
+      if (data.leaders && Array.isArray(data.leaders)) {
+        updates.leaders = data.leaders;
+        StorageService.set('rodizio_leaders', data.leaders);
+      }
+      if (data.teamGoals) {
+        updates.teamGoals = data.teamGoals;
+        StorageService.set('rodizio_team_goals', data.teamGoals);
+      }
+      if (data.disabledRotationTeams && Array.isArray(data.disabledRotationTeams)) {
+        updates.disabledRotationTeams = data.disabledRotationTeams;
+        localStorage.setItem('rodizio_disabled_rotation_teams', JSON.stringify(data.disabledRotationTeams));
+      }
+
+      if (parts.length > 0) {
+        set(updates);
+        const sourceFormatted = data.source === "database" ? "Nuvem Neon PostgreSQL" : "Cache Local de Servidor";
+        return { 
+          success: true, 
+          message: `Dados sincronizados (${sourceFormatted}): ${parts.join(', ')}` 
+        };
+      }
+      
+      return { 
+        success: true, 
+        message: 'Conectado ao servidor web do applet com sucesso. Os dados serão gravados dinamicamente no Neon.' 
+      };
+    } catch (error: any) {
+      console.error('[useAppStore] Erro ao carregar dados do servidor:', error.message);
+      return { success: false, message: `Falha na sincronização remota: ${error.message}` };
+    }
+  },
+
+  saveToServer: async () => {
+    const { 
+      sdrs, 
+      assessores, 
+      oneOnOneLogs, 
+      matches, 
+      campaigns, 
+      leaders, 
+      teamGoals, 
+      disabledRotationTeams,
+      negocios
+    } = get();
+    
+    try {
+      const res = await fetch("/api/db/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sdrs,
+          assessores,
+          oneOnOneLogs,
+          matches,
+          campaigns,
+          leaders,
+          teamGoals,
+          disabledRotationTeams,
+          negocios
+        })
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+      const data = await res.json();
+      return { success: true, message: data.message, savedToDb: data.savedToDb };
+    } catch (err: any) {
+      console.error("[useAppStore] Erro ao sincronizar estado com o servidor:", err.message);
+      return { success: false, message: err.message };
+    }
   },
 
   addSDR: (newSdr) => {
@@ -356,6 +493,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextSdrs = [...sdrs, sdr];
     set({ sdrs: nextSdrs });
     StorageService.set('rodizio_sdrs', nextSdrs);
+    get().saveToServer();
   },
 
   deleteSDR: (id) => {
@@ -364,12 +502,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ sdrs: nextSdrs, matches: nextMatches });
     StorageService.set('rodizio_sdrs', nextSdrs);
     StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
   },
 
   toggleActiveSDR: (id) => {
     const nextSdrs = get().sdrs.map(s => s.id === id ? { ...s, active: !s.active } : s);
     set({ sdrs: nextSdrs });
     StorageService.set('rodizio_sdrs', nextSdrs);
+    get().saveToServer();
   },
 
   updateSDRMetrics: (id, agendamentosCount, efetivacoesCount) => {
@@ -404,6 +544,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     set({ sdrs: nextSdrs });
     StorageService.set('rodizio_sdrs', nextSdrs);
+    get().saveToServer();
   },
 
   updateSDR: (id, updatedFields) => {
@@ -443,6 +584,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     set({ sdrs: nextSdrs });
     StorageService.set('rodizio_sdrs', nextSdrs);
+    get().saveToServer();
   },
 
   revertPromotion: (sdrId) => {
@@ -463,6 +605,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     StorageService.set('rodizio_sdrs', nextSdrs);
     StorageService.set('rodizio_assessores', nextAssessores);
     StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
   },
 
   addAssessor: (newAssr) => {
@@ -476,6 +619,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextAssessores = [...get().assessores, assessor];
     set({ assessores: nextAssessores });
     StorageService.set('rodizio_assessores', nextAssessores);
+    get().saveToServer();
   },
 
   deleteAssessor: (id) => {
@@ -484,18 +628,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ assessores: nextAssessores, matches: nextMatches });
     StorageService.set('rodizio_assessores', nextAssessores);
     StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
   },
 
   toggleActiveAssessor: (id) => {
     const nextAssessores = get().assessores.map(a => a.id === id ? { ...a, active: !a.active } : a);
     set({ assessores: nextAssessores });
     StorageService.set('rodizio_assessores', nextAssessores);
+    get().saveToServer();
   },
 
   updateAssessor: (id, updatedFields) => {
     const nextAssessores = get().assessores.map(a => a.id === id ? { ...a, ...updatedFields } : a);
     set({ assessores: nextAssessores });
     StorageService.set('rodizio_assessores', nextAssessores);
+    get().saveToServer();
   },
 
   generateMatches: (shuffle = false, savePermanently = true) => {
@@ -533,6 +680,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (savePermanently) {
       set({ matches: matchesWithDates, temporaryMatches: matchesWithDates });
       StorageService.set('rodizio_matches', matchesWithDates);
+      get().saveToServer();
       
       const leaderName = currentUser?.name || 'Administrador';
       const timestamp = new Date().toISOString();
@@ -546,6 +694,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         });
         StorageService.set('rodizio_integration_settings', get().integrationSettings);
+        get().saveToServer();
       });
     } else {
       // Simulation / Temporário
@@ -559,6 +708,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({ matches: temporaryMatches });
     StorageService.set('rodizio_matches', temporaryMatches);
+    get().saveToServer();
 
     const response = await IntegrationService.sendMatches(
       leaderName,
@@ -575,6 +725,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     });
     StorageService.set('rodizio_integration_settings', get().integrationSettings);
+    get().saveToServer();
 
     return response;
   },
@@ -595,6 +746,43 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({ temporaryMatches: nextTempMatches, matches: nextMatches });
     StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
+  },
+
+  updateMatchAssessor: (sdrId, oldAssessorId, newAssessorId, newAssessorName) => {
+    const update = (m: MatchResult) => 
+      (m.sdrId === sdrId && m.assessorId === oldAssessorId)
+        ? { ...m, assessorId: newAssessorId, assessorName: newAssessorName }
+        : m;
+
+    const nextTempMatches = get().temporaryMatches.map(update);
+    const nextMatches = get().matches.map(update);
+
+    set({ temporaryMatches: nextTempMatches, matches: nextMatches });
+    StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
+  },
+
+  addManualMatch: (match) => {
+    // Avoid double entries
+    const exists = get().matches.some(m => m.sdrId === match.sdrId && m.assessorId === match.assessorId);
+    if (exists) return;
+
+    const nextMatches = [match, ...get().matches];
+    const nextTempMatches = [match, ...get().temporaryMatches];
+
+    set({ matches: nextMatches, temporaryMatches: nextTempMatches });
+    StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
+  },
+
+  deleteMatch: (sdrId, assessorId) => {
+    const nextMatches = get().matches.filter(m => !(m.sdrId === sdrId && m.assessorId === assessorId));
+    const nextTempMatches = get().temporaryMatches.filter(m => !(m.sdrId === sdrId && m.assessorId === assessorId));
+
+    set({ matches: nextMatches, temporaryMatches: nextTempMatches });
+    StorageService.set('rodizio_matches', nextMatches);
+    get().saveToServer();
   },
 
   addLeader: (newLeader) => {
@@ -605,24 +793,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextLeaders = [...get().leaders, leader];
     set({ leaders: nextLeaders });
     StorageService.set('rodizio_leaders', nextLeaders);
+    get().saveToServer();
   },
 
   updateLeader: (id, updatedFields) => {
     const nextLeaders = get().leaders.map(l => l.id === id ? { ...l, ...updatedFields } : l);
     set({ leaders: nextLeaders });
     StorageService.set('rodizio_leaders', nextLeaders);
+    get().saveToServer();
   },
 
   deleteLeader: (id) => {
     const nextLeaders = get().leaders.filter(l => l.id !== id);
     set({ leaders: nextLeaders });
     StorageService.set('rodizio_leaders', nextLeaders);
+    get().saveToServer();
   },
 
   updateTeamGoals: (updated) => {
     const nextGoals = { ...get().teamGoals, ...updated };
     set({ teamGoals: nextGoals });
     StorageService.set('rodizio_team_goals', nextGoals);
+    get().saveToServer();
   },
 
   addAuditLog: async (log) => {
@@ -674,6 +866,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextLogs = [newLog, ...get().oneOnOneLogs];
     set({ oneOnOneLogs: nextLogs });
     StorageService.set('rodizio_one_on_one_logs', nextLogs);
+    get().saveToServer();
 
     const settings = get().integrationSettings;
     const response = await IntegrationService.sendOneOnOne(
@@ -699,6 +892,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     return response;
   },
 
+  deleteOneOnOneLog: (id) => {
+    const nextLogs = get().oneOnOneLogs.filter(log => log.id !== id);
+    set({ oneOnOneLogs: nextLogs });
+    StorageService.set('rodizio_one_on_one_logs', nextLogs);
+    get().saveToServer();
+  },
+
   updateIntegrationSettings: (fields) => {
     const nextSettings = { ...get().integrationSettings, ...fields };
     set({ integrationSettings: nextSettings });
@@ -713,18 +913,46 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextCampaigns = [...get().campaigns, campaign];
     set({ campaigns: nextCampaigns });
     StorageService.set('rodizio_campaigns', nextCampaigns);
+    get().saveToServer();
   },
 
   deleteCampaign: (id) => {
     const nextCampaigns = get().campaigns.filter(c => c.id !== id);
     set({ campaigns: nextCampaigns });
     StorageService.set('rodizio_campaigns', nextCampaigns);
+    get().saveToServer();
   },
 
   updateCampaignStatus: (id, status) => {
     const nextCampaigns = get().campaigns.map(c => c.id === id ? { ...c, status } : c);
     set({ campaigns: nextCampaigns });
     StorageService.set('rodizio_campaigns', nextCampaigns);
+    get().saveToServer();
+  },
+
+  addNegocio: (newNeg) => {
+    const negocio: NegocioFechado = {
+      ...newNeg,
+      id: `neg-${Date.now()}`
+    };
+    const nextNegocios = [negocio, ...get().negocios];
+    set({ negocios: nextNegocios });
+    StorageService.set('rodizio_negocios', nextNegocios);
+    get().saveToServer();
+  },
+
+  deleteNegocio: (id) => {
+    const nextNegocios = get().negocios.filter(n => n.id !== id);
+    set({ negocios: nextNegocios });
+    StorageService.set('rodizio_negocios', nextNegocios);
+    get().saveToServer();
+  },
+
+  updateNegocio: (id, fields) => {
+    const nextNegocios = get().negocios.map(n => n.id === id ? { ...n, ...fields } : n);
+    set({ negocios: nextNegocios });
+    StorageService.set('rodizio_negocios', nextNegocios);
+    get().saveToServer();
   },
 
   resetToDefaults: () => {
@@ -753,7 +981,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       teamGoals: DEFAULT_GOALS,
       teams: DEFAULT_TEAMS,
       campaigns: [],
-      disabledRotationTeams: []
+      disabledRotationTeams: [],
+      negocios: INITIAL_NEGOCIOS
     });
     
     StorageService.set('rodizio_sdrs', INITIAL_SDRS);
@@ -776,6 +1005,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     StorageService.set('rodizio_teams', DEFAULT_TEAMS);
     StorageService.set('rodizio_campaigns', []);
     StorageService.set('rodizio_disabled_rotation_teams', []);
+    StorageService.set('rodizio_negocios', INITIAL_NEGOCIOS);
   }
 }));
 export default useAppStore;

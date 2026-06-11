@@ -10,7 +10,10 @@ import {
   AuditLog as IPAuditLog,
   OneOnOneLog as IPOneOnOneLog,
   IntegrationSettings as IPIntegrationSettings,
-  TeamCampaign as IPTeamCampaign
+  TeamCampaign as IPTeamCampaign,
+  ProductType as IPProductType,
+  NegocioFechado as IPNegocioFechado,
+  NegocioFechadoProduto as IPNegocioFechadoProduto
 } from '../../types';
 
 // Re-export original TypeScript interfaces for central reference
@@ -25,6 +28,9 @@ export type AuditLog = IPAuditLog;
 export type OneOnOneLog = IPOneOnOneLog;
 export type IntegrationSettings = IPIntegrationSettings;
 export type TeamCampaign = IPTeamCampaign;
+export type ProductType = IPProductType;
+export type NegocioFechado = IPNegocioFechado;
+export type NegocioFechadoProduto = IPNegocioFechadoProduto;
 
 // --- ZOD SCHEMAS FOR RUNTIME SECURITY DISCIPLINE ---
 
@@ -141,3 +147,52 @@ export const TeamGoalsSchema = z.object({
   efetivacoes: z.number().catch(80),
   contasAbertas: z.number().catch(35),
 });
+
+export const NegocioFechadoProdutoSchema = z.object({
+  produtoCategoria: z.enum([
+    'INVESTIMENTOS_XP',
+    'OPERACAO_COMPROMISSADA',
+    'CAMBIO',
+    'PREVIDENCIA',
+    'SEGURO_VIDA',
+    'SEGURO_EM_VIDA',
+    'RESPONSABILIDADE_CIVIL',
+    'CONSORCIO_IMOBILIARIO',
+    'CONSORCIO_AUTOMOTIVO',
+    'SUCESSAO_PATRIMONIAL',
+    'CONTABILIDADE'
+  ]),
+  receitaEstimada: z.number().catch(0),
+});
+
+export const NegocioFechadoSchema = z.object({
+  id: z.string(),
+  sdrId: z.string().optional().catch(''),
+  sdrName: z.string().optional().catch(''),
+  assessorId: z.string().optional().catch(''),
+  assessorName: z.string().optional().catch(''),
+  clientName: z.string(),
+  dataCriacaoLead: z.string(),
+  dataFechamento: z.string(),
+  produtoCategoria: z.enum([
+    'INVESTIMENTOS_XP',
+    'OPERACAO_COMPROMISSADA',
+    'CAMBIO',
+    'PREVIDENCIA',
+    'SEGURO_VIDA',
+    'SEGURO_EM_VIDA',
+    'RESPONSABILIDADE_CIVIL',
+    'CONSORCIO_IMOBILIARIO',
+    'CONSORCIO_AUTOMOTIVO',
+    'SUCESSAO_PATRIMONIAL',
+    'CONTABILIDADE'
+  ]),
+  status: z.enum(['GANHO', 'PERDIDO', 'EM_NEGOCIACAO']),
+  volumeFinanceiro: z.number(),
+  receitaEstimada: z.number(),
+  produtos: z.array(NegocioFechadoProdutoSchema).optional().catch([]),
+  origemCliente: z.enum(['TROCA_ASSESSORIA', 'ABERTURA_CONTA']).optional().catch('ABERTURA_CONTA'),
+  situacaoCliente: z.enum(['ATIVO_APORTANDO', 'INATIVO_SEM_APORTES']).optional().catch('ATIVO_APORTANDO'),
+});
+
+export const NegociosArraySchema = z.array(NegocioFechadoSchema);

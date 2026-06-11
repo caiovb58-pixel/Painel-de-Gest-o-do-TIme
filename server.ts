@@ -320,8 +320,406 @@ O profissional foi classificado como **${profileReadable}** com base na análise
   }
 });
 
+// ========================================================
+// 🗄️ NEON POSTGRESQL & LOCAL SERVER CACHE persistance SYSTEM
+// ========================================================
+import pg from "pg";
+import fs from "fs";
+
+const { Pool } = pg;
+const dbUrl = process.env.DATABASE_URL;
+let dbPool: pg.Pool | null = null;
+let lastDbError: string | null = null;
+let isDbConnected = false;
+
+// Structured logs for tracking connection state
+interface SyncLog {
+  id: string;
+  timestamp: string;
+  type: "LOAD" | "SAVE" | "INIT";
+  status: "success" | "error";
+  message: string;
+  details?: string;
+  error?: string | null;
+}
+
+const syncLogs: SyncLog[] = [];
+
+function addSyncLog(type: "LOAD" | "SAVE" | "INIT", status: "success" | "error", message: string, error?: string | null, details?: string) {
+  const log: SyncLog = {
+    id: Math.random().toString(36).substring(2, 9),
+    timestamp: new Date().toISOString(),
+    type,
+    status,
+    message,
+    details,
+    error
+  };
+  syncLogs.unshift(log);
+  // Keep the last 50 logs to prevent memory bloat
+  if (syncLogs.length > 50) {
+    syncLogs.pop();
+  }
+}
+
+if (dbUrl && dbUrl.trim() !== "") {
+  console.log("[Neon Database] Detected DATABASE_URL in environment. Initializing pool...");
+  dbPool = new Pool({
+    connectionString: dbUrl,
+    ssl: {
+      rejectUnauthorized: false // Required for serverless Neon PostgreSQL connections
+    }
+  });
+} else {
+  console.log("[Neon Database] No DATABASE_URL configuration detected. Running under local server cache fallback.");
+  addSyncLog("INIT", "success", "Iniciado com sucesso em modo de Contingência / Cache Local (DATABASE_URL em branco).");
+}
+
+const PERSIST_FILE = path.join(process.cwd(), "persist_data.json");
+
+function readLocalPersistFile() {
+  try {
+    if (fs.existsSync(PERSIST_FILE)) {
+      const raw = fs.readFileSync(PERSIST_FILE, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch (err: any) {
+    console.error("[Local Storage Cache] Error reading local fallback file:", err.message);
+  }
+  return null;
+}
+
+function writeLocalPersistFile(data: any) {
+  try {
+    fs.writeFileSync(PERSIST_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (err: any) {
+    console.error("[Local Storage Cache] Error writing local fallback file:", err.message);
+  }
+}
+
+async function verifyDatabase() {
+  if (!dbPool) return;
+  try {
+    const client = await dbPool.connect();
+    isDbConnected = true;
+    lastDbError = null;
+    console.log("[Neon Database] Connection established successfully with Neon PostgreSQL cloud system.");
+
+    // Create persistent storage schemas that support high-fidelity upsert and flex schema
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sdrs (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assessores (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS one_on_one_logs (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS system_config (
+        key VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS negocios_fechados (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    client.release();
+    addSyncLog("INIT", "success", "Banco de dados Neon conectado e tabelas de dados validadas com sucesso.");
+    console.log("[Neon Database] Database schema validated and table architecture ready.");
+  } catch (err: any) {
+    isDbConnected = false;
+    lastDbError = err.message;
+    addSyncLog("INIT", "error", "Falha crítica na conexão inicial e criação de tabelas do Postgres", err.message);
+    console.error("[Neon Database] Error preparing database schemas in PostgreSQL:", err.message);
+  }
+}
+
+// 1. DATABASE COMPREHENSIVE RECOVERY / LOAD ENDPOINT
+app.get("/api/db/load", async (req, res) => {
+  if (dbPool) {
+    try {
+      console.log("[Neon Database] Attempting state retrieval...");
+      const client = await dbPool.connect();
+      isDbConnected = true;
+      lastDbError = null;
+      
+      const sdrRows = await client.query("SELECT data FROM sdrs");
+      const assrRows = await client.query("SELECT data FROM assessores");
+      const logRows = await client.query("SELECT data FROM one_on_one_logs");
+      const negociosRows = await client.query("SELECT data FROM negocios_fechados");
+      const configRows = await client.query("SELECT key, data FROM system_config");
+      
+      client.release();
+      
+      const sdrs = sdrRows.rows.map(r => r.data);
+      const assessores = assrRows.rows.map(r => r.data);
+      const oneOnOneLogs = logRows.rows.map(r => r.data);
+      const negocios = negociosRows.rows.map(r => r.data);
+      
+      const configs: Record<string, any> = {};
+      configRows.rows.forEach(r => {
+        configs[r.key] = r.data;
+      });
+
+      // If there is any content in PostgreSQL, use it as supreme truth
+      if (sdrs.length > 0 || assessores.length > 0 || oneOnOneLogs.length > 0 || negocios.length > 0) {
+        console.log(`[Neon Database] Hydrating from PostgreSQL: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} Logs, ${negocios.length} Negocios.`);
+        addSyncLog("LOAD", "success", `Sincronização bem sucedida. Carregou ${sdrs.length} SDRs, ${assessores.length} Assessores e ${negocios.length} Negócios da Nuvem Neon.`);
+        return res.json({
+          source: "database",
+          sdrs,
+          assessores,
+          oneOnOneLogs,
+          negocios,
+          matches: configs.matches || [],
+          campaigns: configs.campaigns || [],
+          leaders: configs.leaders || [],
+          teamGoals: configs.teamGoals || null,
+          disabledRotationTeams: configs.disabledRotationTeams || []
+        });
+      }
+    } catch (dbErr: any) {
+      isDbConnected = false;
+      lastDbError = dbErr.message;
+      addSyncLog("LOAD", "error", "Erro ao recuperar dados do Postgres Neon. Tentando usar cache local de contingência.", dbErr.message);
+      console.error("[Neon Database] Failed to pull state from Neon. Resorting to local cache:", dbErr.message);
+    }
+  }
+
+  // Local JSON fallback
+  const localCache = readLocalPersistFile();
+  if (localCache) {
+    console.log("[Local Storage Cache] Successfully hydrated app from local disk cache.");
+    addSyncLog("LOAD", "success", "Carregamento de dados local efetuado com sucesso usando o Cache de Contingência.");
+    return res.json({
+      source: "local_cache",
+      ...localCache
+    });
+  }
+
+  console.log("[Local Storage Cache] No valid persistence database or cache found. Bootstrapping with clean/default values.");
+  addSyncLog("LOAD", "success", "Carregamento inicial vazio. Banco de dados novo ou zerado.");
+  return res.json({
+    source: "defaults",
+    sdrs: [],
+    assessores: [],
+    oneOnOneLogs: [],
+    matches: [],
+    campaigns: [],
+    leaders: [],
+    teamGoals: null,
+    disabledRotationTeams: []
+  });
+});
+
+// 2. ATOMIC TRANSACTION FULL-SYNC SAVE ENDPOINT
+app.post("/api/db/save", async (req, res) => {
+  const { 
+    sdrs = [], 
+    assessores = [], 
+    oneOnOneLogs = [], 
+    matches = [], 
+    campaigns = [], 
+    leaders = [], 
+    teamGoals = null, 
+    disabledRotationTeams = [],
+    negocios = []
+  } = req.body;
+
+  // Sync with local memory cache first so any multi-PC action immediately works
+  writeLocalPersistFile({
+    sdrs,
+    assessores,
+    oneOnOneLogs,
+    matches,
+    campaigns,
+    leaders,
+    teamGoals,
+    disabledRotationTeams,
+    negocios
+  });
+
+  let savedToDb = false;
+  let dbError = null;
+
+  if (dbPool) {
+    try {
+      console.log("[Neon Database] Starting atomic database transaction save...");
+      const client = await dbPool.connect();
+      isDbConnected = true;
+      lastDbError = null;
+      
+      try {
+        await client.query("BEGIN");
+        
+        // 1. Sync SDRs (Upsert active + prune stale)
+        for (const s of sdrs) {
+          await client.query(
+            "INSERT INTO sdrs (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
+            [s.id, JSON.stringify(s)]
+          );
+        }
+        if (sdrs.length > 0) {
+          const sdrIds = sdrs.map((s: any) => s.id);
+          await client.query("DELETE FROM sdrs WHERE id <> ALL($1)", [sdrIds]);
+        } else {
+          await client.query("DELETE FROM sdrs");
+        }
+
+        // 2. Sync Assessores
+        for (const a of assessores) {
+          await client.query(
+            "INSERT INTO assessores (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
+            [a.id, JSON.stringify(a)]
+          );
+        }
+        if (assessores.length > 0) {
+          const assrIds = assessores.map((a: any) => a.id);
+          await client.query("DELETE FROM assessores WHERE id <> ALL($1)", [assrIds]);
+        } else {
+          await client.query("DELETE FROM assessores");
+        }
+
+        // 3. Sync One-on-One Logs
+        for (const log of oneOnOneLogs) {
+          await client.query(
+            "INSERT INTO one_on_one_logs (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
+            [log.id, JSON.stringify(log)]
+          );
+        }
+        if (oneOnOneLogs.length > 0) {
+          const logIds = oneOnOneLogs.map((l: any) => l.id);
+          await client.query("DELETE FROM one_on_one_logs WHERE id <> ALL($1)", [logIds]);
+        } else {
+          await client.query("DELETE FROM one_on_one_logs");
+        }
+
+        // 4. Sync Negocios
+        for (const n of negocios) {
+          await client.query(
+            "INSERT INTO negocios_fechados (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
+            [n.id, JSON.stringify(n)]
+          );
+        }
+        if (negocios.length > 0) {
+          const negIds = negocios.map((n: any) => n.id);
+          await client.query("DELETE FROM negocios_fechados WHERE id <> ALL($1)", [negIds]);
+        } else {
+          await client.query("DELETE FROM negocios_fechados");
+        }
+
+        // 4. Sync Generic Configurations and Metadata
+        const configPack = [
+          { key: "matches", data: matches },
+          { key: "campaigns", data: campaigns },
+          { key: "leaders", data: leaders },
+          { key: "teamGoals", data: teamGoals },
+          { key: "disabledRotationTeams", data: disabledRotationTeams }
+        ];
+
+        for (const config of configPack) {
+          await client.query(
+            "INSERT INTO system_config (key, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
+            [config.key, JSON.stringify(config.data)]
+          );
+        }
+
+        await client.query("COMMIT");
+        savedToDb = true;
+        addSyncLog("SAVE", "success", `Sincronização de saída (Atualização): ${sdrs.length} SDRs, ${assessores.length} Assessores e ${negocios.length} Negócios persistidos na Nuvem.`);
+        console.log("[Neon Database] Transaction committed successfully to your Neon storage.");
+      } catch (txErr: any) {
+        await client.query("ROLLBACK");
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    } catch (err: any) {
+      isDbConnected = false;
+      lastDbError = err.message;
+      addSyncLog("SAVE", "error", `Falha de persistência no Postgres. Gravado provisoriamente em Cache de Contingência.`, err.message);
+      console.error("[Neon Database] Save operation transaction aborted:", err.message);
+      dbError = err.message;
+    }
+  } else {
+    // If running only under local server fallback
+    addSyncLog("SAVE", "success", `Alteração armazenada com êxito no Cache do Servidor (${sdrs.length} SDRs, ${assessores.length} Assessores, ${negocios.length} Negócios).`);
+  }
+
+  return res.json({
+    success: true,
+    savedToLocalCache: true,
+    savedToDb,
+    dbError,
+    message: savedToDb 
+      ? "Dados consolidados e transmitidos com sucesso para a nuvem da Neon Database." 
+      : "Dados armazenados com segurança no servidor local. Seu time já consegue compartilhar as mesmas informações em qualquer PC!"
+  });
+});
+
+// 3. STORAGE CONNECTION STATUS ENQUIRY ENDPOINT
+app.get("/api/db/status", (req, res) => {
+  const isDbConfigured = !!(process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== "");
+  let maskedUrl = "Não Cadastrado";
+  
+  if (isDbConfigured && process.env.DATABASE_URL) {
+    try {
+      const match = process.env.DATABASE_URL.match(/@([^/?:#]+)/);
+      if (match && match[1]) {
+        maskedUrl = `postgresql://***@${match[1]}`;
+      } else {
+        maskedUrl = "postgresql://*** (Configurada)";
+      }
+    } catch {
+      maskedUrl = "postgresql://***";
+    }
+  }
+
+  res.json({
+    ok: isDbConfigured,
+    databaseConnected: isDbConfigured && isDbConnected,
+    databaseType: isDbConfigured ? "Neon / PostgreSQL Clássico" : "Local Shared JSON Cache Server",
+    databaseUrl: maskedUrl,
+    lastError: lastDbError,
+    message: isDbConfigured 
+      ? (isDbConnected ? "O banco de dados de nuvem Neon está monitorado e conectado!" : `Falha na conexão com o banco Neon: ${lastDbError}`)
+      : "Rodando sob o cache central do servidor. Todas as máquinas conectadas à nuvem do seu Applet compartilham as alterações!"
+  });
+});
+
+// 4. STORAGE SYNCHRONIZATION LOGS HISTORY ENDPOINT
+app.get("/api/db/history", (req, res) => {
+  res.json({ logs: syncLogs });
+});
+
 // Configure Vite middleware / Serve client
 async function init() {
+  // Verify database schema & tables first
+  await verifyDatabase();
+
   const isProd = process.env.NODE_ENV === "production" || 
                  (process.argv[1] && !process.argv[1].endsWith("server.ts"));
 
