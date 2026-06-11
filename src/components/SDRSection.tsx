@@ -940,7 +940,8 @@ export default function SDRSection({
                 placeholder="Ex: Ana Silva"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+                style={{ color: '#000000' }}
               />
             </div>
  
@@ -949,7 +950,7 @@ export default function SDRSection({
                 Equipe / Canal
               </label>
               {currentUser?.role === 'leader' ? (
-                <div className="w-full px-3 py-2 bg-neutral-100 border border-neutral-250 rounded-lg text-xs text-neutral-700 font-bold flex items-center gap-1.5 cursor-not-allowed">
+                <div className="w-full px-3 py-2 bg-neutral-100 border border-neutral-250 rounded-lg text-xs text-black font-bold flex items-center gap-1.5 cursor-not-allowed" style={{ color: '#000000' }}>
                   <Shield className="w-3.5 h-3.5 text-neutral-500" />
                   {currentUser.teamName || 'Sua Equipe'}
                 </div>
@@ -957,12 +958,13 @@ export default function SDRSection({
                 <select
                   value={team}
                   onChange={e => setTeam(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-850 font-semibold focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all cursor-pointer"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all cursor-pointer"
+                  style={{ color: '#000000' }}
                 >
                   {teams.map(t => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t} className="text-black font-bold">{t}</option>
                   ))}
-                  <option value="">Sem Equipe</option>
+                  <option value="" className="text-black font-bold">Sem Equipe</option>
                 </select>
               )}
             </div>
@@ -975,12 +977,13 @@ export default function SDRSection({
                 <select
                   value={professionalProfile}
                   onChange={e => setProfessionalProfile(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-850 font-semibold focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all cursor-pointer"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all cursor-pointer"
+                  style={{ color: '#000000' }}
                 >
-                  <option value="comercial">Comercial (Prospecção)</option>
-                  <option value="gestao">Gestão / Liderança</option>
-                  <option value="analitico">Analítico (Dados/Padrões)</option>
-                  <option value="operacional">Operacional (Backoffice)</option>
+                  <option value="comercial" className="text-black font-bold">Comercial (Prospecção)</option>
+                  <option value="gestao" className="text-black font-bold">Gestão / Liderança</option>
+                  <option value="analitico" className="text-black font-bold">Analítico (Dados/Padrões)</option>
+                  <option value="operacional" className="text-black font-bold">Operacional (Backoffice)</option>
                 </select>
               </div>
             )}
@@ -993,7 +996,8 @@ export default function SDRSection({
                 type="date"
                 value={admissionDate}
                 onChange={e => setAdmissionDate(e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all font-mono cursor-pointer"
+                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all font-mono cursor-pointer"
+                style={{ color: '#000000' }}
               />
             </div>
 
@@ -1008,7 +1012,8 @@ export default function SDRSection({
                     min="0"
                     value={agendamentosCount}
                     onChange={e => setAgendamentosCount(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-full px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black"
+                    className="w-full px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black"
+                    style={{ color: '#000000' }}
                   />
                 </div>
                 <div>
@@ -1020,7 +1025,8 @@ export default function SDRSection({
                     min="0"
                     value={efetivacoesCount}
                     onChange={e => setEfetivacoesCount(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-full px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black"
+                    className="w-full px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black"
+                    style={{ color: '#000000' }}
                   />
                 </div>
                 <div>
@@ -1032,7 +1038,8 @@ export default function SDRSection({
                     min="0"
                     value={contasAbertasCount}
                     onChange={e => setContasAbertasCount(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-full px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black"
+                    className="w-full px-2.5 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black"
+                    style={{ color: '#000000' }}
                   />
                 </div>
               </div>
@@ -1048,7 +1055,8 @@ export default function SDRSection({
                   placeholder="https://calendly.com/sua-agenda"
                   value={agendaLink}
                   onChange={e => setAgendaLink(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-black"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none focus:ring-1 focus:ring-black"
+                  style={{ color: '#000000' }}
                 />
               </div>
             )}
@@ -1066,7 +1074,8 @@ export default function SDRSection({
                   min="1"
                   value={metaAgendamentos}
                   onChange={e => setMetaAgendamentos(Math.max(1, parseInt(e.target.value) || 0))}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none"
+                  style={{ color: '#000000' }}
                 />
               </div>
 
@@ -1079,7 +1088,8 @@ export default function SDRSection({
                   min="0"
                   value={metaEfetivacoes}
                   onChange={e => setMetaEfetivacoes(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:outline-none"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none"
+                  style={{ color: '#000000' }}
                 />
               </div>
 
@@ -1093,7 +1103,8 @@ export default function SDRSection({
                   max="100"
                   value={metaEfetivacaoRate}
                   onChange={e => setMetaEfetivacaoRate(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-850"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold"
+                  style={{ color: '#000000' }}
                 />
               </div>
 
@@ -1106,7 +1117,8 @@ export default function SDRSection({
                   min="0"
                   value={metaContasAbertas}
                   onChange={e => setMetaContasAbertas(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-850"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold"
+                  style={{ color: '#000000' }}
                 />
               </div>
             </div>
@@ -3793,11 +3805,12 @@ export default function SDRSection({
                       <select
                         value={schedSdrId}
                         onChange={(e) => setSchedSdrId(e.target.value)}
-                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-brand-sand text-neutral-800 cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black"
+                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-white text-black cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black"
+                        style={{ color: '#000000' }}
                       >
-                        <option value="">-- Selecione o Colaborador --</option>
+                        <option value="" className="text-black font-bold">-- Selecione o Colaborador --</option>
                         {allProfessionals.map(p => (
-                          <option key={p.id} value={p.id}>
+                          <option key={p.id} value={p.id} className="text-black font-bold">
                             {p.name} {!p.active ? ' (Inativo)' : ''}
                           </option>
                         ))}
@@ -3811,7 +3824,8 @@ export default function SDRSection({
                         value={schedLeader}
                         onChange={(e) => setSchedLeader(e.target.value)}
                         placeholder="Nome do Líder Responsável"
-                        className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-brand-sand text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black"
+                        className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-white text-black focus:outline-hidden focus:ring-1 focus:ring-black"
+                        style={{ color: '#000000' }}
                       />
                     </div>
 
@@ -3822,7 +3836,8 @@ export default function SDRSection({
                           type="datetime-local"
                           value={schedDateTime}
                           onChange={(e) => setSchedDateTime(e.target.value)}
-                          className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2 bg-brand-sand text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black cursor-pointer"
+                          className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2 bg-white text-black focus:outline-hidden focus:ring-1 focus:ring-black cursor-pointer"
+                          style={{ color: '#000000' }}
                         />
                       </div>
                     </div>
@@ -3832,15 +3847,16 @@ export default function SDRSection({
                       <select
                         value={schedTopic}
                         onChange={(e) => setSchedTopic(e.target.value)}
-                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2 bg-brand-sand text-neutral-800 cursor-pointer focus:outline-hidden"
+                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2 bg-white text-black cursor-pointer focus:outline-hidden"
+                        style={{ color: '#000000' }}
                       >
-                        <option value="Alinhamento de Metas">Alinhamento de Metas & KPIs</option>
-                        <option value="Pitch Comercial">Simulação de Pitch & Qualificação</option>
-                        <option value="Objeções de Corretagem">Contorno de Objeções complexas</option>
-                        <option value="Alinhamento Cultural">Alinhamento de Cultura & Clima</option>
-                        <option value="Plano de Carreira">Plano de Carreira & Evolução</option>
-                        <option value="Comportamental/Motivacional">Comportamental & Equilíbrio Motivacional</option>
-                        <option value="Outro">Outro de interesse operacional</option>
+                        <option value="Alinhamento de Metas" className="text-black font-bold">Alinhamento de Metas & KPIs</option>
+                        <option value="Pitch Comercial" className="text-black font-bold">Simulação de Pitch & Qualificação</option>
+                        <option value="Objeções de Corretagem" className="text-black font-bold">Contorno de Objeções complexas</option>
+                        <option value="Alinhamento Cultural" className="text-black font-bold">Alinhamento de Cultura & Clima</option>
+                        <option value="Plano de Carreira" className="text-black font-bold">Plano de Carreira & Evolução</option>
+                        <option value="Comportamental/Motivacional" className="text-black font-bold">Comportamental & Equilíbrio Motivacional</option>
+                        <option value="Outro" className="text-black font-bold">Outro de interesse operacional</option>
                       </select>
                     </div>
 
@@ -3851,7 +3867,8 @@ export default function SDRSection({
                         value={schedNotes}
                         onChange={(e) => setSchedNotes(e.target.value)}
                         placeholder="Ex: Discutir metas de agendamentos pendentes ou dificuldades..."
-                        className="w-full text-xs rounded-xl border border-neutral-300 p-2.5 bg-brand-sand text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black custom-scrollbar resize-none"
+                        className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-white text-black focus:outline-hidden focus:ring-1 focus:ring-black custom-scrollbar resize-none"
+                        style={{ color: '#000000' }}
                       />
                     </div>
 

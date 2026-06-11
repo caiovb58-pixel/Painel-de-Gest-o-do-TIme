@@ -160,7 +160,8 @@ export default function AssessorSection({
                 placeholder="Ex: Rodrigo Mello (Sul Capital)"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-800 focus:ring-1 focus:ring-black focus:border-black focus:outline-none"
+                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:ring-1 focus:ring-black focus:border-black focus:outline-none"
+                style={{ color: '#000000' }}
               />
             </div>
 
@@ -173,7 +174,8 @@ export default function AssessorSection({
                 placeholder="Ex: https://calendly.com/..."
                 value={agendaLink}
                 onChange={e => setAgendaLink(e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-mono text-neutral-800 focus:ring-1 focus:ring-black focus:outline-none"
+                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-mono text-black font-bold focus:ring-1 focus:ring-black focus:outline-none"
+                style={{ color: '#000000' }}
               />
             </div>
 
@@ -184,12 +186,13 @@ export default function AssessorSection({
               <select
                 value={team}
                 onChange={e => setTeam(e.target.value)}
-                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold focus:outline-none font-sans cursor-pointer"
+                className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none font-sans cursor-pointer"
+                style={{ color: '#000000' }}
               >
                 {teams.map(t => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t} className="text-black font-bold">{t}</option>
                 ))}
-                <option value="">Sem Equipe</option>
+                <option value="" className="text-black font-bold">Sem Equipe</option>
               </select>
             </div>
           </div>
