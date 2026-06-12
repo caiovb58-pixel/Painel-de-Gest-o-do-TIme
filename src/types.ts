@@ -43,6 +43,7 @@ export interface Assessor {
   crossSellCount?: number; // Quantidade de cross-sell
   crossSellDetails?: string; // Detalhes de cross-sell
   professionalProfile?: string; // Perfil profissional: 'comercial' | 'gestao' | 'analitico' | 'operacional' e etc.
+  admissionDate?: string; // Data de admissão do Assessor
 }
 
 export interface TeamLeader {
@@ -68,6 +69,7 @@ export interface TeamGoals {
   agendamentos: number;
   efetivacoes: number;
   contasAbertas: number;
+  teamSpecificAgendamentos?: Record<string, number>;
 }
 
 export interface AuthUser {

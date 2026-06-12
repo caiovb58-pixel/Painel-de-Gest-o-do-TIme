@@ -556,6 +556,7 @@ export default function SDRSection({
   const [localTeamGoalAgend, setLocalTeamGoalAgend] = useState(teamGoals.agendamentos);
   const [localTeamGoalEfet, setLocalTeamGoalEfet] = useState(teamGoals.efetivacoes);
   const [localTeamGoalContas, setLocalTeamGoalContas] = useState(teamGoals.contasAbertas);
+  const [teamsGoalFeedback, setTeamsGoalFeedback] = useState<Record<string, string>>({});
 
   // Deletion helper
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -817,9 +818,10 @@ export default function SDRSection({
                 onClick={() => setSubTab('list')}
                 className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                   subTab === 'list' 
-                    ? 'bg-white shadow-xs text-black font-bold' 
-                    : 'text-neutral-550 hover:text-black'
+                    ? 'bg-white shadow-xs text-black font-extrabold' 
+                    : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
+                style={{ color: subTab === 'list' ? '#000000' : '#262626' }}
               >
                 Membros Ativos ({sdrs.filter(s => s.active).length + assessores.filter(a => a.active).length})
               </button>
@@ -828,9 +830,10 @@ export default function SDRSection({
                 onClick={() => setSubTab('goals')}
                 className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                   subTab === 'goals' 
-                    ? 'bg-white shadow-xs text-black font-bold' 
-                    : 'text-neutral-550 hover:text-black'
+                    ? 'bg-white shadow-xs text-black font-extrabold' 
+                    : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
+                style={{ color: subTab === 'goals' ? '#000000' : '#262626' }}
               >
                 Pontos de Atenção & Metas
               </button>
@@ -839,9 +842,10 @@ export default function SDRSection({
                 onClick={() => setSubTab('teams')}
                 className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                   subTab === 'teams' 
-                    ? 'bg-white shadow-xs text-black font-bold' 
-                    : 'text-neutral-550 hover:text-black'
+                    ? 'bg-white shadow-xs text-black font-extrabold' 
+                    : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
+                style={{ color: subTab === 'teams' ? '#000000' : '#262626' }}
               >
                 Dividir em Equipes ({teams.length})
               </button>
@@ -850,9 +854,10 @@ export default function SDRSection({
                 onClick={() => setSubTab('campaigns')}
                 className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                   subTab === 'campaigns' 
-                    ? 'bg-white shadow-xs text-black font-bold' 
-                    : 'text-neutral-550 hover:text-black'
+                    ? 'bg-white shadow-xs text-black font-extrabold' 
+                    : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
+                style={{ color: subTab === 'campaigns' ? '#000000' : '#262626' }}
               >
                 Campanhas do Time 🏆
               </button>
@@ -861,9 +866,10 @@ export default function SDRSection({
                 onClick={() => setSubTab('one_on_one')}
                 className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                   subTab === 'one_on_one' 
-                    ? 'bg-white shadow-xs text-black font-bold' 
-                    : 'text-neutral-550 hover:text-black'
+                    ? 'bg-white shadow-xs text-black font-extrabold' 
+                    : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
+                style={{ color: subTab === 'one_on_one' ? '#000000' : '#262626' }}
               >
                 Sessões 1:1 🗣️
               </button>
@@ -2042,7 +2048,7 @@ export default function SDRSection({
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-amber-550 block"></span>
                         <strong className="font-bold">{sdr.name}</strong>
-                        <span className="text-[10px] text-neutral-400 font-mono">({sdr.team})</span>
+                        <span className="text-[10px] text-black font-extrabold font-mono" style={{ color: '#000000' }}>({sdr.team})</span>
                       </div>
                       <div className="flex items-center gap-3 font-mono font-bold text-[11px]">
                         {isBelowBooking && (
@@ -2183,6 +2189,110 @@ export default function SDRSection({
             </div>
           </div>
 
+          {/* PAINEL DE CONFIGURAÇÃO RÁPIDA DE METAS DE AGENDAMENTOS POR EQUIPE */}
+          <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-xs space-y-4 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-neutral-800" />
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-display">Ajuste Granular de Metas de Agendamentos por Equipe</h4>
+                  <p className="text-[11px] text-neutral-450 mt-0.5">Defina as metas específicas de cada equipe. Utilize o botão para distribuir e recalibrar em tempo real as metas e previsões individuais de cada SDR correspondente.</p>
+                </div>
+              </div>
+            </div>
+
+            {teams.length === 0 ? (
+              <div className="text-center py-8 bg-neutral-50 border border-neutral-150 rounded-xl">
+                <p className="text-xs text-neutral-500">Nenhuma equipe cadastrada na guia de "Equipes".</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {teams.map(t => {
+                  const teamActiveSDRs = activeSDRs.filter(s => s.team === t);
+                  const goalValue = teamGoals.teamSpecificAgendamentos?.[t] || (teamActiveSDRs.length * 20) || 50;
+                  const perSdrProjected = teamActiveSDRs.length > 0 ? Math.round(goalValue / teamActiveSDRs.length) : 0;
+                  const feedbackText = teamsGoalFeedback[t];
+
+                  return (
+                    <div key={t} className="border border-neutral-200 p-4 rounded-xl flex flex-col justify-between gap-3 bg-neutral-50 hover:border-neutral-400 hover:bg-neutral-50/55 transition-all">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center pb-1.5 border-b border-neutral-100">
+                          <span className="text-xs font-black font-display text-neutral-900 block uppercase tracking-wide">
+                            {t}
+                          </span>
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-neutral-100 text-neutral-600 rounded-md border border-neutral-200">
+                            {teamActiveSDRs.length} SDR(s) Ativos
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-[9px] font-black text-neutral-400 uppercase tracking-widest leading-none">
+                            <span>Meta da Equipe</span>
+                            <span className="font-mono text-neutral-550 lowercase">acumulado: {teamActiveSDRs.reduce((s, sdr) => s + (sdr.agendamentosCount || 0), 0)}</span>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <input
+                              type="number"
+                              min="0"
+                              value={goalValue}
+                              onChange={e => {
+                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                if (onUpdateTeamGoals) {
+                                  onUpdateTeamGoals({
+                                    teamSpecificAgendamentos: {
+                                      ...(teamGoals.teamSpecificAgendamentos || {}),
+                                      [t]: val
+                                    }
+                                  });
+                                }
+                              }}
+                              className="bg-white text-xs font-bold px-2.5 py-1.5 rounded-lg border border-neutral-300 w-24 focus:outline-none focus:ring-1 focus:ring-black"
+                            />
+                            <div className="text-[10px] text-neutral-500 leading-tight">
+                              Pró-rata: <strong className="text-neutral-800 font-bold">{perSdrProjected} agend.</strong> / SDR
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-neutral-200/50 space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (teamActiveSDRs.length === 0) {
+                              setTeamsGoalFeedback(prev => ({ ...prev, [t]: 'Nenhum SDR ativo nesta equipe para receber as metas!' }));
+                              setTimeout(() => setTeamsGoalFeedback(prev => ({ ...prev, [t]: '' })), 3000);
+                              return;
+                            }
+                            teamActiveSDRs.forEach(s => {
+                              if (onUpdateSDR) {
+                                onUpdateSDR(s.id, { metaAgendamentos: perSdrProjected });
+                              }
+                            });
+                            setTeamsGoalFeedback(prev => ({
+                              ...prev,
+                              [t]: `✓ Distribuída meta de ${perSdrProjected} para cada um dos ${teamActiveSDRs.length} SDRs!`
+                            }));
+                            setTimeout(() => setTeamsGoalFeedback(prev => ({ ...prev, [t]: '' })), 4000);
+                          }}
+                          className="w-full py-1.5 bg-neutral-900 border border-neutral-950 hover:bg-black text-white hover:text-neutral-100 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-7 shadow-2xs"
+                        >
+                          <Sparkles className="w-3 h-3 text-neutral-450" /> Distribuir e Sincronizar SDRs
+                        </button>
+
+                        {feedbackText && (
+                          <p className={`text-[9.5px] text-center font-bold px-2 py-1 rounded ${feedbackText.includes('✓') ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-amber-700 bg-amber-50 border border-amber-100'}`}>
+                            {feedbackText}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Combined Team Summary stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex flex-col justify-between">
@@ -2265,7 +2375,7 @@ export default function SDRSection({
                       <div key={sdr.id} className="p-3 grid grid-cols-12 text-xs items-center gap-1 text-center">
                         <div className="col-span-3 font-bold text-neutral-800 text-left">
                           {sdr.name}
-                          <span className="block text-[9px] text-neutral-450 font-normal">{sdr.team}</span>
+                          <span className="block text-[9px] text-black font-semibold" style={{ color: '#000000' }}>{sdr.team}</span>
                         </div>
                         
                         <div className="col-span-2">
@@ -2903,10 +3013,10 @@ export default function SDRSection({
                         {/* Mid block with goal metrics */}
                         <div className="space-y-1.5 p-3.5 bg-neutral-50 border border-neutral-150 rounded-xl relative">
                           <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                            <span className="text-[10px] font-bold text-black uppercase tracking-widest" style={{ color: '#000000' }}>
                               {metricLabel}
                             </span>
-                            <span className="text-xs font-black text-neutral-900 font-mono">
+                            <span className="text-xs font-black text-black font-mono" style={{ color: '#000000' }}>
                               {currentRawProgress}{suffix} / {camp.targetValue}{suffix}
                             </span>
                           </div>
@@ -2919,21 +3029,21 @@ export default function SDRSection({
                             />
                           </div>
 
-                          <div className="flex justify-between items-center text-[10px] font-bold text-neutral-550 pt-1">
-                            <span>Sprints Ativo</span>
-                            <span className="text-neutral-900 font-mono text-[11px]">{progressPct}%</span>
+                          <div className="flex justify-between items-center text-[10px] font-bold text-black pt-1" style={{ color: '#000000' }}>
+                            <span className="text-black font-bold" style={{ color: '#000000' }}>Sprints Ativo</span>
+                            <span className="text-black font-mono text-[11px] font-bold" style={{ color: '#000000' }}>{progressPct}%</span>
                           </div>
                         </div>
 
                         {/* Reward tag & timeline footer */}
                         <div className="flex items-center justify-between pt-1 text-[10px] border-t border-neutral-100">
-                          <div className="flex items-center gap-1.5 text-neutral-900">
-                            <Gift className="w-3.5 h-3.5 text-neutral-600" />
-                            <span className="font-extrabold text-neutral-950 uppercase tracking-wider bg-black/5 px-2 py-0.5 rounded-lg border border-neutral-200/50">
+                          <div className="flex items-center gap-1.5 text-black" style={{ color: '#000000' }}>
+                            <Gift className="w-3.5 h-3.5 text-black" style={{ color: '#000000' }} />
+                            <span className="font-extrabold text-black uppercase tracking-wider bg-black/5 px-2 py-0.5 rounded-lg border border-neutral-200/50" style={{ color: '#000000' }}>
                               🎁 {camp.reward}
                             </span>
                           </div>
-                          <span className="text-neutral-500 font-sans tracking-wide">
+                          <span className="text-black font-sans font-bold tracking-wide" style={{ color: '#000000' }}>
                             Até {formatDate(camp.endDate)}
                           </span>
                         </div>

@@ -121,6 +121,7 @@ export const AssessorSchema = z.object({
   crossSellCount: z.number().optional().catch(0),
   crossSellDetails: z.string().optional().catch(''),
   professionalProfile: z.string().optional().catch('comercial'),
+  admissionDate: z.string().optional().catch(''),
 });
 
 export const TeamLeaderSchema = z.object({
@@ -146,6 +147,7 @@ export const TeamGoalsSchema = z.object({
   agendamentos: z.number().catch(150),
   efetivacoes: z.number().catch(80),
   contasAbertas: z.number().catch(35),
+  teamSpecificAgendamentos: z.record(z.string(), z.number()).optional().catch({}),
 });
 
 export const NegocioFechadoProdutoSchema = z.object({

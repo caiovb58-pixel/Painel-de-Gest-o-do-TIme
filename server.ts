@@ -484,23 +484,30 @@ app.get("/api/db/load", async (req, res) => {
         configs[r.key] = r.data;
       });
 
-      // If there is any content in PostgreSQL, use it as supreme truth
-      if (sdrs.length > 0 || assessores.length > 0 || oneOnOneLogs.length > 0 || negocios.length > 0) {
-        console.log(`[Neon Database] Hydrating from PostgreSQL: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} Logs, ${negocios.length} Negocios.`);
-        addSyncLog("LOAD", "success", `Sincronização bem sucedida. Carregou ${sdrs.length} SDRs, ${assessores.length} Assessores e ${negocios.length} Negócios da Nuvem Neon.`);
-        return res.json({
-          source: "database",
-          sdrs,
-          assessores,
-          oneOnOneLogs,
-          negocios,
-          matches: configs.matches || [],
-          campaigns: configs.campaigns || [],
-          leaders: configs.leaders || [],
-          teamGoals: configs.teamGoals || null,
-          disabledRotationTeams: configs.disabledRotationTeams || []
-        });
-      }
+      // If we queried PostgreSQL successfully, we use it as supreme truth
+      const defaultLeadersFallback = [
+        { id: 'leader-caio', teamName: 'Equipe do Caio', leaderTitle: 'Líder de Estratégia Caio', passcode: 'VMB', name: 'Caio' },
+        { id: 'leader-1', teamName: 'Equipe Alpha', leaderTitle: 'Líder de Contas Alpha', passcode: 'alpha123', name: 'Gestor Alpha' },
+        { id: 'leader-2', teamName: 'Equipe Beta', leaderTitle: 'Gestor Comercial Beta', passcode: 'beta123', name: 'Gestor Beta' },
+        { id: 'leader-3', teamName: 'Equipe Delta', leaderTitle: 'Diretor de Expansão Delta', passcode: 'delta123', name: 'Gestor Delta' }
+      ];
+
+      const loadedLeaders = configs.leaders && configs.leaders.length > 0 ? configs.leaders : defaultLeadersFallback;
+
+      console.log(`[Neon Database] Hydrating from PostgreSQL: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} Logs, ${negocios.length} Negocios.`);
+      addSyncLog("LOAD", "success", `Sincronização bem sucedida. Carregou dados da Nuvem Neon.`);
+      return res.json({
+        source: "database",
+        sdrs,
+        assessores,
+        oneOnOneLogs,
+        negocios,
+        matches: configs.matches || [],
+        campaigns: configs.campaigns || [],
+        leaders: loadedLeaders,
+        teamGoals: configs.teamGoals || null,
+        disabledRotationTeams: configs.disabledRotationTeams || []
+      });
     } catch (dbErr: any) {
       isDbConnected = false;
       lastDbError = dbErr.message;

@@ -400,8 +400,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         localStorage.setItem('rodizio_disabled_rotation_teams', JSON.stringify(data.disabledRotationTeams));
       }
 
-      if (parts.length > 0) {
+      if (Object.keys(updates).length > 0) {
         set(updates);
+      }
+
+      if (parts.length > 0) {
         const sourceFormatted = data.source === "database" ? "Nuvem Neon PostgreSQL" : "Cache Local de Servidor";
         return { 
           success: true, 
@@ -409,9 +412,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
       }
       
+      const sourceFormatted = data.source === "database" ? "Nuvem Neon PostgreSQL" : "Cache Local de Servidor";
       return { 
         success: true, 
-        message: 'Conectado ao servidor web do applet com sucesso. Os dados serão gravados dinamicamente no Neon.' 
+        message: `Conectado à fonte (${sourceFormatted}) com sucesso. Painel operacional carregado.` 
       };
     } catch (error: any) {
       console.error('[useAppStore] Erro ao carregar dados do servidor:', error.message);

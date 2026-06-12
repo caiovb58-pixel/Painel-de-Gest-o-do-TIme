@@ -33,6 +33,12 @@ export default function LeadersAdminSection({
   const [selectedTeamsFilter, setSelectedTeamsFilter] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'teams' | 'sdrs'>('teams');
   const [sdrSearchAdmin, setSdrSearchAdmin] = useState('');
+  
+  // Custom date range, professional category and granular timeframe filtering
+  const [professionalType, setProfessionalType] = useState<'all' | 'sdrs' | 'assessores'>('all');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [quickPeriodFilter, setQuickPeriodFilter] = useState('all');
 
   // Predefined role designation options specifically requested:
   const PREDEFINED_TITLES = [
@@ -835,112 +841,355 @@ export default function LeadersAdminSection({
                 </div>
               </div>
             ) : (
-              /* TODOS OS SDRS AO MESMO TEMPO (Tabela Geral de Ativos/Inativos) */
-              <div className="space-y-3 text-left">
+              /* TODOS OS PROFISSIONAIS (SDRs e Assessores) COM FILTRO DE DATA RETROATIVA */
+              <div className="space-y-4 text-left">
+                
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1.5 border-b border-neutral-100">
-                  <h4 className="text-[10px] font-mono font-black uppercase text-neutral-850 tracking-wider">
-                    Lista Integrada de SDRs ({
-                      sdrs.filter(s => {
-                        const matchesTeam = selectedTeamsFilter.length === 0 || (s.team && selectedTeamsFilter.includes(s.team));
-                        const matchesSearch = s.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
-                                              (s.team && s.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
-                        return matchesTeam && matchesSearch;
-                      }).length
-                    })
-                  </h4>
+                  <div className="space-y-0.5">
+                    <h4 className="text-[10px] font-mono font-black uppercase text-neutral-850 tracking-wider">
+                      Painel Operacional Integrado & Filtro Calendário
+                    </h4>
+                    <p className="text-[9px] text-neutral-450 leading-none">
+                      Lista consolidada filtrada por vigência de contratação/admissão retroativa.
+                    </p>
+                  </div>
                   
                   {/* Search box with Search icon */}
                   <div className="relative max-w-full sm:max-w-xs flex-grow sm:flex-grow-0">
                     <input
                       type="text"
-                      placeholder="Buscar SDR por nome ou equipe..."
+                      placeholder="Buscar profissional..."
                       value={sdrSearchAdmin}
                       onChange={(e) => setSdrSearchAdmin(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-black transition-all"
+                      className="w-full pl-8 pr-3 py-1.5 bg-neutral-50 border border-neutral-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-black transition-all animate-none"
                     />
                     <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
                   </div>
                 </div>
 
-                {sdrs.filter(s => {
-                  const matchesTeam = selectedTeamsFilter.length === 0 || (s.team && selectedTeamsFilter.includes(s.team));
-                  const matchesSearch = s.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
-                                        (s.team && s.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
-                  return matchesTeam && matchesSearch;
-                }).length === 0 ? (
-                  <div className="p-8 border border-dashed border-neutral-205 rounded-xl text-center text-xs text-neutral-450 font-medium">
-                    Nenhum SDR comercial localizado para os critérios aplicados.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white shadow-3xs max-h-[380px] overflow-y-auto">
-                    <table className="w-full text-[11px] border-collapse">
-                      <thead>
-                        <tr className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 font-mono font-black uppercase text-[8.5px] tracking-wider sticky top-0 bg-neutral-50 z-10 text-left">
-                          <th className="p-2.5 text-left pl-3.5">Nome do SDR</th>
-                          <th className="p-2.5 text-left">Segmentação / Time</th>
-                          <th className="p-2.5 text-center">Status</th>
-                          <th className="p-2.5 text-right font-mono">Agendamentos</th>
-                          <th className="p-2.5 text-right font-mono">Efetivações</th>
-                          <th className="p-2.5 text-right font-mono pr-3.5">Taxa Conv.</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {sdrs
-                          .filter(s => {
-                            const matchesTeam = selectedTeamsFilter.length === 0 || (s.team && selectedTeamsFilter.includes(s.team));
-                            const matchesSearch = s.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
-                                                  (s.team && s.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
-                            return matchesTeam && matchesSearch;
-                          })
-                          .map(sdr => {
-                            const conversionRate = sdr.agendamentosCount > 0 
-                              ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100) 
-                              : 0;
+                {/* ADVANCED MULTIPERIOD & PROFESSIONAL TYPE FILTERS */}
+                <div id="filter-audit-panel" className="bg-[#FAF9F5]/60 border border-neutral-250 p-4 rounded-xl space-y-4 text-left font-sans">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    
+                    {/* Filter 1: Professional Category */}
+                    <div className="space-y-1.5 md:col-span-5">
+                      <label className="block text-[8.5px] font-mono font-black text-neutral-500 uppercase tracking-widest leading-none">
+                        Cargo / Tipo de Profissional
+                      </label>
+                      <div className="flex bg-neutral-100/90 p-0.5 rounded-lg border border-neutral-250">
+                        <button
+                          type="button"
+                          onClick={() => setProfessionalType('all')}
+                          className={`flex-1 py-1.5 text-[8.5px] font-black uppercase tracking-wider rounded transition-all cursor-pointer ${
+                            professionalType === 'all'
+                              ? 'bg-neutral-900 text-white shadow-3xs'
+                              : 'text-neutral-500 hover:text-black'
+                          }`}
+                        >
+                          Ambos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProfessionalType('sdrs')}
+                          className={`flex-1 py-1.5 text-[8.5px] font-black uppercase tracking-wider rounded transition-all cursor-pointer ${
+                            professionalType === 'sdrs'
+                              ? 'bg-neutral-900 text-white shadow-3xs'
+                              : 'text-neutral-500 hover:text-black'
+                          }`}
+                        >
+                          SDRs ({sdrs.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProfessionalType('assessores')}
+                          className={`flex-1 py-1.5 text-[8.5px] font-black uppercase tracking-wider rounded transition-all cursor-pointer ${
+                            professionalType === 'assessores'
+                              ? 'bg-neutral-900 text-white shadow-3xs'
+                              : 'text-neutral-500 hover:text-black'
+                          }`}
+                        >
+                          Assessores ({assessores.length})
+                        </button>
+                      </div>
+                    </div>
 
-                            // Derive profile type text tag
+                    {/* Filter 2: Custom Date Range Interval (dates, days, intervals) */}
+                    <div className="space-y-1.5 md:col-span-7">
+                      <label className="block text-[8.5px] font-mono font-black text-neutral-500 uppercase tracking-widest leading-none">
+                        Filtrar por Intervalo Customizado de Datas (Dias / Períodos)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 relative">
+                          <span className="absolute left-2.5 top-2 text-[8px] font-black text-neutral-400 font-mono">DE:</span>
+                          <input
+                            type="date"
+                            value={filterStartDate}
+                            onChange={(e) => {
+                              setFilterStartDate(e.target.value);
+                              setQuickPeriodFilter('custom');
+                            }}
+                            className="w-full bg-white border border-neutral-300 rounded-lg text-xs pl-8 pr-2 py-1.5 font-bold focus:outline-none focus:border-black cursor-pointer"
+                          />
+                        </div>
+                        <div className="text-neutral-500 font-bold text-[10px] uppercase font-mono">Até</div>
+                        <div className="flex-1 relative">
+                          <span className="absolute left-2.5 top-2 text-[8px] font-black text-neutral-400 font-mono">ATÉ:</span>
+                          <input
+                            type="date"
+                            value={filterEndDate}
+                            onChange={(e) => {
+                              setFilterEndDate(e.target.value);
+                              setQuickPeriodFilter('custom');
+                            }}
+                            className="w-full bg-white border border-neutral-300 rounded-lg text-xs pl-9 pr-2 py-1.5 font-bold focus:outline-none focus:border-black cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Filter 3: Quick Temporal Shortcuts */}
+                  <div className="pt-3 border-t border-neutral-200/50 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 font-mono text-[9px] text-neutral-500 font-black uppercase tracking-wider">
+                      🗓️ Filtros Rápidos (meses / anos):
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickPeriodFilter('all');
+                          setFilterStartDate('');
+                          setFilterEndDate('');
+                        }}
+                        className={`px-2 py-1 text-[8.5px] font-black uppercase rounded border transition-all cursor-pointer ${
+                          quickPeriodFilter === 'all'
+                            ? 'bg-black text-white border-black shadow-3xs'
+                            : 'bg-white hover:bg-neutral-100 text-neutral-600 border-neutral-300'
+                        }`}
+                      >
+                        Sem Restrição (Tudo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickPeriodFilter('ref_month');
+                          setFilterStartDate('2026-06-01');
+                          setFilterEndDate('2026-06-30');
+                        }}
+                        className={`px-2 py-1 text-[8.5px] font-black uppercase rounded border transition-all cursor-pointer ${
+                          quickPeriodFilter === 'ref_month'
+                            ? 'bg-black text-white border-black shadow-3xs'
+                            : 'bg-white hover:bg-neutral-100 text-neutral-600 border-neutral-300'
+                        }`}
+                      >
+                        Mês de Junho/2026
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickPeriodFilter('may_2026');
+                          setFilterStartDate('2026-05-01');
+                          setFilterEndDate('2026-05-31');
+                        }}
+                        className={`px-2 py-1 text-[8.5px] font-black uppercase rounded border transition-all cursor-pointer ${
+                          quickPeriodFilter === 'may_2026'
+                            ? 'bg-black text-white border-black shadow-3xs'
+                            : 'bg-white hover:bg-neutral-100 text-neutral-600 border-neutral-300'
+                        }`}
+                      >
+                        Mês de Maio/2026
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickPeriodFilter('year_2026');
+                          setFilterStartDate('2026-01-01');
+                          setFilterEndDate('2026-12-31');
+                        }}
+                        className={`px-2 py-1 text-[8.5px] font-black uppercase rounded border transition-all cursor-pointer ${
+                          quickPeriodFilter === 'year_2026'
+                            ? 'bg-black text-white border-black shadow-3xs'
+                            : 'bg-white hover:bg-neutral-100 text-neutral-600 border-neutral-300'
+                        }`}
+                      >
+                        Ano de 2026 Completo
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Retroactivity check live status wrapper */}
+                  {filterEndDate && (
+                    <div className="p-2 border border-blue-200 bg-blue-50/50 text-[10px] text-blue-900 rounded-lg font-semibold flex items-center gap-1.5 animate-fade-in leading-relaxed">
+                      <span>ℹ️ <strong>Auditoria Retroativa Ativa:</strong> O sistema removeu profissionais admitidos após <strong>{filterEndDate.split('-')[2]}/{filterEndDate.split('-')[1]}/{filterEndDate.split('-')[0]}</strong>, evitando que apareçam em relatórios e logs retroativos anteriores à sua contratação real.</span>
+                    </div>
+                  )}
+
+                </div>
+
+                {(() => {
+                  const brFormat = (dateStr?: string) => {
+                    if (!dateStr) return '—';
+                    const parts = dateStr.split('-');
+                    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    return dateStr;
+                  };
+
+                  const mergedList = [
+                    ...sdrs.map(s => ({ ...s, isSdr: true, roleLabel: 'SDR' })),
+                    ...assessores.map(a => ({ ...a, isSdr: false, roleLabel: 'Assessor', agendamentosCount: 0, efetivacoesCount: 0, callsCount: 0 }))
+                  ];
+
+                  const filteredList = mergedList.filter(p => {
+                    const matchesTeam = selectedTeamsFilter.length === 0 || (p.team && selectedTeamsFilter.includes(p.team));
+                    
+                    const matchesSearch = p.name.toLowerCase().includes(sdrSearchAdmin.toLowerCase()) || 
+                                          (p.team && p.team.toLowerCase().includes(sdrSearchAdmin.toLowerCase()));
+
+                    const matchesType = professionalType === 'all' ||
+                                        (professionalType === 'sdrs' && p.isSdr) ||
+                                        (professionalType === 'assessores' && !p.isSdr);
+
+                    // If a date range/filter is set, prevent members from appearing in date periods before their admissionDate
+                    if (p.admissionDate && filterEndDate) {
+                      if (p.admissionDate > filterEndDate) {
+                        return false; 
+                      }
+                    }
+
+                    return matchesTeam && matchesSearch && matchesType;
+                  });
+
+                  if (filteredList.length === 0) {
+                    return (
+                      <div className="p-8 border border-dashed border-neutral-250 rounded-xl text-center text-xs text-neutral-450 font-medium">
+                        Nenhum profissional comercial (SDR ou Assessor) localizado para os critérios aplicados de busca, time e data de admissão.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white shadow-3xs max-h-[380px] overflow-y-auto font-sans">
+                      <table className="w-full text-[11px] border-collapse font-sans">
+                        <thead>
+                          <tr className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 font-mono font-black uppercase text-[8.5px] tracking-wider sticky top-0 bg-neutral-50 z-20 text-left">
+                            <th className="p-3 text-left pl-4">Colaborador / Profissional</th>
+                            <th className="p-3 text-left">Equipe Comercial</th>
+                            <th className="p-3 text-center">Cargo</th>
+                            <th className="p-3 text-center">Data de Admissão</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-right">Métrica Chave A</th>
+                            <th className="p-3 text-right">Métrica Chave B</th>
+                            <th className="p-3 text-right pr-4">Resultado / Histórico</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {filteredList.map((p: any) => {
                             let tagClass = 'bg-neutral-100 text-neutral-650 border border-neutral-200';
-                            const sdrTeamNameUpper = (sdr.team || '').toUpperCase();
-                            if (sdrTeamNameUpper.includes('PJ')) {
+                            const teamNameUpper = (p.team || '').toUpperCase();
+                            if (teamNameUpper.includes('PJ')) {
                               tagClass = 'bg-blue-50 text-blue-800 border border-blue-200';
-                            } else if (sdrTeamNameUpper.includes('VMB')) {
+                            } else if (teamNameUpper.includes('VMB')) {
                               tagClass = 'bg-purple-50 text-purple-800 border border-purple-200';
-                            } else if (sdrTeamNameUpper.includes('TIER') || sdrTeamNameUpper.includes('ASSESSOR') || sdrTeamNameUpper.includes('ADVISOR') || sdrTeamNameUpper.includes('ADVISORY')) {
+                            } else if (teamNameUpper.includes('TIER') || teamNameUpper.includes('ASSESSOR') || teamNameUpper.includes('ADVISOR') || teamNameUpper.includes('ADVISORY')) {
                               tagClass = 'bg-emerald-50 text-emerald-800 border border-emerald-200';
-                            } else if (sdrTeamNameUpper.includes('PF') || sdrTeamNameUpper.includes('HUNTER')) {
+                            } else if (teamNameUpper.includes('PF') || teamNameUpper.includes('HUNTER')) {
                               tagClass = 'bg-amber-50 text-amber-800 border border-amber-200';
                             }
 
-                            return (
-                              <tr key={sdr.id} className="hover:bg-neutral-50/55 transition-colors">
-                                <td className="p-2.5 pl-3.5 font-bold text-neutral-900">{sdr.name}</td>
-                                <td className="p-2.5">
-                                  <span className={`inline-block px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${tagClass}`}>
-                                    {sdr.team || 'Sem Equipe'}
-                                  </span>
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  {sdr.active ? (
-                                    <span className="inline-flex items-center gap-1 text-[8.5px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-150 uppercase tracking-wider">
-                                      Ativo
+                            if (p.isSdr) {
+                              const conversionRate = p.agendamentosCount > 0 
+                                ? Math.round((p.efetivacoesCount / p.agendamentosCount) * 100) 
+                                : 0;
+                              return (
+                                <tr key={`sdr-${p.id}`} className="hover:bg-neutral-50/55 transition-colors">
+                                  <td className="p-3 pl-4 font-bold text-neutral-900 leading-tight">
+                                    {p.name}
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${tagClass}`}>
+                                      {p.team || 'Sem Equipe'}
                                     </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 text-[8.5px] font-black text-neutral-450 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 uppercase tracking-wider">
-                                      Inativo
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[8px] font-black bg-neutral-900 text-white uppercase tracking-wider leading-none">
+                                      SDR Comercial
                                     </span>
-                                  )}
-                                </td>
-                                <td className="p-2.5 text-right font-mono font-extrabold text-neutral-800">{sdr.agendamentosCount}</td>
-                                <td className="p-2.5 text-right font-mono font-extrabold text-neutral-800">{sdr.efetivacoesCount}</td>
-                                <td className="p-2.5 text-right font-mono font-black text-emerald-750 pr-3.5">
-                                  {conversionRate}%
-                                </td>
-                              </tr>
-                            );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                                  </td>
+                                  <td className="p-3 text-center font-mono font-bold text-neutral-500">
+                                    {brFormat(p.admissionDate)}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    {p.active ? (
+                                      <span className="inline-flex items-center gap-1 text-[8px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-150 uppercase tracking-wider leading-none">
+                                        Ativo
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[8px] font-black text-neutral-450 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 uppercase tracking-wider leading-none">
+                                        Inativo
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-bold text-neutral-800">
+                                    📞 {p.callsCount ?? 0} Calls
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-extrabold text-neutral-800">
+                                    📅 {p.agendamentosCount} Agend.
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-black text-emerald-750 pr-4">
+                                    ★ {conversionRate}% conv
+                                  </td>
+                                </tr>
+                              );
+                            } else {
+                              return (
+                                <tr key={`assr-${p.id}`} className="hover:bg-neutral-50/55 transition-colors">
+                                  <td className="p-3 pl-4 font-bold text-neutral-900 leading-tight">
+                                    {p.name}
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`inline-block px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider ${tagClass}`}>
+                                      {p.team || 'Sem Equipe'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[8px] font-black bg-amber-500 text-neutral-900 uppercase tracking-wider leading-none">
+                                      Assessor RP
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center font-mono font-bold text-neutral-500">
+                                    {brFormat(p.admissionDate)}
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    {p.active ? (
+                                      <span className="inline-flex items-center gap-1 text-[8px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-150 uppercase tracking-wider leading-none">
+                                        Ativo
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[8px] font-black text-neutral-450 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 uppercase tracking-wider leading-none">
+                                        Inativo
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono text-neutral-600 font-semibold">
+                                    💰 R$ {(p.captacaoMes || 0).toLocaleString('pt-BR')}
+                                  </td>
+                                  <td className="p-3 text-right font-mono text-neutral-600 font-bold">
+                                    🛒 {p.crossSellCount || 0} cross
+                                  </td>
+                                  <td className="p-3 text-right font-mono text-neutral-400 font-black pr-4">
+                                    —
+                                  </td>
+                                </tr>
+                              );
+                            }
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
               </div>
             )}
           </div>

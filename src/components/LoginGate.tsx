@@ -15,6 +15,22 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
+  const [currentImgIndex, setCurrentImgIndex] = useState<number>(0);
+
+  const bannerImages = [
+    "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
+    "https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
+    "https://images.pexels.com/photos/3182811/pexels-photo-3182811.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
+    "https://images.pexels.com/photos/7014337/pexels-photo-7014337.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
+    "https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
+  ];
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentImgIndex(prev => (prev + 1) % bannerImages.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [bannerImages.length]);
 
   const handleSelectQuickUser = (userLogin: string, code: string) => {
     setUsername(userLogin);
@@ -39,12 +55,15 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
 
     try {
       // Admin Override
-      if (trimmedUser.toLowerCase() === 'caio' && passcode === 'VMB') {
+      const caioLeader = leaders.find(l => l.name.toLowerCase() === 'caio' || l.id === 'leader-caio');
+      const caioPasscode = caioLeader ? caioLeader.passcode : 'VMB';
+
+      if (trimmedUser.toLowerCase() === 'caio' && passcode === caioPasscode) {
         await onLogin({
           role: 'admin',
           name: 'Caio',
-          teamName: 'Equipe do Caio',
-          leaderTitle: 'Líder de Estratégia Caio'
+          teamName: caioLeader?.teamName || 'Equipe do Caio',
+          leaderTitle: caioLeader?.leaderTitle || 'Líder de Estratégia Caio'
         });
         setIsLoading(false);
         return;
@@ -82,15 +101,22 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
       {/* LEFT COLUMN: HERO BANNER (CLEAN, ELEGANT & STATIC STYLE) */}
       <div className="hidden lg:flex w-[48%] xl:w-[50%] min-h-screen relative overflow-hidden bg-neutral-950">
         
-        {/* Static Premium Team Image without annoying rotations */}
-        <div className="absolute inset-0 transition-all duration-1000 ease-in-out">
-          <img
-            src="https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
-            alt="Business Team Leadership Representation"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover opacity-60"
-          />
-        </div>
+        {/* Sliding Premium Team Images with clean crossfade */}
+        {bannerImages.map((imgSrc, idx) => (
+          <div
+            key={imgSrc}
+            className={`absolute inset-0 transition-opacity duration-[1500ms] ease-in-out ${
+              idx === currentImgIndex ? 'opacity-60' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <img
+              src={imgSrc}
+              alt={`Business Team Leadership Representation ${idx + 1}`}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
 
         {/* Dark Elegant Gradient Overlap */}
         <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/40 to-neutral-850/20" />

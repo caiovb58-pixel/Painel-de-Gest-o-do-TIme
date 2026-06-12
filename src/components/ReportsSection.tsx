@@ -13,6 +13,9 @@ import {
 import { DateService } from '../shared/services/date.service';
 import { useProductPacing } from '../hooks/useProductPacing';
 import { useAppStore } from '../store/useAppStore';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 interface InfoTooltipProps {
   title: string;
@@ -75,6 +78,382 @@ export default function ReportsSection({
   const [copied, setCopied] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'visual' | 'whatsapp' | 'intelligence' | 'wealth'>('wealth');
   const [showAffinityDetails, setShowAffinityDetails] = useState(false);
+
+  // PDF Export Customization States
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportWealth, setExportWealth] = useState(true);
+  const [exportSdrFunnel, setExportSdrFunnel] = useState(true);
+  const [exportMatches, setExportMatches] = useState(true);
+  const [exportOneOnOne, setExportOneOnOne] = useState(true);
+  const [exportAuditLogs, setExportAuditLogs] = useState(true);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const oneOnOneLogs = useAppStore(state => state.oneOnOneLogs);
+  const auditLogs = useAppStore(state => state.auditLogs);
+  const teamGoals = useAppStore(state => state.teamGoals);
+
+  const handlePrintPdf = async () => {
+    setIsPrinting(true);
+
+    try {
+      // 1. Create a temporary, off-screen layout container
+      const tempContainer = document.createElement('div');
+      tempContainer.id = 'temp-pdf-export';
+      
+      // Strict inline style constraints to guarantee clean text wrapping, high contrast, and perfect dimensions
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '800px';
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.color = '#111827';
+      tempContainer.style.padding = '40px';
+      tempContainer.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      tempContainer.style.zIndex = '-1000';
+      tempContainer.style.boxSizing = 'border-box';
+
+      // 2. Build the Corporate/Aesthetic HTML Structure representing the state cleanly
+      let htmlContent = `
+        <div style="font-family: inherit; width: 100%; box-sizing: border-box;">
+          
+          <!-- Corporate Document Header -->
+          <div style="border-bottom: 4px solid #111827; padding-bottom: 20px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="text-align: left;">
+              <span style="font-size: 10px; font-weight: 800; background-color: #111827; color: #ffffff; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.1em; display: inline-block; margin-bottom: 8px;">
+                DOCUMENTO OFICIAL DE DESEMPENHO comercial
+              </span>
+              <h1 style="font-size: 22px; font-weight: 900; margin: 0; color: #111827; text-transform: uppercase; letter-spacing: -0.015em;">
+                Relatório Geral de Operações & Conversões
+              </h1>
+              <p style="font-size: 11px; color: #4b5563; margin: 4px 0 0 0; font-weight: 500;">
+                Vigência operacional: de ${formatDateVal(startDate)} a ${formatDateVal(endDate)} &bull; Referência: ${currentMonth}
+              </p>
+            </div>
+            <div style="text-align: right; font-family: monospace; font-size: 10px; color: #6b7280; line-height: 1.4;">
+              <div>Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}</div>
+              <div>Sistema: VMB PRO CLOUD</div>
+            </div>
+          </div>
+
+          <!-- SECTION 1: EXECUTIVE BRIEFING -->
+          <div style="margin-bottom: 25px;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
+              📊 Resumo Executivo e Metas do Time
+            </h2>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+              <div style="padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 3px;">SDRs Ativos</span>
+                <span style="font-size: 16px; font-weight: 900; color: #111827;">${activeSDRs.length} Ativos</span>
+              </div>
+              <div style="padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 3px;">Assessores Conectados</span>
+                <span style="font-size: 16px; font-weight: 900; color: #111827;">${activeAssessores.length} Parceiros</span>
+              </div>
+              <div style="padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 3px;">Meta de Agendamentos</span>
+                <span style="font-size: 16px; font-weight: 900; color: #111827;">${teamGoals?.agendamentos || 0} Reuniões</span>
+              </div>
+            </div>
+          </div>
+      `;
+
+      // SECTION 2: WEALTH INTEGRATION
+      if (exportWealth) {
+        const totalVolume = useAppStore.getState().negocios.filter(n => n.status === 'GANHO').reduce((sum, n) => sum + n.volumeFinanceiro, 0);
+        const totalReceita = useAppStore.getState().negocios.filter(n => n.status === 'GANHO').reduce((sum, n) => sum + n.receitaEstimada, 0);
+
+        htmlContent += `
+          <div style="margin-bottom: 30px; text-align: left;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
+              💼 Finanças & Métricas Wealth (Deals)
+            </h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+              <div style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: #f8fafc;">
+                <span style="font-size: 9px; color: #475569; font-weight: bold; text-transform: uppercase;">Volume total captado</span>
+                <span style="font-size: 18px; font-weight: 900; color: #010101; display: block; margin-top: 4px;">
+                  R$ ${totalVolume.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background-color: #f8fafc;">
+                <span style="font-size: 9px; color: #475569; font-weight: bold; text-transform: uppercase;">Receita estimada gerada</span>
+                <span style="font-size: 18px; font-weight: 900; color: #010101; display: block; margin-top: 4px;">
+                  R$ ${totalReceita.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 10px;">
+              <thead>
+                <tr style="background-color: #f1f5f9;">
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569; width: 25%;">Cliente</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569; width: 25%;">Produto</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569; width: 15%;">SDR</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569; width: 15%;">Assessor</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: right; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569; width: 12%;">Volume</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569; width: 8%;">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        const closedNegocios = useAppStore.getState().negocios;
+        if (closedNegocios.length > 0) {
+          closedNegocios.forEach(neg => {
+            htmlContent += `
+              <tr style="border-bottom: 1px solid #e2e8f0; font-size: 10.5px;">
+                <td style="padding: 7px 10px; font-weight: 700; color: #1e293b;">${neg.clientName}</td>
+                <td style="padding: 7px 10px; color: #4b5563; font-family: monospace; font-size: 9.5px;">${neg.produtoCategoria.replace('_', ' ')}</td>
+                <td style="padding: 7px 10px; text-align: center; color: #4b5563;">${neg.sdrName || '—'}</td>
+                <td style="padding: 7px 10px; text-align: center; color: #4b5563;">${neg.assessorName || '—'}</td>
+                <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #1e293b;">R$ ${neg.volumeFinanceiro ? neg.volumeFinanceiro.toLocaleString('pt-BR') : '0'}</td>
+                <td style="padding: 7px 10px; text-align: center;">
+                  <span style="background-color: ${neg.status === 'GANHO' ? '#dcfce7' : '#f1f5f9'}; color: ${neg.status === 'GANHO' ? '#15803d' : '#475569'}; padding: 1.5px 5px; border-radius: 3px; font-size: 8px; font-weight: 800; text-transform: uppercase;">
+                    ${neg.status}
+                  </span>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          htmlContent += `
+            <tr>
+              <td colspan="6" style="padding: 15px; text-align: center; color: #94a3b8; font-style: italic; font-size: 10.5px;">Nenhum negócio registrado neste mês de vigência.</td>
+            </tr>
+          `;
+        }
+        
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // SECTION 3: SDR PERFORMANCE
+      if (exportSdrFunnel) {
+        htmlContent += `
+          <div style="margin-bottom: 30px; text-align: left;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
+              🏆 Ranking & Funil de Conversão de SDRs
+            </h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+              <thead>
+                <tr style="background-color: #f1f5f9;">
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">SDR</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Equipe</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Ligações (Calls)</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Meta Agendamentos</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Efetivações</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: right; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Conversão</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        activeSDRs.forEach(sdr => {
+          const convRate = sdr.agendamentosCount > 0 ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100) : 0;
+          htmlContent += `
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 10.5px;">
+              <td style="padding: 7px 10px; font-weight: 700; color: #1e293b;">${sdr.name}</td>
+              <td style="padding: 7px 10px; text-align: center; color: #4b5563; font-weight: 600;">${sdr.team || 'Sem Equipe'}</td>
+              <td style="padding: 7px 10px; text-align: center; font-family: monospace;">${sdr.callsCount?.toLocaleString() || 0}</td>
+              <td style="padding: 7px 10px; text-align: center; font-family: monospace; font-weight: 600;">${sdr.agendamentosCount || 0} / ${sdr.metaAgendamentos || 20}</td>
+              <td style="padding: 7px 10px; text-align: center; font-family: monospace;">${sdr.efetivacoesCount || 0} / ${sdr.metaEfetivacoes || 30}</td>
+              <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #010101;">${convRate}%</td>
+            </tr>
+          `;
+        });
+
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // SECTION 4: ACTIVE MATCHRESULTS
+      if (exportMatches) {
+        htmlContent += `
+          <div style="margin-bottom: 30px; text-align: left;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
+              🔗 Pareamento Ativo do Rodízio Vigente
+            </h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+              <thead>
+                <tr style="background-color: #f1f5f9;">
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">SDR</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Assessor Designado</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Equipe Comum</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: center; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Alocação</th>
+                  <th style="padding: 8px 10px; border: 1px solid #e2e8f0; text-align: right; font-size: 9.5px; text-transform: uppercase; font-weight: bold; color: #475569;">Conversão Esperada</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        if (matches.length > 0) {
+          matches.forEach(m => {
+            const sdrObj = sdrs.find(s => s.id === m.sdrId || s.name === m.sdrName);
+            htmlContent += `
+              <tr style="border-bottom: 1px solid #e2e8f0; font-size: 10.5px;">
+                <td style="padding: 7px 10px; font-weight: 700; color: #1e293b;">${m.sdrName}</td>
+                <td style="padding: 7px 10px; text-align: center; font-weight: 700; color: #334155;">${m.assessorName}</td>
+                <td style="padding: 7px 10px; text-align: center; color: #4b5563;">${sdrObj?.team || 'Geral'}</td>
+                <td style="padding: 7px 10px; text-align: center; font-family: monospace; font-size: 9.5px; color: #64748b;">${m.startDate ? formatDateVal(m.startDate) : 'Início do mês'}</td>
+                <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #1e293b;">${m.sdrConversionRate}% Conversão</td>
+              </tr>
+            `;
+          });
+        } else {
+          htmlContent += `
+            <tr>
+              <td colspan="5" style="padding: 15px; text-align: center; color: #94a3b8; font-style: italic; font-size: 10.5px;">Nenhum pareamento ativo encontrado.</td>
+            </tr>
+          `;
+        }
+
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // SECTION 5: ONE-ON-ONES
+      if (exportOneOnOne) {
+        htmlContent += `
+          <div style="margin-bottom: 30px; text-align: left;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
+              🗣️ Sessões Executivas de One-on-One
+            </h2>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+        `;
+
+        if (oneOnOneLogs.length > 0) {
+          oneOnOneLogs.forEach(log => {
+            htmlContent += `
+              <div style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; background-color: #fafafa; font-size: 10.5px; line-height: 1.4;">
+                <div style="display: flex; justify-content: space-between; font-weight: bold;">
+                  <span style="font-size: 11px; color: #111827;">SDR: ${log.sdrName}</span>
+                  <span style="font-family: monospace; font-size: 9px; background-color: #f1f5f9; border: 1px solid #e2e8f0; padding: 1.5px 5px; border-radius: 3px; color: #64748b;">${formatDateVal(log.timestamp)}</span>
+                </div>
+                <div style="font-weight: 700; color: #1e293b; margin-top: 3px; text-transform: uppercase; font-size: 9.5px;">Plano de Ação: ${log.actionPlan}</div>
+                <p style="margin: 3px 0; font-style: italic; color: #334155;">Notas: "${log.notes}"</p>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                  <span style="font-size: 9.5px; font-weight: 700; color: #b45309; text-transform: uppercase;">Status: ${log.status} &bull; Próxima Reunião: ${log.nextMeeting ? formatDateVal(log.nextMeeting) : '—'}</span>
+                  <span style="font-size: 9px; color: #64748b;">Responsável: ${log.leader}</span>
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          htmlContent += `
+            <div style="padding: 15px; border: 1px dashed #cbd5e1; border-radius: 6px; text-align: center; color: #94a3b8; font-style: italic; font-size: 10.5px;">Nenhuma sessão 1:1 cadastrada no histórico.</div>
+          `;
+        }
+
+        htmlContent += `
+            </div>
+          </div>
+        `;
+      }
+
+      // SECTION 6: AUDIT LOGS
+      if (exportAuditLogs) {
+        htmlContent += `
+          <div style="margin-bottom: 30px; text-align: left;">
+            <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
+              🛡️ Log Operacional e Histórico de Auditoria
+            </h2>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+        `;
+
+        if (auditLogs.length > 0) {
+          auditLogs.forEach(log => {
+            htmlContent += `
+              <div style="padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 5px; background-color: #fafafa; display: flex; justify-content: space-between; gap: 15px; font-family: monospace; font-size: 9.5px; line-height: 1.4;">
+                <div style="color: #334155;">
+                  SDR: <strong style="color: #111827;">${log.sdrName}</strong> &bull; Avaliador: ${log.leader} &bull; Média Geral: <span style="color: #4338ca; font-weight: 800;">${log.totalScore} Pts</span>
+                  <div style="font-family: inherit; font-size: 9px; color: #64748b; margin-top: 2px; font-style: italic;">Notas: "${log.notes}"</div>
+                </div>
+                <span style="color: #94a3b8; shrink-0; font-size: 8.5px;">${formatDateVal(log.timestamp)}</span>
+              </div>
+            `;
+          });
+        } else {
+          htmlContent += `
+            <div style="padding: 15px; text-align: center; color: #94a3b8; font-style: italic; font-size: 10.5px;">Nenhum log operacional registrado no período corrente.</div>
+          `;
+        }
+
+        htmlContent += `
+            </div>
+          </div>
+        `;
+      }
+
+      // Footer corporate credits
+      htmlContent += `
+          <div style="border-top: 2px solid #cbd5e1; padding-top: 12px; margin-top: 30px; text-align: center; font-family: monospace; font-size: 8.5px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">
+            Este documento corporativo foi gerado online com sucesso na plataforma Hub Liderança Comercial VMB PRO.
+          </div>
+        </div>
+      `;
+
+      tempContainer.innerHTML = htmlContent;
+
+      // 3. Append to body temporarily so browser layout renders and parses styles at full resolution
+      document.body.appendChild(tempContainer);
+
+      // Brief delay to ensure browser layout thread compiles styles
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 4. Capture container using html2canvas with optimized properties
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2, // Double design density (144 DPI) for sharp, presentation-ready print
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // 5. Clean up the DOM directly
+      document.body.removeChild(tempContainer);
+
+      // 6. Generate precise PDF with custom multidimensional size handling
+      const imgWidth = 210; // A4 standard width in millimetres
+      const pageHeight = 297; // A4 standard height in millimetres
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+
+      const imgData = canvas.toDataURL('image/png');
+
+      // Add actual high resolution content onto pages
+      doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        doc.addPage();
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+      }
+
+      // Directly trigger real browser file download
+      const safeMonthName = currentMonth.replace(/\s+/g, '_');
+      const filename = `Relatorio_Comercial_VMB_${safeMonthName}_${Date.now()}.pdf`;
+      doc.save(filename);
+
+    } catch (pdfError: any) {
+      console.error("[ReportsSection] Critical error during PDF rendering pipeline:", pdfError);
+      alert("Houve um obstáculo ao gerar o PDF em alta definição. Vamos usar o print nativo de contingência...");
+      window.print();
+    } finally {
+      setIsPrinting(false);
+    }
+  };
 
   const pacing = useProductPacing();
   const addNegocio = useAppStore(state => state.addNegocio);
@@ -722,10 +1101,17 @@ export default function ReportsSection({
       {/* Symmetrical Master Banner */}
       <div className="bg-white dark:bg-[#121318] border-2 border-neutral-900 dark:border-neutral-700 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <span className="p-1 px-2.5 bg-black dark:bg-white text-brand-sand dark:text-black text-[9px] font-black uppercase tracking-widest rounded leading-none">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="p-1 px-2.5 bg-black dark:bg-white text-brand-sand dark:text-black text-[9px] font-black uppercase tracking-widest rounded leading-none shrink-0">
               Relatório Geral
             </span>
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-extrabold text-[10px] uppercase rounded-md tracking-wider transition-all cursor-pointer shadow-3xs flex items-center gap-1.5 shrink-0"
+              title="Exportar Relatório PDF Personalizado"
+            >
+              <Download className="w-3 h-3 text-white" /> EXPORTAR PDF 📄
+            </button>
           </div>
           <h2 className="text-lg font-black uppercase tracking-tight text-neutral-950 dark:text-white font-display">
             Métricas de Desempenho Mensal
@@ -2482,7 +2868,10 @@ export default function ReportsSection({
                         const selectedSdrObj = sdrs.find(s => s.id === selectedSdrIdForEvolution) || activeSDRs[0];
                         if (!selectedSdrObj) return [];
                         
-                        return months.map(mkey => {
+                        const admMonth = selectedSdrObj.admissionDate ? selectedSdrObj.admissionDate.substring(0, 7) : '';
+                        const filteredMonths = admMonth ? months.filter(mkey => mkey >= admMonth) : months;
+                        
+                        return filteredMonths.map(mkey => {
                           const r = selectedSdrObj.monthlyRecords?.[mkey];
                           if (r) {
                             return {
@@ -2554,7 +2943,10 @@ export default function ReportsSection({
                         const selectedSdrObj = sdrs.find(s => s.id === selectedSdrIdForEvolution) || activeSDRs[0];
                         if (!selectedSdrObj) return null;
                         
-                        const rows = months.map(mkey => {
+                        const admMonth = selectedSdrObj.admissionDate ? selectedSdrObj.admissionDate.substring(0, 7) : '';
+                        const filteredMonths = admMonth ? months.filter(mkey => mkey >= admMonth) : months;
+                        
+                        const rows = filteredMonths.map(mkey => {
                           const r = selectedSdrObj.monthlyRecords?.[mkey];
                           if (r) {
                             return {
@@ -2612,6 +3004,423 @@ export default function ReportsSection({
           </div>
         </div>
       )}
+
+      {/* 1. PDF CUSTOM EXPORT MODAL CONFIGURATION OVERLAY */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all duration-200">
+          <div className="bg-white text-black rounded-3xl border-2 border-neutral-950 p-6 md:p-8 w-full max-w-lg shadow-2xl space-y-6 relative animate-fade-in text-left">
+            <button
+              onClick={() => setShowExportModal(false)}
+              className="absolute top-5 right-5 text-neutral-400 hover:text-black font-black text-sm p-1.5 cursor-pointer bg-neutral-100 hover:bg-neutral-200 rounded-full transition-all"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-2">
+              <span className="p-1 px-2.5 bg-red-100 text-red-800 text-[10px] font-black uppercase tracking-widest rounded">
+                Exportador Integrado
+              </span>
+              <h3 className="text-xl font-black text-neutral-900 tracking-tight font-display flex items-center gap-2">
+                📄 Personalizar Relatório PDF
+              </h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Selecione quais seções deseja incluir no documento final para download antes de gerar o PDF.
+              </p>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest">
+              <button
+                type="button"
+                onClick={() => {
+                  setExportWealth(true);
+                  setExportSdrFunnel(true);
+                  setExportMatches(true);
+                  setExportOneOnOne(true);
+                  setExportAuditLogs(true);
+                }}
+                className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg transition-all cursor-pointer"
+              >
+                Selecionar Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExportWealth(false);
+                  setExportSdrFunnel(false);
+                  setExportMatches(false);
+                  setExportOneOnOne(false);
+                  setExportAuditLogs(false);
+                }}
+                className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg transition-all cursor-pointer"
+              >
+                Limpar Seleção
+              </button>
+            </div>
+
+            <div className="border border-neutral-200 rounded-2xl p-4.5 bg-neutral-50/50 space-y-3.5">
+              {/* Option 1 */}
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={exportWealth}
+                  onChange={e => setExportWealth(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-950 focus:ring-black cursor-pointer accent-black"
+                />
+                <div>
+                  <span className="text-xs font-black text-neutral-900 block font-display">Relatórios de Deals & Indicadores Wealth</span>
+                  <span className="text-[10px] text-neutral-450 block">Demonstra receitas estimadas, volume captado e transações fechadas.</span>
+                </div>
+              </label>
+
+              {/* Option 2 */}
+              <label className="flex items-start gap-3 cursor-pointer select-none border-t border-neutral-150 pt-3">
+                <input
+                  type="checkbox"
+                  checked={exportSdrFunnel}
+                  onChange={e => setExportSdrFunnel(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-950 focus:ring-black cursor-pointer accent-black"
+                />
+                <div>
+                  <span className="text-xs font-black text-neutral-900 block font-display">Métricas de SDR & Funis de Conversão</span>
+                  <span className="text-[10px] text-neutral-450 block">Inclui ranking de agendamentos, ligações e taxas individuais de conversão.</span>
+                </div>
+              </label>
+
+              {/* Option 3 */}
+              <label className="flex items-start gap-3 cursor-pointer select-none border-t border-neutral-150 pt-3">
+                <input
+                  type="checkbox"
+                  checked={exportMatches}
+                  onChange={e => setExportMatches(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-950 focus:ring-black cursor-pointer accent-black"
+                />
+                <div>
+                  <span className="text-xs font-black text-neutral-900 block font-display">Tabela de Pareamento do Rodízio Ativo</span>
+                  <span className="text-[10px] text-neutral-450 block">Exibe as conexões vigentes e alocação de afinidade ativa do mês de {currentMonth}.</span>
+                </div>
+              </label>
+
+              {/* Option 4 */}
+              <label className="flex items-start gap-3 cursor-pointer select-none border-t border-neutral-150 pt-3">
+                <input
+                  type="checkbox"
+                  checked={exportOneOnOne}
+                  onChange={e => setExportOneOnOne(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-950 focus:ring-black cursor-pointer accent-black"
+                />
+                <div>
+                  <span className="text-xs font-black text-neutral-900 block font-display">Feedbacks Individuais de One-on-One</span>
+                  <span className="text-[10px] text-neutral-450 block">Pautas, objetivos e notas das sessões motivacionais/técnicas no período.</span>
+                </div>
+              </label>
+
+              {/* Option 5 */}
+              <label className="flex items-start gap-3 cursor-pointer select-none border-t border-neutral-150 pt-3">
+                <input
+                  type="checkbox"
+                  checked={exportAuditLogs}
+                  onChange={e => setExportAuditLogs(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-950 focus:ring-black cursor-pointer accent-black"
+                />
+                <div>
+                  <span className="text-xs font-black text-neutral-900 block font-display">Histórico Geral de Auditorias & Logs</span>
+                  <span className="text-[10px] text-neutral-450 block">Rastro de auditoria operacional do sistema de alocação de leads.</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="flex-1 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs uppercase tracking-widest rounded-xl cursor-pointer transition-all text-center"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportModal(false);
+                  handlePrintPdf();
+                }}
+                className="flex-[1.5] py-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-widest rounded-xl cursor-pointer transition-all text-center flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Download className="w-4 h-4 text-white" /> Gerar Documento PDF 📄
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. PRINT-READY HIDDEN LAYOUT DYNAMICALLY GENERATED FOR PERFECT PDF */}
+      {/* Dynamic style tag that triggers print-time overrides - placed outside container to prevent leak into print window */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #print-report-container, #print-report-container * {
+            visibility: visible !important;
+          }
+          #print-report-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            background-color: white !important;
+            color: black !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .page-break {
+            page-break-before: always;
+          }
+        }
+      `}</style>
+
+      <div id="print-report-container" className={`${isPrinting ? 'block' : 'hidden'} text-black bg-white p-8 max-w-4xl mx-auto space-y-10 border border-neutral-300 rounded shadow-xs font-sans`}>
+
+        {/* PDF Document Corporate Header */}
+        <div className="border-b-4 border-neutral-900 pb-5 flex justify-between items-end">
+          <div className="space-y-1.5 text-left">
+            <span className="text-[10px] uppercase font-black tracking-widest bg-black text-white px-2.5 py-0.5 rounded">
+              DOCUMENTO OFICIAL DE DESEMPENHO
+            </span>
+            <h1 className="text-2xl font-black uppercase tracking-tight text-neutral-900 font-display">
+              Relatório Comercial de Alocações & Conversões
+            </h1>
+            <p className="text-xs text-neutral-500 font-medium">
+              Vigência operacional: {formatDateVal(startDate)} a {formatDateVal(endDate)} &bull; Mês de referência: {currentMonth}
+            </p>
+          </div>
+          <div className="text-right font-mono text-[10px] text-neutral-450 uppercase font-semibold">
+            <div>Data: {new Date().toLocaleDateString('pt-BR')}</div>
+            <div>Emitido por: Hub Liderança</div>
+          </div>
+        </div>
+
+        {/* SECTION 1: CONSOLIDATED KPIs */}
+        <div className="space-y-4 text-left">
+          <h2 className="text-lg font-black uppercase tracking-tight text-neutral-900 border-b border-neutral-300 pb-1.5 flex items-center gap-1.5">
+            📊 Resumo Executivo e KPIs Gerais
+          </h2>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-3 border border-neutral-350 bg-neutral-50/40 rounded-xl space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-neutral-450 block font-bold">Total de SDRs Ativos</span>
+              <span className="text-xl font-black text-black">{activeSDRs.length} Profissionais</span>
+            </div>
+            <div className="p-3 border border-neutral-350 bg-neutral-50/40 rounded-xl space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-neutral-450 block font-bold">Assessores Vinculados</span>
+              <span className="text-xl font-black text-black">{activeAssessores.length} Parceiros</span>
+            </div>
+            <div className="p-3 border border-neutral-350 bg-neutral-50/40 rounded-xl space-y-1">
+              <span className="text-[9px] uppercase tracking-wider text-neutral-450 block font-bold">Metas do Time</span>
+              <span className="text-xl font-black text-black">{teamGoals?.agendamentos || 0} Agendamentos</span>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2: WEALTH & CLOSED DEALS (IF SELECTED) */}
+        {exportWealth && (
+          <div className="space-y-4 text-left">
+            <h2 className="text-lg font-black uppercase tracking-tight text-neutral-900 border-b border-neutral-300 pb-1.5">
+              💼 Métricas Wealth e Transações Registradas
+            </h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3.5 border border-neutral-300 rounded-xl bg-neutral-50/20">
+                <span className="text-[10px] text-neutral-450 font-bold uppercase tracking-wider block">Volume total captado</span>
+                <span className="text-xl font-black text-neutral-950 block mt-1">
+                  R$ {useAppStore.getState().negocios.filter(n => n.status === 'GANHO').reduce((sum, n) => sum + n.volumeFinanceiro, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="p-3.5 border border-neutral-300 rounded-xl bg-neutral-50/20">
+                <span className="text-[10px] text-neutral-450 font-bold uppercase tracking-wider block">Receita estimada gerada</span>
+                <span className="text-xl font-black text-neutral-950 block mt-1">
+                  R$ {useAppStore.getState().negocios.filter(n => n.status === 'GANHO').reduce((sum, n) => sum + n.receitaEstimada, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            <div className="border border-neutral-300 rounded-xl overflow-hidden mt-3">
+              <table className="w-full text-[11px] font-sans">
+                <thead className="bg-neutral-100 border-b border-neutral-300 font-bold uppercase text-[9px] text-neutral-600">
+                  <tr>
+                    <th className="p-2 text-left">Cliente</th>
+                    <th className="p-2 text-left">Produto</th>
+                    <th className="p-2 text-center">SDR</th>
+                    <th className="p-2 text-center">Assessor</th>
+                    <th className="p-2 text-right">Volume Captado</th>
+                    <th className="p-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 opacity-90">
+                  {useAppStore.getState().negocios.map((neg, nIdx) => (
+                    <tr key={nIdx} className="hover:bg-neutral-50">
+                      <td className="p-2 font-bold text-neutral-900">{neg.clientName}</td>
+                      <td className="p-2 text-neutral-700 font-mono text-[10px]">{neg.produtoCategoria.replace('_', ' ')}</td>
+                      <td className="p-2 text-center text-neutral-600">{neg.sdrName || '—'}</td>
+                      <td className="p-2 text-center text-neutral-600">{neg.assessorName || '—'}</td>
+                      <td className="p-2 text-right font-bold text-neutral-800">R$ {neg.volumeFinanceiro ? neg.volumeFinanceiro.toLocaleString('pt-BR') : '0'}</td>
+                      <td className="p-2 text-center">
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-neutral-100 text-neutral-800">
+                          {neg.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {useAppStore.getState().negocios.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center text-neutral-400 italic">Nenhum negócio registrado neste mês de vigência.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 3: SDR LIST (IF SELECTED) */}
+        {exportSdrFunnel && (
+          <div className="space-y-4 text-left page-break">
+            <h2 className="text-lg font-black uppercase tracking-tight text-neutral-900 border-b border-neutral-300 pb-1.5">
+              🏆 Desempenho Individual de SDRs e Funil de Vendas
+            </h2>
+            <div className="border border-neutral-300 rounded-xl overflow-hidden font-sans">
+              <table className="w-full text-[11px] font-sans">
+                <thead className="bg-neutral-100 border-b border-neutral-300 font-bold uppercase text-[9px] text-neutral-600">
+                  <tr>
+                    <th className="p-2.5 text-left">SDR</th>
+                    <th className="p-2.5 text-center">Equipe</th>
+                    <th className="p-2.5 text-center">Ligações (Calls)</th>
+                    <th className="p-2.5 text-center">Volume Agendamentos</th>
+                    <th className="p-2.5 text-center">Efetivações</th>
+                    <th className="p-2.5 text-right">Taxa de Conversão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200">
+                  {activeSDRs.map(sdr => {
+                    const convRate = sdr.agendamentosCount > 0 ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100) : 0;
+                    return (
+                      <tr key={sdr.id}>
+                        <td className="p-2.5 font-bold text-neutral-900">{sdr.name}</td>
+                        <td className="p-2.5 text-center font-semibold text-neutral-600">{sdr.team || 'Sem Equipe'}</td>
+                        <td className="p-2.5 text-center font-mono">{sdr.callsCount?.toLocaleString() || 0}</td>
+                        <td className="p-2.5 text-center font-mono font-bold">{sdr.agendamentosCount || 0} / {sdr.metaAgendamentos || 20}</td>
+                        <td className="p-2.5 text-center font-mono">{sdr.efetivacoesCount || 0} / {sdr.metaEfetivacoes || 30}</td>
+                        <td className="p-2.5 text-right font-mono font-black text-neutral-900">
+                          {convRate}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 4: MATCHES (IF SELECTED) */}
+        {exportMatches && (
+          <div className="space-y-4 text-left">
+            <h2 className="text-lg font-black uppercase tracking-tight text-neutral-900 border-b border-neutral-300 pb-1.5">
+              🔗 Pareamento Ativo do Rodízio
+            </h2>
+            <div className="border border-neutral-300 rounded-xl overflow-hidden font-sans">
+              <table className="w-full text-[11px] font-sans">
+                <thead className="bg-neutral-100 border-b border-neutral-300 font-bold uppercase text-[9px] text-neutral-600">
+                  <tr>
+                    <th className="p-2 text-left">SDR</th>
+                    <th className="p-2 text-center">Assessor Designado</th>
+                    <th className="p-2 text-center">Equipe comum</th>
+                    <th className="p-2 text-center">Data da Alocação</th>
+                    <th className="p-2 text-right">Afinidade de Pareamento</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200">
+                  {matches.map((m, mIdx) => {
+                    const sdr = sdrs.find(s => s.id === m.sdrId || s.name === m.sdrName);
+                    return (
+                      <tr key={mIdx}>
+                        <td className="p-2 font-bold text-neutral-900">{m.sdrName}</td>
+                        <td className="p-2 text-center font-bold text-neutral-800">{m.assessorName}</td>
+                        <td className="p-2 text-center text-neutral-600">{sdr?.team || 'Geral'}</td>
+                        <td className="p-2 text-center text-neutral-500 font-mono text-[10px]">{m.startDate ? formatDateVal(m.startDate) : 'Início do mês'}</td>
+                        <td className="p-2 text-right font-semibold font-mono text-neutral-900">
+                          {m.sdrConversionRate}% Conversão
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {matches.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-neutral-400 italic">Nenhum pareamento ativo encontrado no período corrente.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 5: ONE ON ONES (IF SELECTED) */}
+        {exportOneOnOne && (
+          <div className="space-y-4 text-left page-break">
+            <h2 className="text-lg font-black uppercase tracking-tight text-neutral-900 border-b border-neutral-300 pb-1.5">
+              🗣️ Sessões Executivas de One-on-One (Acompanhamento)
+            </h2>
+            <div className="space-y-3 font-sans text-left">
+              {oneOnOneLogs.map((log) => (
+                <div key={log.id} className="p-3 border border-neutral-300 bg-neutral-50/20 rounded-xl space-y-1 text-xs">
+                  <div className="flex justify-between items-start font-bold">
+                    <span className="text-neutral-900 text-sm">{log.sdrName}</span>
+                    <span className="text-[10px] text-neutral-450 font-mono bg-neutral-100 border px-2 py-0.5 rounded">{formatDateVal(log.timestamp)}</span>
+                  </div>
+                  <div className="text-[10.5px] font-bold text-neutral-800 uppercase tracking-wide">Plano de Ação: {log.actionPlan}</div>
+                  <p className="text-[11px] text-neutral-700 leading-relaxed italic mt-1 font-medium">Notas: "{log.notes}"</p>
+                  <p className="text-[10.5px] text-amber-800 font-semibold uppercase tracking-wide">Status: {log.status} &bull; Próxima Reunião: {log.nextMeeting ? formatDateVal(log.nextMeeting) : '—'}</p>
+                  <p className="text-[10px] text-neutral-450 block text-right font-medium">Líder responsável: {log.leader}</p>
+                </div>
+              ))}
+              {oneOnOneLogs.length === 0 && (
+                <div className="p-4 border border-dashed border-neutral-300 rounded-xl text-center text-neutral-400 italic text-xs">Nenhuma sessão 1:1 registrada no histórico.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 6: AUDIT LOGS (IF SELECTED) */}
+        {exportAuditLogs && (
+          <div className="space-y-4 text-left">
+            <h2 className="text-lg font-black uppercase tracking-tight text-neutral-900 border-b border-neutral-300 pb-1.5">
+              🛡️ Log Operacional e Histórico de Auditoria
+            </h2>
+            <div className="space-y-1.5 font-sans text-left">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="p-2 border border-neutral-200 rounded bg-neutral-50/50 flex justify-between gap-4 text-[10px] font-mono">
+                  <div className="text-neutral-700">
+                    SDR: <strong className="text-neutral-950 font-bold">{log.sdrName}</strong> &bull; Avaliador: {log.leader} &bull; Média Geral: <strong className="text-indigo-800 font-extrabold">{log.totalScore} Pts</strong>
+                    <div className="text-[9px] text-neutral-500 font-sans mt-0.5">Notas: "{log.notes}"</div>
+                  </div>
+                  <span className="text-neutral-400 shrink-0">{formatDateVal(log.timestamp)}</span>
+                </div>
+              ))}
+              {auditLogs.length === 0 && (
+                <div className="p-3 text-center text-neutral-400 italic text-xs">Nenhum log operacional registrado.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Document Footer */}
+        <div className="border-t-2 border-neutral-300 pt-5 text-center text-[9px] text-neutral-450 font-mono uppercase tracking-wider">
+          Este documento foi emitido eletronicamente pela plataforma Hub Liderança &bull; Criptografia Ativa SSL &bull; Cópia Segura
+        </div>
+      </div>
 
     </div>
   );
