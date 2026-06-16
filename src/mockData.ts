@@ -179,7 +179,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/marcelo-costa-horizon',
     exclusiveSdrId: '',
     participatesInRotation: true,
-    team: 'Equipe do Caio',
+    team: 'Tier 3 A',
+    roleType: 'assessor',
   },
   {
     id: 'assr-caio-2',
@@ -188,7 +189,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/rafaela-nogueira-vinci',
     exclusiveSdrId: '',
     participatesInRotation: true,
-    team: 'Equipe do Caio',
+    team: 'Tier 3 B',
+    roleType: 'assessor',
   },
   {
     id: 'assr-1',
@@ -197,7 +199,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/mariana-lima-apice',
     exclusiveSdrId: '',
     participatesInRotation: true,
-    team: 'Equipe Alpha',
+    team: 'Tier 3 C',
+    roleType: 'assessor',
   },
   {
     id: 'assr-2',
@@ -206,7 +209,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/rodrigo-mello',
     exclusiveSdrId: '',
     participatesInRotation: true,
-    team: 'Equipe Beta',
+    team: 'Tier 3 D',
+    roleType: 'assessor',
   },
   {
     id: 'assr-3',
@@ -215,7 +219,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/fernanda-albuquerque',
     exclusiveSdrId: '',
     participatesInRotation: true,
-    team: 'Equipe Delta',
+    team: 'Tier 2',
+    roleType: 'assessor',
   },
   {
     id: 'assr-4',
@@ -224,7 +229,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: '',
     exclusiveSdrId: '',
     participatesInRotation: false,
-    team: 'Equipe Beta',
+    team: 'Tier 1',
+    roleType: 'assessor',
   },
   {
     id: 'assr-5',
@@ -233,7 +239,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/priscila-nogueira',
     exclusiveSdrId: 'sdr-1', // Exclusive to Ana Silva
     participatesInRotation: false,
-    team: 'Equipe Alpha',
+    team: 'Tier 3 A',
+    roleType: 'assessor',
   },
   {
     id: 'assr-6',
@@ -242,7 +249,8 @@ export const INITIAL_ASSESSORES: Assessor[] = [
     agendaLink: 'https://calendly.com/thiago-vanguard',
     exclusiveSdrId: '',
     participatesInRotation: true,
-    team: 'Equipe Delta',
+    team: 'Consultoria',
+    roleType: 'consultor',
   }
 ];
 

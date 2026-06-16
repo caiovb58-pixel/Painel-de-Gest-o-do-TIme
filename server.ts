@@ -591,7 +591,7 @@ app.post("/api/db/save", async (req, res) => {
         }
         if (sdrs.length > 0) {
           const sdrIds = sdrs.map((s: any) => s.id);
-          await client.query("DELETE FROM sdrs WHERE id <> ALL($1)", [sdrIds]);
+          await client.query("DELETE FROM sdrs WHERE NOT (id = ANY($1::text[]))", [sdrIds]);
         } else {
           await client.query("DELETE FROM sdrs");
         }
@@ -605,7 +605,7 @@ app.post("/api/db/save", async (req, res) => {
         }
         if (assessores.length > 0) {
           const assrIds = assessores.map((a: any) => a.id);
-          await client.query("DELETE FROM assessores WHERE id <> ALL($1)", [assrIds]);
+          await client.query("DELETE FROM assessores WHERE NOT (id = ANY($1::text[]))", [assrIds]);
         } else {
           await client.query("DELETE FROM assessores");
         }
@@ -619,7 +619,7 @@ app.post("/api/db/save", async (req, res) => {
         }
         if (oneOnOneLogs.length > 0) {
           const logIds = oneOnOneLogs.map((l: any) => l.id);
-          await client.query("DELETE FROM one_on_one_logs WHERE id <> ALL($1)", [logIds]);
+          await client.query("DELETE FROM one_on_one_logs WHERE NOT (id = ANY($1::text[]))", [logIds]);
         } else {
           await client.query("DELETE FROM one_on_one_logs");
         }
@@ -633,7 +633,7 @@ app.post("/api/db/save", async (req, res) => {
         }
         if (negocios.length > 0) {
           const negIds = negocios.map((n: any) => n.id);
-          await client.query("DELETE FROM negocios_fechados WHERE id <> ALL($1)", [negIds]);
+          await client.query("DELETE FROM negocios_fechados WHERE NOT (id = ANY($1::text[]))", [negIds]);
         } else {
           await client.query("DELETE FROM negocios_fechados");
         }

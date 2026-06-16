@@ -16,14 +16,42 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [currentImgIndex, setCurrentImgIndex] = useState<number>(0);
+  const [currentLeaders, setCurrentLeaders] = useState<TeamLeader[]>(leaders);
 
   const bannerImages = [
     "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
     "https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
     "https://images.pexels.com/photos/3182811/pexels-photo-3182811.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
-    "https://images.pexels.com/photos/7014337/pexels-photo-7014337.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
+    "https://images.pexels.com/photos/7014337/pexels-photo-7014337.jpeg?auto=compress&cs=tinysrgb&w=1250&h=750&dpr=2",
     "https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
   ];
+
+  // Sync state with props
+  React.useEffect(() => {
+    setCurrentLeaders(leaders);
+  }, [leaders]);
+
+  // Proactive background fetch of freshest leaders array on load
+  React.useEffect(() => {
+    let active = true;
+    const fetchLatest = async () => {
+      try {
+        const response = await fetch('/api/db/load');
+        if (response.ok && active) {
+          const data = await response.json();
+          if (data && Array.isArray(data.leaders)) {
+            setCurrentLeaders(data.leaders);
+          }
+        }
+      } catch (err) {
+        console.warn("[LoginGate] Background sync failed:", err);
+      }
+    };
+    fetchLatest();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -38,7 +66,7 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
     setShowDropdown(false);
     setErrorMsg('');
     setInfoMsg(`Credenciais de "${userLogin}" prontas para login!`);
-    setTimeout(() => setInfoMsg(''), 3000);
+    setTimeout(() => setInfoMsg(''), 3500);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,8 +82,23 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
     }
 
     try {
+      // 1. Fetch freshest database records first to handle real-time newly created leaders
+      let latestLeadersList = currentLeaders;
+      try {
+        const response = await fetch('/api/db/load');
+        if (response.ok) {
+          const data = await response.json();
+          if (data && Array.isArray(data.leaders)) {
+            setCurrentLeaders(data.leaders);
+            latestLeadersList = data.leaders;
+          }
+        }
+      } catch (err) {
+        console.warn("[LoginGate] Direct fetch in handleSubmit failed:", err);
+      }
+
       // Admin Override
-      const caioLeader = leaders.find(l => l.name.toLowerCase() === 'caio' || l.id === 'leader-caio');
+      const caioLeader = latestLeadersList.find(l => l.name.toLowerCase() === 'caio' || l.id === 'leader-caio');
       const caioPasscode = caioLeader ? caioLeader.passcode : 'VMB';
 
       if (trimmedUser.toLowerCase() === 'caio' && passcode === caioPasscode) {
@@ -70,7 +113,7 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
       }
 
       // Leader lookup matching
-      const matchedLeader = leaders.find(l => 
+      const matchedLeader = latestLeadersList.find(l => 
         (l.name.toLowerCase() === trimmedUser.toLowerCase() || 
          l.teamName.toLowerCase() === trimmedUser.toLowerCase()) && 
         l.passcode === passcode

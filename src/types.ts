@@ -44,6 +44,42 @@ export interface Assessor {
   crossSellDetails?: string; // Detalhes de cross-sell
   professionalProfile?: string; // Perfil profissional: 'comercial' | 'gestao' | 'analitico' | 'operacional' e etc.
   admissionDate?: string; // Data de admissão do Assessor
+
+  // --- New Goal Alignment Fields per Assessor & Consultant ---
+  roleType?: 'assessor' | 'consultor'; // Typology (Assessor vs Consultor)
+  
+  metaLigacoes?: number; // Ligações Goal
+  metaReunioesAgendadas?: number; // Reuniões Agendadas Goal
+  metaReunioesRealizadas?: number; // Reuniões Realizadas Goal
+  metaContasAbertas?: number; // Contas Abertas Goal
+  metaNet?: number; // NET Inbound Goal
+  metaCrossSell?: number; // Cross Sell Qty Goal
+  
+  realizadoLigacoes?: number; // Ligações Accomplished
+  realizadoReunioesAgendadas?: number; // Reuniões Agendadas Accomplished
+  realizadoReunioesRealizadas?: number; // Reuniões Realizadas Accomplished
+  realizadoContasAbertas?: number; // Contas Abertas Accomplished
+  realizadoNet?: number; // NET Inbound Accomplished
+  realizadoCrossSell?: number; // Cross Sell Qty Accomplished
+
+  // Detailed Cross-Sell Products Metas & Realizados (Seguro, Consórcio, Contabilidade, Plano de Saúde, Câmbio etc.)
+  crossSellSeguroMeta?: number;
+  crossSellSeguroRealizado?: number;
+  
+  crossSellConsorcioMeta?: number;
+  crossSellConsorcioRealizado?: number;
+  
+  crossSellContabilidadeMeta?: number;
+  crossSellContabilidadeRealizado?: number;
+  
+  crossSellPlanoSaudeMeta?: number;
+  crossSellPlanoSaudeRealizado?: number;
+  
+  crossSellCambioMeta?: number;
+  crossSellCambioRealizado?: number;
+  
+  crossSellOutrosMeta?: number;
+  crossSellOutrosRealizado?: number;
 }
 
 export interface TeamLeader {

@@ -40,11 +40,8 @@ export function useSDRMetrics() {
   }, [derivedSdrsForActiveMonth]);
 
   const filteredAssessores = useMemo<Assessor[]>(() => {
-    if (currentUser && currentUser.role !== 'admin' && currentUser.teamName) {
-      return assessores.filter(a => a.team === currentUser.teamName);
-    }
     return assessores;
-  }, [assessores, currentUser]);
+  }, [assessores]);
 
   const activeAssessoresCount = useMemo(() => {
     return filteredAssessores.filter(a => a.active).length;

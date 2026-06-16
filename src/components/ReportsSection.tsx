@@ -4,7 +4,7 @@ import {
   FileText, Copy, TrendingUp, Users, CheckCircle2, 
   RefreshCw, Compass, BarChart3, ChevronRight, CheckCircle, AlertCircle,
   Sparkles, PhoneCall, Zap, Flame, Award, ShieldAlert, Target, Calendar,
-  Download, Table, Info, Trash2, Plus, Coins, Briefcase, Layers, HeartHandshake, Check
+  Download, Table, Info, Trash2, Plus, Coins, Briefcase, Layers, HeartHandshake, Check, Edit2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -503,6 +503,52 @@ export default function ReportsSection({
     });
   };
 
+  const [deletingNegocioId, setDeletingNegocioId] = useState<string | null>(null);
+  const [editingNegocioId, setEditingNegocioId] = useState<string | null>(null);
+
+  const formatDateToInput = (isoString?: string) => {
+    if (!isoString) return '';
+    const datePart = isoString.substring(0, 10); // YYYY-MM-DD
+    const parts = datePart.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY
+    }
+    return '';
+  };
+
+  const handleStartEditNegocio = (deal: NegocioFechado) => {
+    setEditingNegocioId(deal.id);
+    setNewClient(deal.clientName);
+    setNewVolume(String(deal.volumeFinanceiro));
+    setNewStatus(deal.status);
+    setNewOrigemCliente(deal.origemCliente || 'ABERTURA_CONTA');
+    setNewSituacaoCliente(deal.situacaoCliente || 'ATIVO_APORTANDO');
+    setNewSdrId(deal.sdrId || '');
+    setNewAssessorId(deal.assessorId || '');
+    
+    // Dates
+    setNewCreateDate(formatDateToInput(deal.dataCriacaoLead) || '25-05-2026');
+    setNewCloseDate(formatDateToInput(deal.dataFechamento) || '25-06-2026');
+    
+    // Products
+    if (deal.produtos && deal.produtos.length > 0) {
+      setSelectedProducts(deal.produtos.map(p => ({
+        produtoCategoria: p.produtoCategoria,
+        receitaEstimada: String(p.receitaEstimada)
+      })));
+    } else {
+      setSelectedProducts([{
+        produtoCategoria: deal.produtoCategoria,
+        receitaEstimada: String(deal.receitaEstimada)
+      }]);
+    }
+    
+    setShowLaunchForm(true);
+    setTimeout(() => {
+      document.getElementById('contrato-form-container')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   const handleLaunchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.trim()) return;
@@ -536,7 +582,7 @@ export default function ReportsSection({
 
     const totalRevenueSum = parsedProducts.reduce((sum, p) => sum + p.receitaEstimada, 0);
 
-    addNegocio({
+    const dealData = {
       clientName: newClient,
       produtoCategoria: parsedProducts[0]?.produtoCategoria || 'INVESTIMENTOS_XP',
       dataCriacaoLead: parseFormattedDate(newCreateDate),
@@ -551,7 +597,14 @@ export default function ReportsSection({
       produtos: parsedProducts,
       origemCliente: newOrigemCliente,
       situacaoCliente: newSituacaoCliente
-    });
+    };
+
+    if (editingNegocioId) {
+      updateNegocio(editingNegocioId, dealData);
+      setEditingNegocioId(null);
+    } else {
+      addNegocio(dealData);
+    }
 
     // Reset fields
     setNewClient('');
@@ -1127,44 +1180,48 @@ export default function ReportsSection({
             onClick={() => setActiveSubTab('wealth')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
               activeSubTab === 'wealth'
-                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
-                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
+                ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'font-bold'
             }`}
+            style={{ color: '#000000' }}
           >
-            <Briefcase className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 font-bold" />
+            <Briefcase className="w-3.5 h-3.5 text-indigo-600 font-bold" />
             Métricas Wealth / Fechamentos
           </button>
           <button
             onClick={() => setActiveSubTab('visual')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
               activeSubTab === 'visual'
-                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
-                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
+                ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'font-bold'
             }`}
+            style={{ color: '#000000' }}
           >
-            <BarChart3 className="w-3.5 h-3.5 text-black dark:text-white animate-pulse" />
+            <BarChart3 className="w-3.5 h-3.5 text-black animate-pulse" />
             Painel SDR & Funis
           </button>
           <button
             onClick={() => setActiveSubTab('whatsapp')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
               activeSubTab === 'whatsapp'
-                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
-                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
+                ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'font-bold'
             }`}
+            style={{ color: '#000000' }}
           >
-            <Download className="w-3.5 h-3.5 text-black dark:text-white" />
+            <Download className="w-3.5 h-3.5 text-black" />
             Exportar CSV / WhatsApp
           </button>
           <button
             onClick={() => setActiveSubTab('intelligence')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
               activeSubTab === 'intelligence'
-                ? 'bg-white dark:bg-neutral-900 text-black dark:text-white shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
-                : 'text-neutral-600 dark:text-neutral-350 hover:text-black dark:hover:text-white'
+                ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
+                : 'font-bold'
             }`}
+            style={{ color: '#000000' }}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             Inteligência de Performance
           </button>
         </div>
@@ -1468,22 +1525,41 @@ export default function ReportsSection({
           </div>
 
           {/* Quick-Access Deal Registry (Lançador de Negócios) Form Drawer */}
-          <div className="bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs">
+          <div className="bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs" id="contrato-form-container">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h3 className="text-xs font-black uppercase text-neutral-900 tracking-wider flex items-center gap-2 font-display">
                   <Coins className="w-4.5 h-4.5 text-indigo-600" />
-                  Registro e Lançamento de Negócios Fechados
+                  {editingNegocioId ? "Edição de Contrato Registrado" : "Registro e Lançamento de Negócios Fechados"}
                 </h3>
                 <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Insira novos contratos concluídos para recalcular em tempo real o Roi dos SDRs, o Funil Wave e a Coorte de Conversão.
+                  {editingNegocioId ? "Altere os dados do contrato selecionado e salve as atualizações para recalcular os dados em tempo real." : "Insira novos contratos concluídos para recalcular em tempo real o Roi dos SDRs, o Funil Wave e a Coorte de Conversão."}
                 </p>
               </div>
               <button
-                onClick={() => setShowLaunchForm(!showLaunchForm)}
-                className="px-4 py-2 bg-neutral-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-3xs cursor-pointer"
+                onClick={() => {
+                  if (editingNegocioId) {
+                    setEditingNegocioId(null);
+                    setNewClient('');
+                    setNewVolume('5000000');
+                    setSelectedProducts([
+                      { produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: '50000' }
+                    ]);
+                    setNewSdrId('');
+                    setNewAssessorId('');
+                    setNewStatus('GANHO');
+                    setNewOrigemCliente('ABERTURA_CONTA');
+                    setNewSituacaoCliente('ATIVO_APORTANDO');
+                    setShowLaunchForm(false);
+                  } else {
+                    setShowLaunchForm(!showLaunchForm);
+                  }
+                }}
+                className={`px-4 py-2 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-3xs cursor-pointer ${editingNegocioId ? 'bg-indigo-650 hover:bg-indigo-700' : 'bg-neutral-900 hover:bg-black'}`}
               >
-                {showLaunchForm ? (
+                {editingNegocioId ? (
+                  <>Cancelar Edição</>
+                ) : showLaunchForm ? (
                   <>Ocultar Painel</>
                 ) : (
                   <>
@@ -1721,7 +1797,20 @@ export default function ReportsSection({
                 <div className="md:col-span-3 flex justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowLaunchForm(false)}
+                    onClick={() => {
+                      setShowLaunchForm(false);
+                      setEditingNegocioId(null);
+                      setNewClient('');
+                      setNewVolume('5000000');
+                      setSelectedProducts([
+                        { produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: '50000' }
+                      ]);
+                      setNewSdrId('');
+                      setNewAssessorId('');
+                      setNewStatus('GANHO');
+                      setNewOrigemCliente('ABERTURA_CONTA');
+                      setNewSituacaoCliente('ATIVO_APORTANDO');
+                    }}
                     className="px-4 py-2 border border-neutral-300 rounded-xl text-xs font-bold uppercase text-neutral-700 hover:bg-neutral-50 cursor-pointer"
                   >
                     Cancelar
@@ -1731,7 +1820,7 @@ export default function ReportsSection({
                     className="px-5 py-2.5 bg-black hover:bg-neutral-900 text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer shadow-3xs flex items-center gap-1.5"
                   >
                     <Check className="w-4 h-4 text-emerald-400" />
-                    Gravar Negócio no Banco
+                    {editingNegocioId ? "Salvar Alterações do Contrato" : "Gravar Negócio no Banco"}
                   </button>
                 </div>
               </form>
@@ -2249,18 +2338,48 @@ export default function ReportsSection({
                                   </span>
                                 </td>
                                 <td className="p-2.5 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (window.confirm(`Excluir permanentemente o negócio de ${deal.clientName}?`)) {
-                                        deleteNegocio(deal.id);
-                                      }
-                                    }}
-                                    className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-all"
-                                    title="Deletar Contrato"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditNegocio(deal)}
+                                      className="p-1.5 text-neutral-450 hover:text-indigo-650 hover:bg-indigo-50 rounded-lg cursor-pointer transition-all"
+                                      title="Editar Contrato"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    {deletingNegocioId === deal.id ? (
+                                      <div className="flex items-center gap-1 animate-fade-in pl-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            deleteNegocio(deal.id);
+                                            setDeletingNegocioId(null);
+                                          }}
+                                          className="px-1.5 py-0.5 bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase rounded transition-all cursor-pointer"
+                                          title="Confirmar exclusão"
+                                        >
+                                          Sim
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setDeletingNegocioId(null)}
+                                          className="px-1.5 py-0.5 bg-neutral-250 hover:bg-neutral-300 text-neutral-700 text-[9px] font-black uppercase rounded transition-all cursor-pointer"
+                                        >
+                                          Não
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeletingNegocioId(deal.id)}
+                                        className="p-1.5 text-neutral-450 hover:text-red-650 hover:bg-red-50 rounded-lg cursor-pointer transition-all"
+                                        title="Deletar Contrato"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -2772,11 +2891,11 @@ export default function ReportsSection({
                           <td className="p-3.5 text-right">
                             {requiredDailyCalls > 0 ? (
                               <div className="space-y-0.5">
-                                <span className="font-mono text-xs font-black text-rose-600 block bg-rose-50 border border-rose-200 rounded px-2 py-0.5 inline-block">{requiredDailyCalls} ligações / dia</span>
-                                <span className="text-[9px] text-neutral-400 block">em {remainingBusinessDays} dias úteis</span>
+                                <span className="font-mono text-xs font-black text-rose-600 block bg-rose-50 border border-rose-200 rounded px-2 py-0.5 inline-block" style={{ color: '#000000' }}>{requiredDailyCalls} ligações / dia</span>
+                                <span className="text-[9px] text-neutral-400 block" style={{ color: '#000000' }}>em {remainingBusinessDays} dias úteis</span>
                               </div>
                             ) : (
-                              <span className="font-mono text-xs font-black text-emerald-600 block bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 inline-block">Cota Concluída ✓</span>
+                              <span className="font-mono text-xs font-black text-emerald-600 block bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 inline-block" style={{ color: '#000000' }}>Cota Concluída ✓</span>
                             )}
                           </td>
                         </tr>

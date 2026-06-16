@@ -627,7 +627,7 @@ export default function App() {
               Gestão de Time ({derivedSdrsForActiveMonth.length})
             </button>
 
-            {currentUser.role === 'admin' && (
+            {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
               <button
                 onClick={() => { setActiveTab('assessores'); if (window.innerWidth < 768) setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
@@ -637,7 +637,7 @@ export default function App() {
                 }`}
               >
                 <Shield className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-                Cadastro Assessores ({assessores.length})
+                {currentUser.role === 'admin' ? `Metas e Cadastro de Assessoria (${assessores.length})` : `Agendas Assessores & Consultores`}
               </button>
             )}
 
@@ -813,7 +813,10 @@ export default function App() {
                   <h2 className="text-base font-black font-display uppercase tracking-tight text-page-text">
                     Mês de Referência: {currentMonth.split('-')[1]}/2026
                   </h2>
-                  <p className="text-xs leading-normal font-sans text-page-text-muted">
+                  <p 
+                    className="text-xs leading-normal font-sans text-[#000000]"
+                    style={{ color: '#000000' }}
+                  >
                     O time realizou <strong className="text-page-text">{thermStats.totalRealized} agendamentos</strong> frente à meta conjunta de <strong className="text-page-text">{thermStats.totalTarget}</strong>. Hoje (Dia {thermStats.currentDaysElapsed} de {thermStats.totalDaysInMonth}), espera-se linearmente estar em {thermStats.expectedProgress}% da meta.
                   </p>
                 </div>
@@ -1144,7 +1147,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'assessores' && currentUser.role === 'admin' && (
+          {activeTab === 'assessores' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
             <AssessorSection 
               assessores={filteredAssessores}
               sdrs={derivedSdrsForActiveMonth}
@@ -1153,6 +1156,7 @@ export default function App() {
               onToggleActiveAssessor={toggleActiveAssessor}
               onUpdateAssessor={updateAssessor}
               teams={teams}
+              currentUser={currentUser}
             />
           )}
 

@@ -833,7 +833,7 @@ export default function SDRSection({
                     ? 'bg-white shadow-xs text-black font-extrabold' 
                     : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
-                style={{ color: subTab === 'goals' ? '#000000' : '#262626' }}
+                style={{ color: '#000000' }}
               >
                 Pontos de Atenção & Metas
               </button>
@@ -845,7 +845,7 @@ export default function SDRSection({
                     ? 'bg-white shadow-xs text-black font-extrabold' 
                     : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
-                style={{ color: subTab === 'teams' ? '#000000' : '#262626' }}
+                style={{ color: '#000000' }}
               >
                 Dividir em Equipes ({teams.length})
               </button>
@@ -857,7 +857,7 @@ export default function SDRSection({
                     ? 'bg-white shadow-xs text-black font-extrabold' 
                     : 'text-neutral-800 hover:text-black font-extrabold'
                 }`}
-                style={{ color: subTab === 'campaigns' ? '#000000' : '#262626' }}
+                style={{ color: '#000000' }}
               >
                 Campanhas do Time 🏆
               </button>
