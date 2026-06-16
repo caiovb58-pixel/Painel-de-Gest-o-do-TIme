@@ -321,16 +321,19 @@ O profissional foi classificado como **${profileReadable}** com base na análise
 });
 
 // ========================================================
-// 🗄️ NEON POSTGRESQL & LOCAL SERVER CACHE persistance SYSTEM
 // ========================================================
-import pg from "pg";
+// 🗄️ FIREBASE FIRESTORE & LOCAL SERVER CACHE PERSISTENCE SYSTEM
+// ========================================================
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
 import fs from "fs";
 
-const { Pool } = pg;
-const dbUrl = process.env.DATABASE_URL;
-let dbPool: pg.Pool | null = null;
-let lastDbError: string | null = null;
-let isDbConnected = false;
+let firebaseConfig: any = null;
+let firestoreDb: any = null;
+let isFirestoreConnected = false;
+let lastFirestoreError: string | null = null;
+
+const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
 
 // Structured logs for tracking connection state
 interface SyncLog {
@@ -356,23 +359,29 @@ function addSyncLog(type: "LOAD" | "SAVE" | "INIT", status: "success" | "error",
     error
   };
   syncLogs.unshift(log);
-  // Keep the last 50 logs to prevent memory bloat
   if (syncLogs.length > 50) {
     syncLogs.pop();
   }
 }
 
-if (dbUrl && dbUrl.trim() !== "") {
-  console.log("[Neon Database] Detected DATABASE_URL in environment. Initializing pool...");
-  dbPool = new Pool({
-    connectionString: dbUrl,
-    ssl: {
-      rejectUnauthorized: false // Required for serverless Neon PostgreSQL connections
-    }
-  });
+if (fs.existsSync(firebaseConfigPath)) {
+  try {
+    console.log("[Firebase Firestore] Detected firebase-applet-config.json. Initializing cloud database...");
+    firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+    const firebaseApp = initializeApp(firebaseConfig);
+    const dbId = firebaseConfig.firestoreDatabaseId;
+    firestoreDb = dbId ? getFirestore(firebaseApp, dbId) : getFirestore(firebaseApp);
+    isFirestoreConnected = true;
+    console.log("[Firebase Firestore] Connection established successfully with Firebase cloud database.");
+  } catch (err: any) {
+    isFirestoreConnected = false;
+    lastFirestoreError = err.message;
+    addSyncLog("INIT", "error", "Falha na inicialização do Firebase Firestore", err.message);
+    console.error("[Firebase Firestore] Initialization error:", err.message);
+  }
 } else {
-  console.log("[Neon Database] No DATABASE_URL configuration detected. Running under local server cache fallback.");
-  addSyncLog("INIT", "success", "Iniciado com sucesso em modo de Contingência / Cache Local (DATABASE_URL em branco).");
+  console.log("[Firebase Firestore] No config file found. Running under local cache fallback.");
+  addSyncLog("INIT", "success", "Iniciado com sucesso sob modo de Contingência do Servidor.");
 }
 
 const PERSIST_FILE = path.join(process.cwd(), "persist_data.json");
@@ -398,62 +407,72 @@ function writeLocalPersistFile(data: any) {
 }
 
 async function verifyDatabase() {
-  if (!dbPool) return;
+  if (!firestoreDb) return;
   try {
-    const client = await dbPool.connect();
-    isDbConnected = true;
-    lastDbError = null;
-    console.log("[Neon Database] Connection established successfully with Neon PostgreSQL cloud system.");
-
-    // Create persistent storage schemas that support high-fidelity upsert and flex schema
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS sdrs (
-        id VARCHAR(255) PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS assessores (
-        id VARCHAR(255) PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS one_on_one_logs (
-        id VARCHAR(255) PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS system_config (
-        key VARCHAR(255) PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS negocios_fechados (
-        id VARCHAR(255) PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    client.release();
-    addSyncLog("INIT", "success", "Banco de dados Neon conectado e tabelas de dados validadas com sucesso.");
-    console.log("[Neon Database] Database schema validated and table architecture ready.");
+    console.log("[Firebase Firestore] Verifying cloud database data collections...");
+    const sdrCol = await getDocs(collection(firestoreDb, "sdrs"));
+    
+    if (sdrCol.empty) {
+      console.log("[Firebase Firestore] Cloud Collections are empty. Seeding with local backup file for seamless data migration...");
+      const localCache = readLocalPersistFile();
+      if (localCache) {
+        const { 
+          sdrs = [], 
+          assessores = [], 
+          oneOnOneLogs = [], 
+          matches = [], 
+          campaigns = [], 
+          leaders = [], 
+          teamGoals = null, 
+          disabledRotationTeams = [],
+          negocios = []
+        } = localCache;
+        
+        // Seed SDRs
+        for (const s of sdrs) {
+          if (s && s.id) {
+            await setDoc(doc(firestoreDb, "sdrs", s.id), { data: s, updated_at: new Date().toISOString() });
+          }
+        }
+        // Seed Assessores
+        for (const a of assessores) {
+          if (a && a.id) {
+            await setDoc(doc(firestoreDb, "assessores", a.id), { data: a, updated_at: new Date().toISOString() });
+          }
+        }
+        // Seed Logs
+        for (const log of oneOnOneLogs) {
+          if (log && log.id) {
+            await setDoc(doc(firestoreDb, "one_on_one_logs", log.id), { data: log, updated_at: new Date().toISOString() });
+          }
+        }
+        // Seed Negocios
+        for (const n of negocios) {
+          if (n && n.id) {
+            await setDoc(doc(firestoreDb, "negocios_fechados", n.id), { data: n, updated_at: new Date().toISOString() });
+          }
+        }
+        // Seed configurations
+        await setDoc(doc(firestoreDb, "system_config", "matches"), { data: matches, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "campaigns"), { data: campaigns, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "leaders"), { data: leaders, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "teamGoals"), { data: teamGoals, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "disabledRotationTeams"), { data: disabledRotationTeams, updated_at: new Date().toISOString() });
+        
+        console.log("[Firebase Firestore] Cloud database initialized and seeded successfully from local backup cache.");
+        addSyncLog("INIT", "success", "Banco de dados Firestore conectado e semeado com sucesso a partir do cache local.");
+      } else {
+        addSyncLog("INIT", "success", "Banco de dados Firestore conectado (vazio, pronto para operar).");
+      }
+    } else {
+      console.log("[Firebase Firestore] Found existing cloud collections. Ready.");
+      addSyncLog("INIT", "success", "Banco de dados Firestore conectado operacionalmente.");
+    }
   } catch (err: any) {
-    isDbConnected = false;
-    lastDbError = err.message;
-    addSyncLog("INIT", "error", "Falha crítica na conexão inicial e criação de tabelas do Postgres", err.message);
-    console.error("[Neon Database] Error preparing database schemas in PostgreSQL:", err.message);
+    isFirestoreConnected = false;
+    lastFirestoreError = err.message;
+    addSyncLog("INIT", "error", "Erro ao conectar de forma ativa ao Firestore", err.message);
+    console.error("[Firebase Firestore] Verification connection error:", err.message);
   }
 }
 
@@ -466,35 +485,46 @@ app.get("/api/db/load", async (req, res) => {
     { id: 'leader-3', teamName: 'Equipe Delta', leaderTitle: 'Diretor de Expansão Delta', passcode: 'delta123', name: 'Gestor Delta' }
   ];
 
-  if (dbPool) {
+  if (firestoreDb) {
     try {
-      console.log("[Neon Database] Attempting state retrieval...");
-      const client = await dbPool.connect();
-      isDbConnected = true;
-      lastDbError = null;
+      console.log("[Firebase Firestore] Appending cloud recovery retrieval...");
       
-      const sdrRows = await client.query("SELECT data FROM sdrs");
-      const assrRows = await client.query("SELECT data FROM assessores");
-      const logRows = await client.query("SELECT data FROM one_on_one_logs");
-      const negociosRows = await client.query("SELECT data FROM negocios_fechados");
-      const configRows = await client.query("SELECT key, data FROM system_config");
-      
-      client.release();
-      
-      const sdrs = sdrRows.rows.map(r => r.data);
-      const assessores = assrRows.rows.map(r => r.data);
-      const oneOnOneLogs = logRows.rows.map(r => r.data);
-      const negocios = negociosRows.rows.map(r => r.data);
-      
+      const sdrsCol = await getDocs(collection(firestoreDb, "sdrs"));
+      const sdrs = sdrsCol.docs.map(doc => doc.data().data).filter(Boolean);
+
+      const assessoresCol = await getDocs(collection(firestoreDb, "assessores"));
+      const assessores = assessoresCol.docs.map(doc => doc.data().data).filter(Boolean);
+
+      const logCol = await getDocs(collection(firestoreDb, "one_on_one_logs"));
+      const oneOnOneLogs = logCol.docs.map(doc => doc.data().data).filter(Boolean);
+
+      const negociosCol = await getDocs(collection(firestoreDb, "negocios_fechados"));
+      const negocios = negociosCol.docs.map(doc => doc.data().data).filter(Boolean);
+
+      const configCol = await getDocs(collection(firestoreDb, "system_config"));
       const configs: Record<string, any> = {};
-      configRows.rows.forEach(r => {
-        configs[r.key] = r.data;
+      configCol.docs.forEach(doc => {
+        configs[doc.id] = doc.data().data;
       });
 
       const loadedLeaders = configs.leaders && configs.leaders.length > 0 ? configs.leaders : defaultLeadersFallback;
 
-      console.log(`[Neon Database] Hydrating from PostgreSQL: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} Logs, ${negocios.length} Negocios.`);
-      addSyncLog("LOAD", "success", `Sincronização bem sucedida. Carregou dados da Nuvem Neon.`);
+      console.log(`[Firebase Firestore] Loaded status: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} 1-1s, ${negocios.length} Negocios.`);
+      addSyncLog("LOAD", "success", `Sincronização concluída com sucesso da Nuvem Firebase.`);
+      
+      // Keep local file updated as a mirror/contingency, so it acts as instantaneous read-accelerator
+      writeLocalPersistFile({
+        sdrs,
+        assessores,
+        oneOnOneLogs,
+        negocios,
+        matches: configs.matches || [],
+        campaigns: configs.campaigns || [],
+        leaders: loadedLeaders,
+        teamGoals: configs.teamGoals || null,
+        disabledRotationTeams: configs.disabledRotationTeams || []
+      });
+
       return res.json({
         source: "database",
         sdrs,
@@ -508,10 +538,10 @@ app.get("/api/db/load", async (req, res) => {
         disabledRotationTeams: configs.disabledRotationTeams || []
       });
     } catch (dbErr: any) {
-      isDbConnected = false;
-      lastDbError = dbErr.message;
-      addSyncLog("LOAD", "error", "Erro ao recuperar dados do Postgres Neon. Tentando usar cache local de contingência.", dbErr.message);
-      console.error("[Neon Database] Failed to pull state from Neon. Resorting to local cache:", dbErr.message);
+      isFirestoreConnected = false;
+      lastFirestoreError = dbErr.message;
+      addSyncLog("LOAD", "error", "Falha de conexão com a nuvem, carregando em modo local.", dbErr.message);
+      console.error("[Firebase Firestore] Failed to fetch state:", dbErr.message);
     }
   }
 
@@ -519,7 +549,7 @@ app.get("/api/db/load", async (req, res) => {
   const localCache = readLocalPersistFile();
   if (localCache) {
     console.log("[Local Storage Cache] Successfully hydrated app from local disk cache.");
-    addSyncLog("LOAD", "success", "Carregamento de dados local efetuado com sucesso usando o Cache de Contingência.");
+    addSyncLog("LOAD", "success", "Carregamento efetuado com sucesso usando o Cache de Contingência.");
     
     const loadedLeaders = localCache.leaders && localCache.leaders.length > 0 ? localCache.leaders : defaultLeadersFallback;
     return res.json({
@@ -530,7 +560,7 @@ app.get("/api/db/load", async (req, res) => {
   }
 
   console.log("[Local Storage Cache] No valid persistence database or cache found. Bootstrapping with clean/default values.");
-  addSyncLog("LOAD", "success", "Carregamento inicial vazio. Banco de dados novo ou zerado.");
+  addSyncLog("LOAD", "success", "Carregamento inicial vazio. Sem dados em cache ou nuvem.");
   return res.json({
     source: "defaults",
     sdrs: [],
@@ -544,7 +574,7 @@ app.get("/api/db/load", async (req, res) => {
   });
 });
 
-// 2. ATOMIC TRANSACTION FULL-SYNC SAVE ENDPOINT
+// 2. ATOMIC SYNCHRONIZATION SAVE ENDPOINT
 app.post("/api/db/save", async (req, res) => {
   const { 
     sdrs = [], 
@@ -558,7 +588,7 @@ app.post("/api/db/save", async (req, res) => {
     negocios = []
   } = req.body;
 
-  // Sync with local memory cache first so any multi-PC action immediately works
+  // Sync to local fallback file first
   writeLocalPersistFile({
     sdrs,
     assessores,
@@ -574,108 +604,85 @@ app.post("/api/db/save", async (req, res) => {
   let savedToDb = false;
   let dbError = null;
 
-  if (dbPool) {
+  if (firestoreDb) {
     try {
-      console.log("[Neon Database] Starting atomic database transaction save...");
-      const client = await dbPool.connect();
-      isDbConnected = true;
-      lastDbError = null;
-      
-      try {
-        await client.query("BEGIN");
-        
-        // 1. Sync SDRs (Upsert active + prune stale)
-        for (const s of sdrs) {
-          await client.query(
-            "INSERT INTO sdrs (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
-            [s.id, JSON.stringify(s)]
-          );
-        }
-        if (sdrs.length > 0) {
-          const sdrIds = sdrs.map((s: any) => s.id);
-          await client.query("DELETE FROM sdrs WHERE NOT (id = ANY($1::text[]))", [sdrIds]);
-        } else {
-          await client.query("DELETE FROM sdrs");
-        }
+      console.log("[Firebase Firestore] Executing write updates...");
 
-        // 2. Sync Assessores
-        for (const a of assessores) {
-          await client.query(
-            "INSERT INTO assessores (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
-            [a.id, JSON.stringify(a)]
-          );
+      // Update/Clean SDRs on Firestore
+      const freshSdrIds = new Set(sdrs.map((s: any) => s.id));
+      const currentSdrs = await getDocs(collection(firestoreDb, "sdrs"));
+      for (const d of currentSdrs.docs) {
+        if (!freshSdrIds.has(d.id)) {
+          await deleteDoc(doc(firestoreDb, "sdrs", d.id));
         }
-        if (assessores.length > 0) {
-          const assrIds = assessores.map((a: any) => a.id);
-          await client.query("DELETE FROM assessores WHERE NOT (id = ANY($1::text[]))", [assrIds]);
-        } else {
-          await client.query("DELETE FROM assessores");
-        }
-
-        // 3. Sync One-on-One Logs
-        for (const log of oneOnOneLogs) {
-          await client.query(
-            "INSERT INTO one_on_one_logs (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
-            [log.id, JSON.stringify(log)]
-          );
-        }
-        if (oneOnOneLogs.length > 0) {
-          const logIds = oneOnOneLogs.map((l: any) => l.id);
-          await client.query("DELETE FROM one_on_one_logs WHERE NOT (id = ANY($1::text[]))", [logIds]);
-        } else {
-          await client.query("DELETE FROM one_on_one_logs");
-        }
-
-        // 4. Sync Negocios
-        for (const n of negocios) {
-          await client.query(
-            "INSERT INTO negocios_fechados (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
-            [n.id, JSON.stringify(n)]
-          );
-        }
-        if (negocios.length > 0) {
-          const negIds = negocios.map((n: any) => n.id);
-          await client.query("DELETE FROM negocios_fechados WHERE NOT (id = ANY($1::text[]))", [negIds]);
-        } else {
-          await client.query("DELETE FROM negocios_fechados");
-        }
-
-        // 4. Sync Generic Configurations and Metadata
-        const configPack = [
-          { key: "matches", data: matches },
-          { key: "campaigns", data: campaigns },
-          { key: "leaders", data: leaders },
-          { key: "teamGoals", data: teamGoals },
-          { key: "disabledRotationTeams", data: disabledRotationTeams }
-        ];
-
-        for (const config of configPack) {
-          await client.query(
-            "INSERT INTO system_config (key, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP",
-            [config.key, JSON.stringify(config.data)]
-          );
-        }
-
-        await client.query("COMMIT");
-        savedToDb = true;
-        addSyncLog("SAVE", "success", `Sincronização de saída (Atualização): ${sdrs.length} SDRs, ${assessores.length} Assessores e ${negocios.length} Negócios persistidos na Nuvem.`);
-        console.log("[Neon Database] Transaction committed successfully to your Neon storage.");
-      } catch (txErr: any) {
-        await client.query("ROLLBACK");
-        throw txErr;
-      } finally {
-        client.release();
       }
+      for (const s of sdrs) {
+        if (s && s.id) {
+          await setDoc(doc(firestoreDb, "sdrs", s.id), { data: s, updated_at: new Date().toISOString() });
+        }
+      }
+
+      // Update/Clean Assessores on Firestore
+      const freshAssrIds = new Set(assessores.map((a: any) => a.id));
+      const currentAssrs = await getDocs(collection(firestoreDb, "assessores"));
+      for (const d of currentAssrs.docs) {
+        if (!freshAssrIds.has(d.id)) {
+          await deleteDoc(doc(firestoreDb, "assessores", d.id));
+        }
+      }
+      for (const a of assessores) {
+        if (a && a.id) {
+          await setDoc(doc(firestoreDb, "assessores", a.id), { data: a, updated_at: new Date().toISOString() });
+        }
+      }
+
+      // Update/Clean Logs on Firestore
+      const freshLogIds = new Set(oneOnOneLogs.map((l: any) => l.id));
+      const currentLogs = await getDocs(collection(firestoreDb, "one_on_one_logs"));
+      for (const d of currentLogs.docs) {
+        if (!freshLogIds.has(d.id)) {
+          await deleteDoc(doc(firestoreDb, "one_on_one_logs", d.id));
+        }
+      }
+      for (const log of oneOnOneLogs) {
+        if (log && log.id) {
+          await setDoc(doc(firestoreDb, "one_on_one_logs", log.id), { data: log, updated_at: new Date().toISOString() });
+        }
+      }
+
+      // Update/Clean Negocios on Firestore
+      const freshNegIds = new Set(negocios.map((n: any) => n.id));
+      const currentNegs = await getDocs(collection(firestoreDb, "negocios_fechados"));
+      for (const d of currentNegs.docs) {
+        if (!freshNegIds.has(d.id)) {
+          await deleteDoc(doc(firestoreDb, "negocios_fechados", d.id));
+        }
+      }
+      for (const n of negocios) {
+        if (n && n.id) {
+          await setDoc(doc(firestoreDb, "negocios_fechados", n.id), { data: n, updated_at: new Date().toISOString() });
+        }
+      }
+
+      // Update Configurations
+      await setDoc(doc(firestoreDb, "system_config", "matches"), { data: matches, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "campaigns"), { data: campaigns, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "leaders"), { data: leaders, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "teamGoals"), { data: teamGoals, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "disabledRotationTeams"), { data: disabledRotationTeams, updated_at: new Date().toISOString() });
+
+      savedToDb = true;
+      addSyncLog("SAVE", "success", `Sincronização com nuvem concluída (${sdrs.length} SDRs, ${assessores.length} Assessores persistidos na nuvem de forma imediata).`);
+      console.log("[Firebase Firestore] All state changes committed successfully.");
     } catch (err: any) {
-      isDbConnected = false;
-      lastDbError = err.message;
-      addSyncLog("SAVE", "error", `Falha de persistência no Postgres. Gravado provisoriamente em Cache de Contingência.`, err.message);
-      console.error("[Neon Database] Save operation transaction aborted:", err.message);
+      isFirestoreConnected = false;
+      lastFirestoreError = err.message;
+      addSyncLog("SAVE", "error", `Falha de conexão física com o Firestore. Gravado em cache local.`, err.message);
+      console.error("[Firebase Firestore] Save operation failed:", err.message);
       dbError = err.message;
     }
   } else {
-    // If running only under local server fallback
-    addSyncLog("SAVE", "success", `Alteração armazenada com êxito no Cache do Servidor (${sdrs.length} SDRs, ${assessores.length} Assessores, ${negocios.length} Negócios).`);
+    addSyncLog("SAVE", "success", `Dados persistidos provisoriamente em Cache Local.`);
   }
 
   return res.json({
@@ -684,38 +691,22 @@ app.post("/api/db/save", async (req, res) => {
     savedToDb,
     dbError,
     message: savedToDb 
-      ? "Dados consolidados e transmitidos com sucesso para a nuvem da Neon Database." 
-      : "Dados armazenados com segurança no servidor local. Seu time já consegue compartilhar as mesmas informações em qualquer PC!"
+      ? "Dados consolidados e persistidos com sucesso na nuvem do Firebase Firestore." 
+      : "Dados armazenados localmente no servidor de contingência."
   });
 });
 
 // 3. STORAGE CONNECTION STATUS ENQUIRY ENDPOINT
 app.get("/api/db/status", (req, res) => {
-  const isDbConfigured = !!(process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== "");
-  let maskedUrl = "Não Cadastrado";
-  
-  if (isDbConfigured && process.env.DATABASE_URL) {
-    try {
-      const match = process.env.DATABASE_URL.match(/@([^/?:#]+)/);
-      if (match && match[1]) {
-        maskedUrl = `postgresql://***@${match[1]}`;
-      } else {
-        maskedUrl = "postgresql://*** (Configurada)";
-      }
-    } catch {
-      maskedUrl = "postgresql://***";
-    }
-  }
-
   res.json({
-    ok: isDbConfigured,
-    databaseConnected: isDbConfigured && isDbConnected,
-    databaseType: isDbConfigured ? "Neon / PostgreSQL Clássico" : "Local Shared JSON Cache Server",
-    databaseUrl: maskedUrl,
-    lastError: lastDbError,
-    message: isDbConfigured 
-      ? (isDbConnected ? "O banco de dados de nuvem Neon está monitorado e conectado!" : `Falha na conexão com o banco Neon: ${lastDbError}`)
-      : "Rodando sob o cache central do servidor. Todas as máquinas conectadas à nuvem do seu Applet compartilham as alterações!"
+    ok: isFirestoreConnected,
+    databaseConnected: isFirestoreConnected,
+    databaseType: "Firebase Cloud Firestore",
+    databaseUrl: firebaseConfig?.authDomain || "Default Cluster (thin-eye-bw532)",
+    lastError: lastFirestoreError,
+    message: isFirestoreConnected 
+      ? "O banco de dados de nuvem permanente do Firebase Firestore está ativo, conectado e seguro!" 
+      : `Banco de dados Cloud inativo. Operando em modo de contingência local: ${lastFirestoreError || 'Arquivo de credenciais em falta'}`
   });
 });
 

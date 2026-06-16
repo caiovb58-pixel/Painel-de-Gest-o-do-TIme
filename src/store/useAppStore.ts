@@ -411,14 +411,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       if (parts.length > 0) {
-        const sourceFormatted = data.source === "database" ? "Nuvem Neon PostgreSQL" : "Cache Local de Servidor";
+        const sourceFormatted = data.source === "database" ? "Nuvem Firebase Firestore" : "Cache Local de Servidor";
         return { 
           success: true, 
           message: `Dados sincronizados (${sourceFormatted}): ${parts.join(', ')}` 
         };
       }
       
-      const sourceFormatted = data.source === "database" ? "Nuvem Neon PostgreSQL" : "Cache Local de Servidor";
+      const sourceFormatted = data.source === "database" ? "Nuvem Firebase Firestore" : "Cache Local de Servidor";
       return { 
         success: true, 
         message: `Conectado à fonte (${sourceFormatted}) com sucesso. Painel operacional carregado.` 

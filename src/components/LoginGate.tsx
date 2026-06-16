@@ -241,23 +241,77 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
 
             {/* Custom User input */}
             <div className="relative space-y-1">
-              <label className="block text-[10px] font-extrabold text-neutral-500 uppercase tracking-wider">
-                Código de Usuário / Login
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-extrabold text-neutral-500 uppercase tracking-wider">
+                  Código de Usuário / Login
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-900 flex items-center gap-1 transition cursor-pointer"
+                >
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+                  Coordenadores Cadastrados
+                </button>
+              </div>
               
-              <div className="relative flex items-center">
-                <input
-                  type="text"
-                  placeholder="Digite seu login operacional..."
-                  value={username}
-                  onChange={e => {
-                    setUsername(e.target.value);
-                    setErrorMsg('');
-                  }}
-                  disabled={isLoading}
-                  className="w-full px-3.5 py-3 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-300 text-neutral-900 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 focus:outline-none transition-all disabled:opacity-50"
-                  required
-                />
+              <div className="relative">
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    placeholder="Digite seu login operacional..."
+                    value={username}
+                    onChange={e => {
+                      setUsername(e.target.value);
+                      setErrorMsg('');
+                    }}
+                    disabled={isLoading}
+                    className="w-full pl-3.5 pr-10 py-3 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white border border-neutral-300 text-neutral-900 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 focus:outline-none transition-all disabled:opacity-50"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="absolute right-3 text-neutral-400 hover:text-neutral-900 p-1 cursor-pointer animate-pulse"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {showDropdown && (
+                  <div className="absolute z-30 w-full mt-1 bg-white border border-neutral-250 rounded-xl shadow-lg max-h-52 overflow-y-auto p-1.5 space-y-1">
+                    <div className="px-2 py-1 text-[9px] font-black text-neutral-400 uppercase tracking-wider border-b border-neutral-100 mb-1">
+                      Selecionar Acesso Autorizado
+                    </div>
+                    {/* Admin option */}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectQuickUser('Caio', 'VMB')}
+                      className="w-full text-left px-2.5 py-1.5 hover:bg-indigo-50/50 rounded-lg text-xs flex items-center justify-between transition cursor-pointer text-indigo-950 font-bold"
+                    >
+                      <div>
+                        <span className="block">Caio (Administrador)</span>
+                        <span className="text-[9px] text-indigo-550 font-normal">Equipe do Caio &bull; Login: Caio</span>
+                      </div>
+                      <span className="text-[9px] bg-indigo-100 text-indigo-800 font-extrabold px-1.5 py-0.5 rounded">Admin</span>
+                    </button>
+                    {/* Active database leaders */}
+                    {currentLeaders.filter(l => l.name.toLowerCase() !== 'caio').map(leader => (
+                      <button
+                        key={leader.id}
+                        type="button"
+                        onClick={() => handleSelectQuickUser(leader.name, leader.passcode)}
+                        className="w-full text-left px-2.5 py-1.5 hover:bg-neutral-50 rounded-lg text-xs flex items-center justify-between transition cursor-pointer"
+                      >
+                        <div>
+                          <span className="block font-bold text-neutral-800">{leader.name}</span>
+                          <span className="text-[9px] text-neutral-400 font-medium">{leader.teamName} &bull; Login: {leader.name}</span>
+                        </div>
+                        <span className="text-[9px] font-mono bg-neutral-100 text-neutral-600 font-bold px-1.5 py-0.5 rounded">Líder</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

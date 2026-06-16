@@ -472,7 +472,7 @@ export default function App() {
                   key={sdr.id}
                   type="button"
                   onClick={() => {
-                    setActiveTab('sdrs');
+                    setSelectedProfileEntity({ type: 'sdr', id: sdr.id });
                     setSearchQuery('');
                     setShowSearchResults(false);
                     if (onSelect) onSelect();
@@ -483,7 +483,7 @@ export default function App() {
                     <span className="block font-bold truncate">{sdr.name}</span>
                     <span className="text-[9px] text-page-text-muted leading-tight truncate">{sdr.team || 'SDR Cadastrado'}</span>
                   </div>
-                  <span className="text-[8px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">Time</span>
+                  <span className="text-[8px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">SDR</span>
                 </button>
               ))}
             </div>
@@ -500,7 +500,7 @@ export default function App() {
                   key={assr.id}
                   type="button"
                   onClick={() => {
-                    setActiveTab('assessores');
+                    setSelectedProfileEntity({ type: assr.roleType === 'consultor' ? 'consultor' : 'assessor', id: assr.id });
                     setSearchQuery('');
                     setShowSearchResults(false);
                     if (onSelect) onSelect();
@@ -511,7 +511,7 @@ export default function App() {
                     <span className="block font-bold truncate">{assr.name}</span>
                     <span className="text-[9px] text-page-text-muted leading-tight truncate">{assr.team || 'Assessor'}</span>
                   </div>
-                  <span className="text-[8px] text-amber-650 bg-amber-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">Assessor</span>
+                  <span className="text-[8px] text-amber-650 bg-amber-500/10 px-1.5 py-0.5 rounded font-bold shrink-0">{assr.roleType === 'consultor' ? 'Consultor' : 'Assessor'}</span>
                 </button>
               ))}
             </div>
