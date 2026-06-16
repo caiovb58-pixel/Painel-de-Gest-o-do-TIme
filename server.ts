@@ -459,6 +459,13 @@ async function verifyDatabase() {
 
 // 1. DATABASE COMPREHENSIVE RECOVERY / LOAD ENDPOINT
 app.get("/api/db/load", async (req, res) => {
+  const defaultLeadersFallback = [
+    { id: 'leader-caio', teamName: 'Equipe do Caio', leaderTitle: 'Líder de Estratégia Caio', passcode: 'VMB', name: 'Caio' },
+    { id: 'leader-1', teamName: 'Equipe Alpha', leaderTitle: 'Líder de Contas Alpha', passcode: 'alpha123', name: 'Gestor Alpha' },
+    { id: 'leader-2', teamName: 'Equipe Beta', leaderTitle: 'Gestor Comercial Beta', passcode: 'beta123', name: 'Gestor Beta' },
+    { id: 'leader-3', teamName: 'Equipe Delta', leaderTitle: 'Diretor de Expansão Delta', passcode: 'delta123', name: 'Gestor Delta' }
+  ];
+
   if (dbPool) {
     try {
       console.log("[Neon Database] Attempting state retrieval...");
@@ -483,14 +490,6 @@ app.get("/api/db/load", async (req, res) => {
       configRows.rows.forEach(r => {
         configs[r.key] = r.data;
       });
-
-      // If we queried PostgreSQL successfully, we use it as supreme truth
-      const defaultLeadersFallback = [
-        { id: 'leader-caio', teamName: 'Equipe do Caio', leaderTitle: 'Líder de Estratégia Caio', passcode: 'VMB', name: 'Caio' },
-        { id: 'leader-1', teamName: 'Equipe Alpha', leaderTitle: 'Líder de Contas Alpha', passcode: 'alpha123', name: 'Gestor Alpha' },
-        { id: 'leader-2', teamName: 'Equipe Beta', leaderTitle: 'Gestor Comercial Beta', passcode: 'beta123', name: 'Gestor Beta' },
-        { id: 'leader-3', teamName: 'Equipe Delta', leaderTitle: 'Diretor de Expansão Delta', passcode: 'delta123', name: 'Gestor Delta' }
-      ];
 
       const loadedLeaders = configs.leaders && configs.leaders.length > 0 ? configs.leaders : defaultLeadersFallback;
 
@@ -521,9 +520,12 @@ app.get("/api/db/load", async (req, res) => {
   if (localCache) {
     console.log("[Local Storage Cache] Successfully hydrated app from local disk cache.");
     addSyncLog("LOAD", "success", "Carregamento de dados local efetuado com sucesso usando o Cache de Contingência.");
+    
+    const loadedLeaders = localCache.leaders && localCache.leaders.length > 0 ? localCache.leaders : defaultLeadersFallback;
     return res.json({
       source: "local_cache",
-      ...localCache
+      ...localCache,
+      leaders: loadedLeaders
     });
   }
 
@@ -536,7 +538,7 @@ app.get("/api/db/load", async (req, res) => {
     oneOnOneLogs: [],
     matches: [],
     campaigns: [],
-    leaders: [],
+    leaders: defaultLeadersFallback,
     teamGoals: null,
     disabledRotationTeams: []
   });

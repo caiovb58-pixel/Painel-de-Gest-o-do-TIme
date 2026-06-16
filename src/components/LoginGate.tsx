@@ -113,18 +113,22 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
       }
 
       // Leader lookup matching
-      const matchedLeader = latestLeadersList.find(l => 
-        (l.name.toLowerCase() === trimmedUser.toLowerCase() || 
-         l.teamName.toLowerCase() === trimmedUser.toLowerCase()) && 
-        l.passcode === passcode
-      );
+      const matchedLeader = latestLeadersList.find(l => {
+        const dbName = (l.name || '').trim().toLowerCase();
+        const dbTeam = (l.teamName || '').trim().toLowerCase();
+        const inputUser = trimmedUser.toLowerCase();
+        const dbPasscode = (l.passcode || '').trim();
+        const inputPasscode = passcode.trim();
+
+        return (dbName === inputUser || dbTeam === inputUser) && dbPasscode === inputPasscode;
+      });
 
       if (matchedLeader) {
         await onLogin({
           role: 'leader',
-          teamName: matchedLeader.teamName,
-          leaderTitle: matchedLeader.leaderTitle,
-          name: matchedLeader.name
+          teamName: matchedLeader.teamName.trim(),
+          leaderTitle: matchedLeader.leaderTitle.trim(),
+          name: matchedLeader.name.trim()
         });
         setIsLoading(false);
         return;

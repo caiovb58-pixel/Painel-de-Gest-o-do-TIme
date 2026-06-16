@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Shield, User, ToggleLeft, ToggleRight, X, Search,
   Target, TrendingUp, Edit2, Check, AlertTriangle, HelpCircle, 
   Save, Filter, Award, CheckCircle2, Award as Crown, RefreshCw, Calendar, Sparkles, AlertCircle, PhoneCall, Building2,
-  Cpu, Send, Compass, UserMinus, ShieldAlert, Award as Trophy, Activity, Gift, Clock, History
+  Cpu, Send, Compass, UserMinus, ShieldAlert, Award as Trophy, Activity, Gift, Clock, History, FileText
 } from 'lucide-react';
 
 interface SDRSectionProps {
@@ -35,6 +35,7 @@ interface SDRSectionProps {
   onAddCampaign?: (campaign: Omit<TeamCampaign, 'id'>) => void;
   onDeleteCampaign?: (id: string) => void;
   onUpdateCampaignStatus?: (id: string, status: TeamCampaign['status']) => void;
+  onViewProfile?: (type: 'sdr' | 'assessor' | 'consultor', id: string) => void;
 }
 
 export default function SDRSection({
@@ -62,6 +63,7 @@ export default function SDRSection({
   onAddCampaign,
   onDeleteCampaign,
   onUpdateCampaignStatus,
+  onViewProfile,
 }: SDRSectionProps) {
   const currentMonth = useAppStore(state => state.currentMonth);
   const disabledRotationTeams = useAppStore(state => state.disabledRotationTeams) || [];
@@ -1622,18 +1624,30 @@ export default function SDRSection({
                       ) : (
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center font-bold text-xs border ${
+                            <div 
+                              onClick={() => onViewProfile && onViewProfile('sdr', sdr.id)}
+                              className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center font-bold text-xs border overflow-hidden cursor-pointer hover:border-black transition-all shadow-sm ${
                               sdr.active 
                                 ? 'bg-neutral-50 border-neutral-200 text-black' 
                                 : 'bg-neutral-200 border-neutral-250 text-neutral-400'
-                            }`}>
-                              <span className="font-display font-bold uppercase">
-                                {sdr.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                              </span>
+                            }`}
+                              title="Clique para abrir a ficha de histórico"
+                            >
+                              {sdr.photo ? (
+                                <img src={sdr.photo} alt={sdr.name} className="w-full h-full object-cover animate-fade-in" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="font-display font-bold uppercase">
+                                  {sdr.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                </span>
+                              )}
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <h3 className="font-bold text-neutral-900 text-sm leading-snug">
+                                <h3 
+                                  onClick={() => onViewProfile && onViewProfile('sdr', sdr.id)}
+                                  className="font-bold text-neutral-900 text-sm leading-snug cursor-pointer hover:text-black hover:underline flex items-center gap-1"
+                                  title="Clique para abrir a ficha de histórico"
+                                >
                                   {sdr.name}
                                 </h3>
                                 {sdr.active && (
@@ -1670,6 +1684,14 @@ export default function SDRSection({
 
                           {/* Topbar controllers */}
                           <div className="flex items-center gap-0.5">
+                            <button
+                              onClick={() => onViewProfile && onViewProfile('sdr', sdr.id)}
+                              className="p-1 rounded text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
+                              title="Ver Ficha / Histórico Completo"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+
                             <button
                               onClick={() => onToggleActiveSDR(sdr.id)}
                               className="p-1 rounded text-neutral-405 hover:bg-neutral-100 transition-colors cursor-pointer"

@@ -16,6 +16,7 @@ interface AssessorSectionProps {
   onUpdateAssessor: (id: string, updatedFields: Partial<Assessor>) => void;
   teams: string[];
   currentUser: AuthUser;
+  onViewProfile?: (type: 'sdr' | 'assessor' | 'consultor', id: string) => void;
 }
 
 const ASSESSOR_TEAMS = ['Tier 3 A', 'Tier 3 B', 'Tier 3 C', 'Tier 3 D', 'Tier 2', 'Tier 1'];
@@ -31,6 +32,7 @@ export default function AssessorSection({
   onUpdateAssessor,
   teams,
   currentUser,
+  onViewProfile,
 }: AssessorSectionProps) {
   const isAdmin = currentUser.role === 'admin';
 
@@ -1241,17 +1243,29 @@ export default function AssessorSection({
                       {/* Normal presentation view state */}
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2.5">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs border ${
+                          <div 
+                            onClick={() => onViewProfile && onViewProfile(assr.roleType === 'consultor' ? 'consultor' : 'assessor', assr.id)}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs border overflow-hidden cursor-pointer hover:border-black transition-all shadow-sm shrink-0 ${
                             assr.roleType === 'consultor'
                               ? 'bg-blue-50 border-blue-200 text-blue-900'
                               : 'bg-amber-50 border-amber-200 text-amber-900'
-                          }`}>
-                            <span className="uppercase font-display font-black leading-none">{assr.name.substring(0,2)}</span>
+                          }`}
+                            title="Clique para abrir a ficha de histórico"
+                          >
+                            {assr.photo ? (
+                              <img src={assr.photo} alt={assr.name} className="w-full h-full object-cover animate-fade-in" referrerPolicy="no-referrer" />
+                            ) : (
+                              <span className="uppercase font-display font-black leading-none">{assr.name.substring(0,2)}</span>
+                            )}
                           </div>
 
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <h3 className="font-extrabold text-neutral-900 text-xs leading-none">
+                              <h3 
+                                onClick={() => onViewProfile && onViewProfile(assr.roleType === 'consultor' ? 'consultor' : 'assessor', assr.id)}
+                                className="font-extrabold text-neutral-900 text-xs leading-none cursor-pointer hover:text-black hover:underline inline-flex items-center gap-0.5"
+                                title="Clique para abrir a ficha de histórico"
+                              >
                                 {assr.name}
                               </h3>
                               <span className={`px-1 rounded text-[8px] font-black uppercase tracking-wider ${
@@ -1293,6 +1307,16 @@ export default function AssessorSection({
                         {/* Top bar control buttons */}
                         {canEditOrDelete ? (
                           <div className="flex items-center gap-1 text-[11px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => onViewProfile && onViewProfile(assr.roleType === 'consultor' ? 'consultor' : 'assessor', assr.id)}
+                              className="p-1 px-1.5 rounded bg-amber-55 hover:bg-amber-100 text-amber-800 hover:text-amber-950 border border-amber-250 transition cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Ver Ficha / Histórico Completo"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span className="text-[9.5px]">Ficha</span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => onToggleActiveAssessor(assr.id)}
@@ -1370,8 +1394,19 @@ export default function AssessorSection({
                             )}
                           </div>
                         ) : (
-                          <div className="text-[10px] text-neutral-450 font-bold uppercase tracking-wider flex items-center gap-1 bg-neutral-100 px-2.5 py-1 rounded border border-neutral-200">
-                            <Lock className="w-3 h-3 text-neutral-400" /> Outro Time
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onViewProfile && onViewProfile(assr.roleType === 'consultor' ? 'consultor' : 'assessor', assr.id)}
+                              className="p-1 px-1.5 rounded bg-amber-55 hover:bg-amber-100 text-amber-800 hover:text-amber-950 border border-amber-250 transition cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Ver Ficha / Histórico Completo de Outro Time"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span className="text-[9.5px]">Ficha</span>
+                            </button>
+                            <div className="text-[10px] text-neutral-450 font-bold uppercase tracking-wider flex items-center gap-1 bg-neutral-100 px-2.5 py-1 rounded border border-neutral-200">
+                              <Lock className="w-3 h-3 text-neutral-400" /> Outro Time
+                            </div>
                           </div>
                         )}
                       </div>

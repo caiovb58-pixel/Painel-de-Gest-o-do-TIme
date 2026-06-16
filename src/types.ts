@@ -28,6 +28,7 @@ export interface SDR {
   promotedDate?: string; // Data da promoção
   promotedAssessorId?: string; // ID do assessor criado a partir de sua promoção
   professionalProfile?: string; // Perfil profissional: 'comercial' | 'gestao' | 'analitico' | 'operacional' e etc.
+  photo?: string; // Foto do SDR (Base64 ou URL)
 }
 
 export interface Assessor {
@@ -80,6 +81,8 @@ export interface Assessor {
   
   crossSellOutrosMeta?: number;
   crossSellOutrosRealizado?: number;
+
+  photo?: string; // Foto do Assessor/Consultor (Base64 ou URL)
 }
 
 export interface TeamLeader {

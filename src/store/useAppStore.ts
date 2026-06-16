@@ -387,9 +387,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         updates.campaigns = data.campaigns;
         localStorage.setItem('rodizio_campaigns', JSON.stringify(data.campaigns));
       }
-      if (data.leaders && Array.isArray(data.leaders)) {
+      if (data.leaders && Array.isArray(data.leaders) && data.leaders.length > 0) {
         updates.leaders = data.leaders;
         StorageService.set('rodizio_leaders', data.leaders);
+      } else {
+        const localCurrent = get().leaders;
+        if (!localCurrent || localCurrent.length === 0) {
+          updates.leaders = DEFAULT_LEADERS;
+          StorageService.set('rodizio_leaders', DEFAULT_LEADERS);
+        }
       }
       if (data.teamGoals) {
         updates.teamGoals = data.teamGoals;

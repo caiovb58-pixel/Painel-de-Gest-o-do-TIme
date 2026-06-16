@@ -19,6 +19,7 @@ interface MatchDashboardProps {
   onUpdateMatchAssessor?: (sdrId: string, oldAssessorId: string, newAssessorId: string, newAssessorName: string) => void;
   onAddManualMatch?: (match: MatchResult) => void;
   onDeleteMatch?: (sdrId: string, assessorId: string) => void;
+  onViewProfile?: (type: 'sdr' | 'assessor' | 'consultor', id: string) => void;
 }
 
 export default function MatchDashboard({
@@ -34,6 +35,7 @@ export default function MatchDashboard({
   onUpdateMatchAssessor,
   onAddManualMatch,
   onDeleteMatch,
+  onViewProfile,
 }: MatchDashboardProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null); // 'sdrId-assessorId'
   const [tempStartDate, setTempStartDate] = useState('');
@@ -608,8 +610,13 @@ export default function MatchDashboard({
                             <Shield className="w-3 h-3 text-neutral-400" />
                             SDR Alocado
                           </div>
-                          <div className="font-bold text-neutral-900 text-xs">
+                          <div 
+                            onClick={() => onViewProfile && onViewProfile('sdr', match.sdrId)}
+                            className="font-bold text-neutral-900 text-xs hover:text-black hover:underline cursor-pointer inline-flex items-center gap-1"
+                            title="Clique para ver a ficha/histórico do SDR"
+                          >
                             {match.sdrName}
+                            <ArrowUpRight className="w-2.5 h-2.5 text-neutral-400 shrink-0" />
                           </div>
                           <div className="text-[10px] text-neutral-500 font-mono mt-1">
                             Agendamentos: {sdrObj?.agendamentosCount ?? 0} &bull; Team: {sdrObj?.team || 'Geral'}
@@ -662,8 +669,18 @@ export default function MatchDashboard({
                           </div>
                         ) : (
                           <>
-                            <div className="font-bold text-neutral-900 text-xs">
+                            <div 
+                              onClick={() => {
+                                if (onViewProfile) {
+                                  const roleType = assrObj?.roleType === 'consultor' ? 'consultor' : 'assessor';
+                                  onViewProfile(roleType, match.assessorId);
+                                }
+                              }}
+                              className="font-bold text-neutral-900 text-xs hover:text-black hover:underline cursor-pointer inline-flex items-center gap-1"
+                              title="Clique para ver a ficha/histórico do Assessor/Consultor"
+                            >
                               {match.assessorName}
+                              <ArrowUpRight className="w-2.5 h-2.5 text-neutral-400 shrink-0" />
                             </div>
                             <div className="text-[9px] text-neutral-400 mt-1 flex justify-between items-center gap-2 font-mono">
                               <span>Sincronização ativada</span>

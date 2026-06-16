@@ -15,6 +15,7 @@ import MatchDashboard from './components/MatchDashboard';
 import ReportsSection from './components/ReportsSection';
 import LeadersAdminSection from './components/LeadersAdminSection';
 import SyncHistory from './components/SyncHistory';
+import { IndividualProfileModal } from './components/IndividualProfileModal';
 
 // Icons
 import { 
@@ -27,6 +28,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = React.useState<boolean>(true);
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [showSearchResults, setShowSearchResults] = React.useState<boolean>(false);
+  const [selectedProfileEntity, setSelectedProfileEntity] = React.useState<{ type: 'sdr' | 'assessor' | 'consultor', id: string } | null>(null);
 
   React.useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -916,6 +918,7 @@ export default function App() {
                 onUpdateMatchAssessor={updateMatchAssessor}
                 onAddManualMatch={addManualMatch}
                 onDeleteMatch={deleteMatch}
+                onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
               />
             )
           )}
@@ -943,6 +946,7 @@ export default function App() {
                 oneOnOneLogs={oneOnOneLogs}
                 onAddOneOnOneLog={addOneOnOneLog}
                 onDeleteOneOnOneLog={deleteOneOnOneLog}
+                onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
                 campaigns={campaigns}
                 onAddCampaign={addCampaign}
                 onDeleteCampaign={deleteCampaign}
@@ -1157,6 +1161,7 @@ export default function App() {
               onUpdateAssessor={updateAssessor}
               teams={teams}
               currentUser={currentUser}
+              onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
             />
           )}
 
@@ -1269,6 +1274,15 @@ export default function App() {
             );
           })()}
         </div>
+      )}
+
+      {/* INDIVIDUAL HISTORICAL PROFILE MODAL FOR SDR, ASSESSOR AND CONSULTOR */}
+      {selectedProfileEntity && (
+        <IndividualProfileModal 
+          entityType={selectedProfileEntity.type}
+          entityId={selectedProfileEntity.id}
+          onClose={() => setSelectedProfileEntity(null)}
+        />
       )}
 
       </div>
