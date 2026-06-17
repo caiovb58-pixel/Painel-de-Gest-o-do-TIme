@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "SDR": {
+      "title": "SDR",
+      "description": "Sales Development Representative performance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "Assessor": {
+      "title": "Assessor",
+      "description": "Assessor and consultant profile data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "OneOnOneLog": {
+      "title": "OneOnOneLog",
+      "description": "Historical 1:1 alignments and AI coach",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sdrId": { "type": "string" }
+      }
+    },
+    "NegocioFechado": {
+      "title": "NegocioFechado",
+      "description": "Closed deals information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientName": { "type": "string" }
+      }
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "Global settings configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "sdrs/{sdrId}": {
+      "schema": "SDR",
+      "description": "SDR records"
+    },
+    "assessores/{assrId}": {
+      "schema": "Assessor",
+      "description": "Assessor details"
+    },
+    "one_on_one_logs/{logId}": {
+      "schema": "OneOnOneLog",
+      "description": "1:1 coaching logs"
+    },
+    "negocios_fechados/{negId}": {
+      "schema": "NegocioFechado",
+      "description": "Closed deals"
+    },
+    "system_config/{configId}": {
+      "schema": "SystemConfig",
+      "description": "Shared configurations"
+    }
+  }
+}

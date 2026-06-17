@@ -130,6 +130,7 @@ export const TeamLeaderSchema = z.object({
   leaderTitle: z.string(),
   passcode: z.string(),
   name: z.string(),
+  photo: z.string().optional()
 });
 
 export const MatchResultSchema = z.object({
@@ -148,6 +149,11 @@ export const TeamGoalsSchema = z.object({
   efetivacoes: z.number().catch(80),
   contasAbertas: z.number().catch(35),
   teamSpecificAgendamentos: z.record(z.string(), z.number()).optional().catch({}),
+  customMetrics: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    target: z.number(),
+  })).optional().catch([]),
 });
 
 export const NegocioFechadoProdutoSchema = z.object({

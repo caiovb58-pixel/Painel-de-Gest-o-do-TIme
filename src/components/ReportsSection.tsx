@@ -1169,8 +1169,8 @@ export default function ReportsSection({
           <h2 className="text-lg font-black uppercase tracking-tight text-neutral-950 dark:text-white font-display">
             Métricas de Desempenho Mensal
           </h2>
-          <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-2xl">
-            Vigência atual do rodízio configurada de <strong className="text-black dark:text-white font-semibold">{formatDateVal(startDate)}</strong> a <strong className="text-black dark:text-white font-semibold">{formatDateVal(endDate)}</strong>.
+          <p className="text-xs text-white max-w-2xl">
+            Vigência atual do rodízio configurada de <strong className="text-white font-semibold">{formatDateVal(startDate)}</strong> a <strong className="text-white font-semibold">{formatDateVal(endDate)}</strong>.
           </p>
         </div>
         
@@ -1183,7 +1183,7 @@ export default function ReportsSection({
                 ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
                 : 'font-bold'
             }`}
-            style={{ color: '#000000' }}
+            style={{ color: '#ffffff' }}
           >
             <Briefcase className="w-3.5 h-3.5 text-indigo-600 font-bold" />
             Métricas Wealth / Fechamentos
@@ -1195,7 +1195,7 @@ export default function ReportsSection({
                 ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
                 : 'font-bold'
             }`}
-            style={{ color: '#000000' }}
+            style={{ color: '#ffffff' }}
           >
             <BarChart3 className="w-3.5 h-3.5 text-black animate-pulse" />
             Painel SDR & Funis
@@ -1207,7 +1207,7 @@ export default function ReportsSection({
                 ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
                 : 'font-bold'
             }`}
-            style={{ color: '#000000' }}
+            style={{ color: '#ffffff' }}
           >
             <Download className="w-3.5 h-3.5 text-black" />
             Exportar CSV / WhatsApp
@@ -1219,7 +1219,7 @@ export default function ReportsSection({
                 ? 'bg-white dark:bg-neutral-900 shadow-xs font-black border border-neutral-250 dark:border-neutral-700'
                 : 'font-bold'
             }`}
-            style={{ color: '#000000' }}
+            style={{ color: '#ffffff' }}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             Inteligência de Performance

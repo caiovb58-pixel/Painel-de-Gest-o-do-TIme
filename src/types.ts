@@ -83,6 +83,12 @@ export interface Assessor {
   crossSellOutrosRealizado?: number;
 
   photo?: string; // Foto do Assessor/Consultor (Base64 ou URL)
+  customMonitorMetrics?: {
+    key: string;
+    name: string;
+    target: number;
+    real: number;
+  }[];
 }
 
 export interface TeamLeader {
@@ -91,6 +97,7 @@ export interface TeamLeader {
   leaderTitle: string;
   passcode: string;
   name: string;
+  photo?: string;
 }
 
 export interface MatchResult {
@@ -104,18 +111,27 @@ export interface MatchResult {
   isExclusive?: boolean;
 }
 
+export interface CustomMetric {
+  id: string;
+  name: string;
+  target: number;
+}
+
 export interface TeamGoals {
   agendamentos: number;
   efetivacoes: number;
   contasAbertas: number;
   teamSpecificAgendamentos?: Record<string, number>;
+  customMetrics?: CustomMetric[];
 }
 
 export interface AuthUser {
+  id?: string;
   role: 'admin' | 'leader';
   teamName?: string;
   leaderTitle?: string;
   name: string;
+  photo?: string;
 }
 
 // --- NEW DATA SCHEMAS FOR STAFF+ COCKPIT ---

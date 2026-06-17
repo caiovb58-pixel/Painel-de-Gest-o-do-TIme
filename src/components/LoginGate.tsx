@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Lock, Eye, EyeOff, ChevronDown, Check, HelpCircle } from 'lucide-react';
 import { AuthUser, TeamLeader } from '../types';
+import { authenticateLeaderOnFirebase } from '../lib/firebaseClient';
 
 interface LoginGateProps {
   onLogin: (user: AuthUser) => Promise<void> | void;
@@ -102,11 +103,21 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
       const caioPasscode = caioLeader ? caioLeader.passcode : 'VMB';
 
       if (trimmedUser.toLowerCase() === 'caio' && passcode === caioPasscode) {
+        const caioId = caioLeader?.id || 'leader-caio';
+        try {
+          // Perform actual Firebase Authentication on the client side
+          await authenticateLeaderOnFirebase(caioId, 'Caio', caioPasscode);
+        } catch (authErr: any) {
+          console.warn("[Firebase Auth] Caio auth failed or bypassed:", authErr.message);
+        }
+
         await onLogin({
+          id: caioId,
           role: 'admin',
           name: 'Caio',
           teamName: caioLeader?.teamName || 'Equipe do Caio',
-          leaderTitle: caioLeader?.leaderTitle || 'Líder de Estratégia Caio'
+          leaderTitle: caioLeader?.leaderTitle || 'Líder de Estratégia Caio',
+          photo: caioLeader?.photo
         });
         setIsLoading(false);
         return;
@@ -124,11 +135,20 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
       });
 
       if (matchedLeader) {
+        try {
+          // Perform actual Firebase Authentication in the cloud for the logged leader
+          await authenticateLeaderOnFirebase(matchedLeader.id, matchedLeader.name, matchedLeader.passcode);
+        } catch (authErr: any) {
+          console.warn("[Firebase Auth] Leader auth failed or bypassed:", authErr.message);
+        }
+
         await onLogin({
+          id: matchedLeader.id,
           role: 'leader',
           teamName: matchedLeader.teamName.trim(),
           leaderTitle: matchedLeader.leaderTitle.trim(),
-          name: matchedLeader.name.trim()
+          name: matchedLeader.name.trim(),
+          photo: matchedLeader.photo
         });
         setIsLoading(false);
         return;

@@ -211,24 +211,24 @@ export default function MatchDashboard({
     <div className="space-y-6 animate-fade-in">
       
       {/* Date settings and action panel (Offwhite & Crisp Minimal Theme) */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6 md:p-8 relative space-y-6 shadow-sm">
+      <div className="bg-[#ffffff] rounded-2xl border border-neutral-200 p-6 md:p-8 relative space-y-6 shadow-sm">
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2">
           <div className="space-y-1 text-left">
-            <h2 className="text-base font-bold text-neutral-900 tracking-tight flex items-center gap-2 font-display">
+            <h2 className="text-base font-bold text-[#000000] tracking-tight flex items-center gap-2 font-display">
               <Sparkles className="w-5 h-5 text-neutral-800" />
               Distribuição e Alocação Estratégica dos Leads
             </h2>
             <p className="text-xs text-neutral-500 max-w-xl">
-              Equilibre automaticamente os <strong className="text-black font-semibold">{activeAssessoresCount} Assessores ativos</strong> entre os <strong className="text-black font-semibold">{activeSDRsCount} SDRs disponíveis</strong> usando o algoritmo de rodízio balanceado por proximidade operacional.
+              Equilibre automaticamente os <strong className="text-[#000000] font-semibold">{activeAssessoresCount} Assessores ativos</strong> entre os <strong className="text-[#000000] font-semibold">{activeSDRsCount} SDRs disponíveis</strong> usando o algoritmo de rodízio balanceado por proximidade operacional.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto bg-[#efefef] p-2 rounded-xl">
             <button
               onClick={() => onGenerateMatches(false)}
               disabled={activeSDRsCount === 0 || activeAssessoresCount === 0}
-              className="px-5 py-3 bg-white hover:bg-neutral-50 border-2 border-neutral-900 text-neutral-900 font-bold uppercase text-xs tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="px-5 py-3 bg-[#f6f6f6] hover:bg-[#e6e6e6] border-2 border-neutral-900 text-[#000000] font-bold uppercase text-xs tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <Play className="w-3 h-3 text-neutral-900" />
               Rodízio Padrão

@@ -3,13 +3,15 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
 // Check configuration status of required environment variables
 app.get("/api/config/status", (req, res) => {
@@ -27,6 +29,20 @@ app.get("/api/config/status", (req, res) => {
       : "A chave de inteligência remota da API Gemini (GEMINI_API_KEY) não foi detectada ou está no valor padrão. O sistema usará os modelos analíticos e assistentes de contingência locais até que a chave seja configurada.",
     missingKeys: isGeminiConfigured ? [] : ["GEMINI_API_KEY"]
   });
+});
+
+// Expose client-safe Firebase configurations for the client application
+app.get("/api/config/firebase", (req, res) => {
+  const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(firebaseConfigPath)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+      return res.json(config);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+  return res.status(404).json({ error: "Firebase configuration file not found on the server." });
 });
 
 // Initialize Gemini client lazily
@@ -47,7 +63,7 @@ function getGeminiClient(): GoogleGenAI | null {
 
 // Resilient helper to call Gemini with a model list and cascading fallback
 async function generateWithFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
-  const models = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+  const models = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash"];
   let lastError: any = null;
 
   for (const modelName of models) {

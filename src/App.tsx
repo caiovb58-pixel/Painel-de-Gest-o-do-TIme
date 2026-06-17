@@ -16,11 +16,12 @@ import ReportsSection from './components/ReportsSection';
 import LeadersAdminSection from './components/LeadersAdminSection';
 import SyncHistory from './components/SyncHistory';
 import { IndividualProfileModal } from './components/IndividualProfileModal';
+import { signOutLeader } from './lib/firebaseClient';
 
 // Icons
 import { 
   Users, Shield, Sparkles, FileText, RefreshCw, Info, Lock, LogOut, Calendar, Key,
-  Crown, AlertTriangle, X, ArrowUpRight, Database, Sun, Moon, Workflow, TrendingUp, Search
+  Crown, AlertTriangle, X, ArrowUpRight, Database, Sun, Moon, Workflow, TrendingUp, Search, Camera
 } from 'lucide-react';
 
 export default function App() {
@@ -263,9 +264,41 @@ export default function App() {
   // 4. Dynamic reference months list
   const fiscalMonths = getFiscalMonthsRange();
 
-  // Log out mechanism
+  // Log out mechanism with cloud auth signout
   const handleLogout = () => {
     setCurrentUser(null);
+    signOutLeader().catch(e => console.warn("[App Logout] Error during Firebase signs off:", e));
+  };
+
+  // Profile image upload reader
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1200000) {
+      alert("A imagem selecionada é muito grande. Escolha uma foto de até 1.2MB para maior velocidade de carregamento.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        // Set state session
+        setCurrentUser({ ...currentUser, photo: base64 });
+        
+        // Save in global database collection
+        if (currentUser?.id) {
+          updateLeader(currentUser.id, { photo: base64 });
+        } else {
+          const matched = leaders.find(l => l.name.toLowerCase() === currentUser?.name.toLowerCase());
+          if (matched) {
+            updateLeader(matched.id, { photo: base64 });
+          }
+        }
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Factory reset warning
@@ -776,9 +809,34 @@ export default function App() {
                   </span>
                 </div>
                 
-                {/* Initials badge */}
-                <div className="w-8.5 h-8.5 rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 flex items-center justify-center font-black text-xs uppercase shrink-0">
-                  {currentUser.name ? currentUser.name.substring(0, 2).toUpperCase() : 'CS'}
+                {/* Customizable Photo / Avatar Bubble */}
+                <div className="relative group w-8.5 h-8.5 shrink-0">
+                  {currentUser.photo ? (
+                    <img 
+                      src={currentUser.photo} 
+                      alt={currentUser.name} 
+                      className="w-full h-full rounded-full object-cover border border-[#f59e0b]/20 shadow-xs"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 flex items-center justify-center font-black text-xs uppercase shrink-0">
+                      {currentUser.name ? currentUser.name.substring(0, 2).toUpperCase() : 'CS'}
+                    </div>
+                  )}
+                  
+                  {/* Small group hover overlay to upload custom avatar */}
+                  <label 
+                    className="absolute inset-0 flex items-center justify-center bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
+                    title="Alterar foto de perfil"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handlePhotoChange} 
+                    />
+                  </label>
                 </div>
 
                 <button

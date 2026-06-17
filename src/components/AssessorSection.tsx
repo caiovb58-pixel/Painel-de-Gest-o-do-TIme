@@ -97,6 +97,17 @@ export default function AssessorSection({
   const [editAdmissionDate, setEditAdmissionDate] = useState('');
   const [editProfessionalProfile, setEditProfessionalProfile] = useState('');
 
+  // Dynamic metrics list for monitor
+  const [customMetrics, setCustomMetrics] = useState<{key: string; name: string; target: number; real: number;}[]>([
+    { key: 'ligacoes', name: 'Ligações', target: 0, real: 0 },
+    { key: 'agendadas', name: 'Agendadas', target: 0, real: 0 },
+    { key: 'realizadas', name: 'Realizadas', target: 0, real: 0 },
+    { key: 'contas_abertas', name: 'Contas Abertas', target: 0, real: 0 },
+    { key: 'net', name: 'NET Captação', target: 0, real: 0 },
+    { key: 'cross_sell', name: 'Cross-Sell', target: 0, real: 0 },
+  ]);
+  const [editCustomMetrics, setEditCustomMetrics] = useState<{key: string; name: string; target: number; real: number;}[]>([]);
+
   // Auto-sync editTeam select option when editRoleType changes
   React.useEffect(() => {
     if (editingId) {
@@ -149,12 +160,31 @@ export default function AssessorSection({
 
   const activeSDRs = sdrs.filter(s => s.active);
 
+  const getMetricVal = (metricsList: {key: string; name: string; target: number; real: number;}[], key: string, field: 'target' | 'real') => {
+    const found = metricsList.find(m => m.key === key);
+    return found ? found[field] : 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('Nome do profissional é obrigatório');
       return;
     }
+
+    const mList = customMetrics;
+    const finalMetaLigacoes = getMetricVal(mList, 'ligacoes', 'target');
+    const finalRealizadoLigacoes = getMetricVal(mList, 'ligacoes', 'real');
+    const finalMetaAgendadas = getMetricVal(mList, 'agendadas', 'target');
+    const finalRealizadoAgendadas = getMetricVal(mList, 'agendadas', 'real');
+    const finalMetaRealizadas = getMetricVal(mList, 'realizadas', 'target');
+    const finalRealizadoRealizadas = getMetricVal(mList, 'realizadas', 'real');
+    const finalMetaContas = getMetricVal(mList, 'contas_abertas', 'target');
+    const finalRealizadoContas = getMetricVal(mList, 'contas_abertas', 'real');
+    const finalMetaNet = getMetricVal(mList, 'net', 'target');
+    const finalRealizadoNetResult = getMetricVal(mList, 'net', 'real');
+    const finalMetaCross = getMetricVal(mList, 'cross_sell', 'target');
+    const finalRealizadoCross = getMetricVal(mList, 'cross_sell', 'real');
 
     onAddAssessor({
       name: name.trim(),
@@ -169,19 +199,19 @@ export default function AssessorSection({
       professionalProfile: professionalProfile,
       
       // Core Metrics & Goals
-      metaLigacoes,
-      metaReunioesAgendadas,
-      metaReunioesRealizadas,
-      metaContasAbertas,
-      metaNet,
-      metaCrossSell,
+      metaLigacoes: finalMetaLigacoes,
+      metaReunioesAgendadas: finalMetaAgendadas,
+      metaReunioesRealizadas: finalMetaRealizadas,
+      metaContasAbertas: finalMetaContas,
+      metaNet: finalMetaNet,
+      metaCrossSell: finalMetaCross,
 
-      realizadoLigacoes,
-      realizadoReunioesAgendadas,
-      realizadoReunioesRealizadas,
-      realizadoContasAbertas,
-      realizadoNet,
-      realizadoCrossSell,
+      realizadoLigacoes: finalRealizadoLigacoes,
+      realizadoReunioesAgendadas: finalRealizadoAgendadas,
+      realizadoReunioesRealizadas: finalRealizadoRealizadas,
+      realizadoContasAbertas: finalRealizadoContas,
+      realizadoNet: finalRealizadoNetResult,
+      realizadoCrossSell: finalRealizadoCross,
 
       // Cross sell details
       crossSellSeguroMeta,
@@ -198,9 +228,10 @@ export default function AssessorSection({
       crossSellOutrosRealizado,
       
       // Legacy params
-      captacaoMes: realizadoNet,
-      crossSellCount: realizadoCrossSell,
-      crossSellDetails: `Seguro: ${realizadoCrossSellSeguro}, Consórcio: ${realizadoCrossSellConsorcio}`
+      captacaoMes: finalRealizadoNetResult,
+      crossSellCount: finalRealizadoCross,
+      crossSellDetails: `Seguro: ${realizadoCrossSellSeguro}, Consórcio: ${realizadoCrossSellConsorcio}`,
+      customMonitorMetrics: customMetrics
     });
 
     // Reset fields
@@ -240,6 +271,15 @@ export default function AssessorSection({
     setCrossSellCambioRealizado(0);
     setCrossSellOutrosMeta(0);
     setCrossSellOutrosRealizado(0);
+
+    setCustomMetrics([
+      { key: 'ligacoes', name: 'Ligações', target: 0, real: 0 },
+      { key: 'agendadas', name: 'Agendadas', target: 0, real: 0 },
+      { key: 'realizadas', name: 'Realizadas', target: 0, real: 0 },
+      { key: 'contas_abertas', name: 'Contas Abertas', target: 0, real: 0 },
+      { key: 'net', name: 'NET Captação', target: 0, real: 0 },
+      { key: 'cross_sell', name: 'Cross-Sell', target: 0, real: 0 },
+    ]);
 
     setIsAdding(false);
   };
@@ -289,10 +329,35 @@ export default function AssessorSection({
     setEditCrossSellCambioRealizado(assessor.crossSellCambioRealizado || 0);
     setEditCrossSellOutrosMeta(assessor.crossSellOutrosMeta || 0);
     setEditCrossSellOutrosRealizado(assessor.crossSellOutrosRealizado || 0);
+
+    const existingCustomMetrics = assessor.customMonitorMetrics || [
+      { key: 'ligacoes', name: 'Ligações', target: assessor.metaLigacoes || 0, real: assessor.realizadoLigacoes || 0 },
+      { key: 'agendadas', name: 'Agendadas', target: assessor.metaReunioesAgendadas || 0, real: assessor.realizadoReunioesAgendadas || 0 },
+      { key: 'realizadas', name: 'Realizadas', target: assessor.metaReunioesRealizadas || 0, real: assessor.realizadoReunioesRealizadas || 0 },
+      { key: 'contas_abertas', name: 'Contas Abertas', target: assessor.metaContasAbertas || 0, real: assessor.realizadoContasAbertas || 0 },
+      { key: 'net', name: 'NET Captação', target: assessor.metaNet || 0, real: assessor.realizadoNet || 0 },
+      { key: 'cross_sell', name: 'Cross-Sell', target: assessor.metaCrossSell || 0, real: assessor.realizadoCrossSell || 0 },
+    ];
+    setEditCustomMetrics(existingCustomMetrics);
   };
 
   const handleSaveEdit = (id: string) => {
     if (!editName.trim()) return;
+
+    const mList = editCustomMetrics;
+    const finalMetaLigacoes = getMetricVal(mList, 'ligacoes', 'target');
+    const finalRealizadoLigacoes = getMetricVal(mList, 'ligacoes', 'real');
+    const finalMetaAgendadas = getMetricVal(mList, 'agendadas', 'target');
+    const finalRealizadoAgendadas = getMetricVal(mList, 'agendadas', 'real');
+    const finalMetaRealizadas = getMetricVal(mList, 'realizadas', 'target');
+    const finalRealizadoRealizadas = getMetricVal(mList, 'realizadas', 'real');
+    const finalMetaContas = getMetricVal(mList, 'contas_abertas', 'target');
+    const finalRealizadoContas = getMetricVal(mList, 'contas_abertas', 'real');
+    const finalMetaNet = getMetricVal(mList, 'net', 'target');
+    const finalRealizadoNetResult = getMetricVal(mList, 'net', 'real');
+    const finalMetaCross = getMetricVal(mList, 'cross_sell', 'target');
+    const finalRealizadoCross = getMetricVal(mList, 'cross_sell', 'real');
+
     if (onUpdateAssessor) {
       onUpdateAssessor(id, {
         name: editName.trim(),
@@ -305,19 +370,19 @@ export default function AssessorSection({
         admissionDate: editAdmissionDate,
         professionalProfile: editProfessionalProfile,
 
-        metaLigacoes: Number(editMetaLigacoes),
-        metaReunioesAgendadas: Number(editMetaReunioesAgendadas),
-        metaReunioesRealizadas: Number(editMetaReunioesRealizadas),
-        metaContasAbertas: Number(editMetaContasAbertas),
-        metaNet: Number(editMetaNet),
-        metaCrossSell: Number(editMetaCrossSell),
+        metaLigacoes: finalMetaLigacoes,
+        metaReunioesAgendadas: finalMetaAgendadas,
+        metaReunioesRealizadas: finalMetaRealizadas,
+        metaContasAbertas: finalMetaContas,
+        metaNet: finalMetaNet,
+        metaCrossSell: finalMetaCross,
 
-        realizadoLigacoes: Number(editRealizadoLigacoes),
-        realizadoReunioesAgendadas: Number(editRealizadoReunioesAgendadas),
-        realizadoReunioesRealizadas: Number(editRealizadoReunioesRealizadas),
-        realizadoContasAbertas: Number(editRealizadoContasAbertas),
-        realizadoNet: Number(editRealizadoNet),
-        realizadoCrossSell: Number(editRealizadoCrossSell),
+        realizadoLigacoes: finalRealizadoLigacoes,
+        realizadoReunioesAgendadas: finalRealizadoAgendadas,
+        realizadoReunioesRealizadas: finalRealizadoRealizadas,
+        realizadoContasAbertas: finalRealizadoContas,
+        realizadoNet: finalRealizadoNetResult,
+        realizadoCrossSell: finalRealizadoCross,
 
         crossSellSeguroMeta: Number(editCrossSellSeguroMeta),
         crossSellSeguroRealizado: Number(editCrossSellSeguroRealizado),
@@ -331,6 +396,7 @@ export default function AssessorSection({
         crossSellCambioRealizado: Number(editCrossSellCambioRealizado),
         crossSellOutrosMeta: Number(editCrossSellOutrosMeta),
         crossSellOutrosRealizado: Number(editCrossSellOutrosRealizado),
+        customMonitorMetrics: editCustomMetrics
       });
     }
     setEditingId(null);
@@ -661,111 +727,79 @@ export default function AssessorSection({
 
           {/* PRIMARY METRICS GOALS AND ACTUALS CONFIGURATION */}
           <div className="bg-neutral-50/50 p-4 border border-neutral-200 rounded-xl space-y-4">
-            <h4 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">2. Alinhamento de Metas Mensais</h4>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-              <div className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5">
-                <span className="text-[9px] font-black text-neutral-500 uppercase block tracking-wider">Metas Ligações</span>
-                <input 
-                  type="number" 
-                  value={metaLigacoes} 
-                  onChange={e => setMetaLigacoes(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-100 border border-neutral-200 text-xs font-mono font-bold px-2 py-1 rounded text-black"
-                />
-                <span className="text-[8px] text-neutral-400 block uppercase">Realizado</span>
-                <input 
-                  type="number" 
-                  value={realizadoLigacoes} 
-                  onChange={e => setRealizadoLigacoes(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-xs font-mono px-2 py-1 rounded text-black"
-                />
-              </div>
+            <h4 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">2. Alinhamento de Metas Mensais no Monitor</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {customMetrics.map((metric, idx) => (
+                <div key={metric.key} className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5 relative shadow-xs">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <input 
+                      type="text" 
+                      value={metric.name} 
+                      onChange={e => {
+                        const updated = [...customMetrics];
+                        updated[idx].name = e.target.value;
+                        setCustomMetrics(updated);
+                      }} 
+                      className="bg-transparent font-bold text-xs text-neutral-800 border-b border-transparent hover:border-neutral-300 focus:border-black focus:outline-none w-full"
+                      placeholder="Nome da Métrica"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomMetrics(customMetrics.filter(m => m.key !== metric.key));
+                      }}
+                      className="text-red-500 hover:text-red-700 p-0.5 rounded hover:bg-red-50 cursor-pointer shrink-0"
+                      title="Excluir Métrica"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-              <div className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5">
-                <span className="text-[9px] font-black text-neutral-500 uppercase block tracking-wider">Agendadas</span>
-                <input 
-                  type="number" 
-                  value={metaReunioesAgendadas} 
-                  onChange={e => setMetaReunioesAgendadas(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-100 border border-neutral-200 text-xs font-mono font-bold px-2 py-1 rounded text-black"
-                />
-                <span className="text-[8px] text-neutral-400 block uppercase">Realizado</span>
-                <input 
-                  type="number" 
-                  value={realizadoReunioesAgendadas} 
-                  onChange={e => setRealizadoReunioesAgendadas(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-xs font-mono px-2 py-1 rounded text-black"
-                />
-              </div>
-
-              <div className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5">
-                <span className="text-[9px] font-black text-neutral-500 uppercase block tracking-wider">Realizadas</span>
-                <input 
-                  type="number" 
-                  value={metaReunioesRealizadas} 
-                  onChange={e => setMetaReunioesRealizadas(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-100 border border-neutral-200 text-xs font-mono font-bold px-2 py-1 rounded text-black"
-                />
-                <span className="text-[8px] text-neutral-400 block uppercase">Realizado</span>
-                <input 
-                  type="number" 
-                  value={realizadoReunioesRealizadas} 
-                  onChange={e => setRealizadoReunioesRealizadas(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-xs font-mono px-2 py-1 rounded text-black"
-                />
-              </div>
-
-              <div className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5">
-                <span className="text-[9px] font-black text-neutral-500 uppercase block tracking-wider font-sans">Contas Abertas</span>
-                <input 
-                  type="number" 
-                  value={metaContasAbertas} 
-                  onChange={e => setMetaContasAbertas(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-100 border border-neutral-200 text-xs font-mono font-bold px-2 py-1 rounded text-black"
-                />
-                <span className="text-[8px] text-neutral-400 block uppercase">Realizado</span>
-                <input 
-                  type="number" 
-                  value={realizadoContasAbertas} 
-                  onChange={e => setRealizadoContasAbertas(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-xs font-mono px-2 py-1 rounded text-black"
-                />
-              </div>
-
-              <div className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5">
-                <span className="text-[9px] font-black text-neutral-500 uppercase block tracking-wider">NET Captação (R$)</span>
-                <input 
-                  type="number" 
-                  placeholder="Meta NET"
-                  value={metaNet} 
-                  onChange={e => setMetaNet(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-100 border border-neutral-200 text-xs font-mono font-bold px-2 py-1 rounded text-black"
-                />
-                <span className="text-[8px] text-neutral-400 block uppercase">Realizado</span>
-                <input 
-                  type="number" 
-                  value={realizadoNet} 
-                  onChange={e => setRealizadoNet(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-xs font-mono px-2 py-1 rounded text-black"
-                />
-              </div>
-
-              <div className="bg-white border border-neutral-200 p-3 rounded-lg space-y-1.5">
-                <span className="text-[9px] font-black text-neutral-500 uppercase block tracking-wider">Qtd Cross Sell</span>
-                <input 
-                  type="number" 
-                  value={metaCrossSell} 
-                  onChange={e => setMetaCrossSell(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-100 border border-neutral-200 text-xs font-mono font-bold px-2 py-1 rounded text-black"
-                />
-                <span className="text-[8px] text-neutral-400 block uppercase">Realizado</span>
-                <input 
-                  type="number" 
-                  value={realizadoCrossSell} 
-                  onChange={e => setRealizadoCrossSell(Math.max(0, Number(e.target.value)))}
-                  className="w-full bg-neutral-50 border border-neutral-200 text-xs font-mono px-2 py-1 rounded text-black"
-                />
-              </div>
+                  <div className="flex gap-2">
+                    <div className="w-1/2">
+                      <span className="block text-[8px] text-neutral-400 uppercase font-bold">Target</span>
+                      <input 
+                        type="number" 
+                        value={metric.target} 
+                        onChange={e => {
+                          const updated = [...customMetrics];
+                          updated[idx].target = Number(e.target.value);
+                          setCustomMetrics(updated);
+                        }} 
+                        className="w-full text-center p-1 border font-bold text-xs text-black rounded bg-neutral-50/50" 
+                        placeholder="Meta"
+                      />
+                    </div>
+                    <div className="w-1/2">
+                      <span className="block text-[8px] text-neutral-400 uppercase font-bold">Realizado</span>
+                      <input 
+                        type="number" 
+                        value={metric.real} 
+                        onChange={e => {
+                          const updated = [...customMetrics];
+                          updated[idx].real = Number(e.target.value);
+                          setCustomMetrics(updated);
+                        }} 
+                        className="w-full text-center p-1 border text-xs text-black rounded bg-neutral-50/50" 
+                        placeholder="Real"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const newKey = `metric_${Date.now()}`;
+                setCustomMetrics([...customMetrics, { key: newKey, name: 'Nova Métrica', target: 0, real: 0 }]);
+              }}
+              className="mt-2 w-full py-2 border border-dashed border-neutral-300 rounded-lg text-xs font-bold text-neutral-600 hover:border-black hover:text-black flex items-center justify-center gap-1.5 cursor-pointer bg-white"
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar Métrica ao Monitor
+            </button>
           </div>
 
           {/* DETAILED CROSS SELL PRODUCTS GOALS */}
@@ -1123,55 +1157,79 @@ export default function AssessorSection({
                       <div className="border-t border-dashed border-neutral-200 mt-2 pt-2.5 space-y-2.5">
                         <span className="text-[10px] font-black text-[#f59e0b] block uppercase">Estipular Target no Monitor</span>
                         
-                        <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-                          <div>
-                            <span className="block text-neutral-400">Ligações Target / Real</span>
-                            <div className="flex gap-1 mt-0.5">
-                              <input type="number" value={editMetaLigacoes} onChange={e => setEditMetaLigacoes(Number(e.target.value))} className="w-1/2 text-center p-1 border font-bold text-black" placeholder="Meta"/>
-                              <input type="number" value={editRealizadoLigacoes} onChange={e => setEditRealizadoLigacoes(Number(e.target.value))} className="w-1/2 text-center p-1 border text-black" placeholder="Real"/>
-                            </div>
-                          </div>
+                        <div className="grid grid-cols-1 gap-2.5">
+                          {editCustomMetrics.map((metric, idx) => (
+                            <div key={metric.key} className="bg-white border rounded p-2 space-y-1 relative group shadow-2xs">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <input 
+                                  type="text" 
+                                  value={metric.name} 
+                                  onChange={e => {
+                                    const updated = [...editCustomMetrics];
+                                    updated[idx].name = e.target.value;
+                                    setEditCustomMetrics(updated);
+                                  }} 
+                                  className="bg-transparent font-bold text-[11px] text-neutral-800 border-b border-transparent hover:border-neutral-300 focus:border-black focus:outline-none w-full"
+                                  placeholder="Nome da Métrica"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditCustomMetrics(editCustomMetrics.filter(m => m.key !== metric.key));
+                                  }}
+                                  className="text-red-500 hover:text-red-700 p-0.5 rounded hover:bg-red-50 cursor-pointer shrink-0"
+                                  title="Excluir Métrica"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
 
-                          <div>
-                            <span className="block text-neutral-400">Agendadas Target / Real</span>
-                            <div className="flex gap-1 mt-0.5">
-                              <input type="number" value={editMetaReunioesAgendadas} onChange={e => setEditMetaReunioesAgendadas(Number(e.target.value))} className="w-1/2 text-center p-1 border font-bold text-black" placeholder="Meta"/>
-                              <input type="number" value={editRealizadoReunioesAgendadas} onChange={e => setEditRealizadoReunioesAgendadas(Number(e.target.value))} className="w-1/2 text-center p-1 border text-black" placeholder="Real"/>
+                              <div className="flex gap-2">
+                                <div className="w-1/2">
+                                  <span className="block text-[8px] text-neutral-400 uppercase font-bold">Target</span>
+                                  <input 
+                                    type="number" 
+                                    value={metric.target} 
+                                    onChange={e => {
+                                      const updated = [...editCustomMetrics];
+                                      updated[idx].target = Number(e.target.value);
+                                      setEditCustomMetrics(updated);
+                                    }} 
+                                    className="w-full text-center p-0.5 border font-bold text-xs text-black rounded bg-neutral-50/50" 
+                                    placeholder="Meta"
+                                  />
+                                </div>
+                                <div className="w-1/2">
+                                  <span className="block text-[8px] text-neutral-400 uppercase font-bold">Realizado</span>
+                                  <input 
+                                    type="number" 
+                                    value={metric.real} 
+                                    onChange={e => {
+                                      const updated = [...editCustomMetrics];
+                                      updated[idx].real = Number(e.target.value);
+                                      setEditCustomMetrics(updated);
+                                    }} 
+                                    className="w-full text-center p-0.5 border text-xs text-black rounded bg-neutral-50/50" 
+                                    placeholder="Real"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                          </div>
-
-                          <div>
-                            <span className="block text-neutral-400">Realizadas Target / Real</span>
-                            <div className="flex gap-1 mt-0.5">
-                              <input type="number" value={editMetaReunioesRealizadas} onChange={e => setEditMetaReunioesRealizadas(Number(e.target.value))} className="w-1/2 text-center p-1 border font-bold text-black" placeholder="Meta"/>
-                              <input type="number" value={editRealizadoReunioesRealizadas} onChange={e => setEditRealizadoReunioesRealizadas(Number(e.target.value))} className="w-1/2 text-center p-1 border text-black" placeholder="Real"/>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="block text-neutral-400">Contas Abertas Target / Real</span>
-                            <div className="flex gap-1 mt-0.5">
-                              <input type="number" value={editMetaContasAbertas} onChange={e => setEditMetaContasAbertas(Number(e.target.value))} className="w-1/2 text-center p-1 border font-bold text-black" placeholder="Meta"/>
-                              <input type="number" value={editRealizadoContasAbertas} onChange={e => setEditRealizadoContasAbertas(Number(e.target.value))} className="w-1/2 text-center p-1 border text-black" placeholder="Real"/>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="block text-neutral-400">NET Captação Target / Real</span>
-                            <div className="flex gap-1 mt-0.5">
-                              <input type="number" value={editMetaNet} onChange={e => setEditMetaNet(Number(e.target.value))} className="w-1/2 text-center p-1 border font-bold text-black" placeholder="Meta"/>
-                              <input type="number" value={editRealizadoNet} onChange={e => setEditRealizadoNet(Number(e.target.value))} className="w-1/2 text-center p-1 border text-black" placeholder="Real"/>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="block text-neutral-400">Cross-Sell Target / Real</span>
-                            <div className="flex gap-1 mt-0.5">
-                              <input type="number" value={editMetaCrossSell} onChange={e => setEditMetaCrossSell(Number(e.target.value))} className="w-1/2 text-center p-1 border font-bold text-black" placeholder="Meta"/>
-                              <input type="number" value={editRealizadoCrossSell} onChange={e => setEditRealizadoCrossSell(Number(e.target.value))} className="w-1/2 text-center p-1 border text-black" placeholder="Real"/>
-                            </div>
-                          </div>
+                          ))}
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newKey = `metric_${Date.now()}`;
+                            setEditCustomMetrics([...editCustomMetrics, { key: newKey, name: 'Nova Métrica', target: 0, real: 0 }]);
+                          }}
+                          className="mt-1.5 w-full py-1.5 border border-dashed border-neutral-300 rounded text-[11px] font-bold text-neutral-600 hover:border-black hover:text-black flex items-center justify-center gap-1 cursor-pointer bg-white"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Adicionar Métrica ao Monitor
+                        </button>
+                      </div>
 
                         {/* Detailed product edit inside edit state */}
                         <div className="bg-neutral-50 rounded p-2 text-[10px] space-y-2">
@@ -1221,7 +1279,6 @@ export default function AssessorSection({
                             </div>
                           </div>
                         </div>
-                      </div>
 
                       <div className="flex gap-1 justify-end pt-2">
                         <button
@@ -1418,24 +1475,38 @@ export default function AssessorSection({
                           <span className="text-neutral-800">Mês {assr.team || 'Alpha'}</span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 text-[11px] leading-snug">
-                          <div className="flex justify-between border-b pb-0.5">
-                            <span className="text-neutral-500">Contas:</span>
-                            <span className="font-bold text-neutral-900">{assr.realizadoContasAbertas || 0} / {assr.metaContasAbertas || 0}</span>
-                          </div>
-                          <div className="flex justify-between border-b pb-0.5">
-                            <span className="text-neutral-500">NET Captação:</span>
-                            <span className="font-bold text-neutral-900">R$ {((assr.realizadoNet || 0) / 1000).toFixed(0)}k / {((assr.metaNet || 0) / 1000).toFixed(0)}k</span>
-                          </div>
-                          <div className="flex justify-between border-b pb-0.5">
-                            <span className="text-neutral-500">Ligações:</span>
-                            <span className="font-bold text-neutral-900">{assr.realizadoLigacoes || 0} / {assr.metaLigacoes || 0}</span>
-                          </div>
-                          <div className="flex justify-between border-b pb-0.5">
-                            <span className="text-neutral-500">Cross Sell Qtd:</span>
-                            <span className="font-bold text-neutral-900">{assr.realizadoCrossSell || 0} / {assr.metaCrossSell || 0}</span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const formatValLocal = (key: string, name: string, val: number) => {
+                            const isNet = key === 'net' || name.toLowerCase().includes('net') || name.toLowerCase().includes('captação') || name.toLowerCase().includes('capto') || name.toLowerCase().includes('capta');
+                            if (isNet) {
+                              if (val >= 1000 || val <= -1000) {
+                                return `R$ ${(val / 1000).toFixed(0)}k`;
+                              }
+                              return `R$ ${val}`;
+                            }
+                            return val.toString();
+                          };
+
+                          const displayMetrics = assr.customMonitorMetrics || [
+                            { key: 'contas_abertas', name: 'Contas', target: assr.metaContasAbertas || 0, real: assr.realizadoContasAbertas || 0 },
+                            { key: 'net', name: 'NET Captação', target: assr.metaNet || 0, real: assr.realizadoNet || 0 },
+                            { key: 'ligacoes', name: 'Ligações', target: assr.metaLigacoes || 0, real: assr.realizadoLigacoes || 0 },
+                            { key: 'cross_sell', name: 'Cross Sell Qtd', target: assr.metaCrossSell || 0, real: assr.realizadoCrossSell || 0 },
+                          ];
+
+                          return (
+                            <div className="grid grid-cols-2 gap-2 text-[11px] leading-snug">
+                              {displayMetrics.map(m => (
+                                <div key={m.key} className="flex justify-between border-b pb-0.5">
+                                  <span className="text-neutral-500 truncate max-w-[100px]" title={m.name}>{m.name}:</span>
+                                  <span className="font-bold text-neutral-900 shrink-0">
+                                    {formatValLocal(m.key, m.name, m.real)} / {formatValLocal(m.key, m.name, m.target)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
 
                         {/* Interactive toggle block for detailed performance charts and cross sell breakdown */}
                         <button
@@ -1463,30 +1534,21 @@ export default function AssessorSection({
                           <h4 className="text-[10px] font-black text-[#f59e0b] uppercase tracking-widest">Desempenho Geral de Funil</h4>
                           
                           <div className="space-y-3 bg-neutral-50/50 p-3 rounded-lg border">
-                            <div>
-                              <span className="text-[10px] font-bold text-neutral-500 block uppercase mb-1">Ligações efetuadas</span>
-                              {renderProgressBar(assr.realizadoLigacoes || 0, assr.metaLigacoes || 0)}
-                            </div>
-                            
-                            <div>
-                              <span className="text-[10px] font-bold text-neutral-500 block uppercase mb-1">Reuniões agendadas</span>
-                              {renderProgressBar(assr.realizadoReunioesAgendadas || 0, assr.metaReunioesAgendadas || 0)}
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] font-bold text-neutral-500 block uppercase mb-1">Reuniões realizadas</span>
-                              {renderProgressBar(assr.realizadoReunioesRealizadas || 0, assr.metaReunioesRealizadas || 0)}
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] font-bold text-neutral-500 block uppercase mb-1">Contas abertas</span>
-                              {renderProgressBar(assr.realizadoContasAbertas || 0, assr.metaContasAbertas || 0)}
-                            </div>
-
-                            <div>
-                              <span className="text-[10px] font-bold text-neutral-500 block uppercase mb-1">NET (Captação Financeira)</span>
-                              {renderProgressBar(assr.realizadoNet || 0, assr.metaNet || 0, true)}
-                            </div>
+                            {(assr.customMonitorMetrics || [
+                              { key: 'ligacoes', name: 'Ligações efetuadas', target: assr.metaLigacoes || 0, real: assr.realizadoLigacoes || 0 },
+                              { key: 'agendadas', name: 'Reuniões agendadas', target: assr.metaReunioesAgendadas || 0, real: assr.realizadoReunioesAgendadas || 0 },
+                              { key: 'realizadas', name: 'Reuniões realizadas', target: assr.metaReunioesRealizadas || 0, real: assr.realizadoReunioesRealizadas || 0 },
+                              { key: 'contas_abertas', name: 'Contas abertas', target: assr.metaContasAbertas || 0, real: assr.realizadoContasAbertas || 0 },
+                              { key: 'net', name: 'NET (Captação Financeira)', target: assr.metaNet || 0, real: assr.realizadoNet || 0 }
+                            ]).map(m => {
+                              const isNet = m.key === 'net' || m.name.toLowerCase().includes('net') || m.name.toLowerCase().includes('captação') || m.name.toLowerCase().includes('capto') || m.name.toLowerCase().includes('capta');
+                              return (
+                                <div key={m.key}>
+                                  <span className="text-[10px] font-bold text-neutral-500 block uppercase mb-1">{m.name}</span>
+                                  {renderProgressBar(m.real, m.target, isNet)}
+                                </div>
+                              );
+                            })}
                           </div>
 
                           <h4 className="text-[10px] font-black text-[#f59e0b] uppercase tracking-widest pt-2">Breakdown de Cross-Sell</h4>

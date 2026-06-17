@@ -598,6 +598,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   revertPromotion: (sdrId) => {
+    const sdr = get().sdrs.find(s => s.id === sdrId);
+    const sdrName = sdr ? sdr.name : '';
     const nextSdrs = get().sdrs.map(s => {
       if (s.id !== sdrId) return s;
       return {
@@ -608,7 +610,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         promotedAssessorId: undefined
       };
     });
-    const nextAssessores = get().assessores.filter(a => a.exclusiveSdrId !== sdrId);
+    const nextAssessores = get().assessores.filter(a => 
+      a.exclusiveSdrId !== sdrId && 
+      (!a.exclusiveSdrIds || !a.exclusiveSdrIds.includes(sdrId)) &&
+      (!sdrName || a.name !== sdrName)
+    );
     const nextMatches = get().matches.filter(m => m.sdrId !== sdrId);
 
     set({ sdrs: nextSdrs, assessores: nextAssessores, matches: nextMatches });

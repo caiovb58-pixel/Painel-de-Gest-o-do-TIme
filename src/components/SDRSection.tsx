@@ -90,7 +90,12 @@ export default function SDRSection({
   }, [sdrs, assessores]);
 
   // Local state for 1:1 team selection filter
-  const [oneOnOneTeamFilter, setOneOnOneTeamFilter] = useState<string>('all');
+  const [oneOnOneTeamFilter, setOneOnOneTeamFilter] = useState<string>(() => {
+    if (currentUser?.role === 'leader' && currentUser?.teamName) {
+      return currentUser.teamName;
+    }
+    return 'all';
+  });
 
   const filteredProfessionals = useMemo(() => {
     if (oneOnOneTeamFilter === 'all') {
@@ -112,6 +117,7 @@ export default function SDRSection({
   const [sessionError, setSessionError] = useState<string>('');
   const [sessionSuccess, setSessionSuccess] = useState<string>('');
   const [diagnosedByAI, setDiagnosedByAI] = useState<string>('');
+  const [sessionFormTab, setSessionFormTab] = useState<'notes' | 'ai_summary'>('notes');
 
   // Local state for editing metrics directly in 1:1 scorecard card
   const [isEditingScorecard, setIsEditingScorecard] = useState<boolean>(false);
@@ -330,6 +336,7 @@ export default function SDRSection({
         setSessionProfessionalProfile(data.diagnosedProfile);
         setDiagnosedByAI(data.diagnosedProfile);
       }
+      setSessionFormTab('ai_summary'); // Shift focus to the diagnosis tab once calculated
     } catch (err: any) {
       setSessionError(err?.message || 'Erro de comunicação na rede com o motor de IA.');
     } finally {
@@ -558,6 +565,7 @@ export default function SDRSection({
   const [localTeamGoalAgend, setLocalTeamGoalAgend] = useState(teamGoals.agendamentos);
   const [localTeamGoalEfet, setLocalTeamGoalEfet] = useState(teamGoals.efetivacoes);
   const [localTeamGoalContas, setLocalTeamGoalContas] = useState(teamGoals.contasAbertas);
+  const [localCustomMetrics, setLocalCustomMetrics] = useState<any[]>([]);
   const [teamsGoalFeedback, setTeamsGoalFeedback] = useState<Record<string, string>>({});
 
   // Deletion helper
@@ -685,6 +693,41 @@ export default function SDRSection({
   const teamAverageMetaRate = activeSDRs.length > 0
     ? Math.round(activeSDRs.reduce((sum, s) => sum + (s.metaEfetivacaoRate || 50), 0) / activeSDRs.length)
     : 0;
+
+  const currentCustomMetrics = useMemo(() => {
+    if (teamGoals.customMetrics && teamGoals.customMetrics.length > 0) {
+      return teamGoals.customMetrics;
+    }
+    return [
+      { id: 'm-agend', name: 'Agendamentos', target: teamGoals.agendamentos || 150 },
+      { id: 'm-efet', name: 'Efetivações', target: teamGoals.efetivacoes || 80 },
+      { id: 'm-contas', name: 'Contas Abertas', target: teamGoals.contasAbertas || 35 },
+      { id: 'm-cross', name: 'Cross Sell', target: 20 },
+    ];
+  }, [teamGoals]);
+
+  const calculateRealized = (name: string): number => {
+    const norm = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (norm.includes("agendamento") || norm.includes("reuniao") || norm.includes("agendados")) {
+      return teamTotalAgendamentos;
+    }
+    if (norm.includes("efetivacao") || norm.includes("reuniao concluida") || norm.includes("efetivados")) {
+      return teamTotalEfetivacoes;
+    }
+    if (norm.includes("contas abertas") || norm.includes("abertura") || norm.includes("conta")) {
+      return activeSDRs.reduce((sum, s) => sum + (s.contasAbertasCount || 0), 0);
+    }
+    if (norm.includes("ligacoes") || norm.includes("chamadas") || norm.includes("calls") || norm.includes("ligacao")) {
+      return activeSDRs.reduce((sum, s) => sum + (s.callsCount || 0), 0);
+    }
+    if (norm.includes("cross sell") || norm.includes("crosssell") || norm.includes("venda cruzada")) {
+      return (assessores || []).reduce((sum, a) => sum + (a.crossSellCount || 0), 0);
+    }
+    if (norm.includes("captacao") || norm.includes("captacoes")) {
+      return (assessores || []).reduce((sum, a) => sum + (a.captacaoMes || 0), 0);
+    }
+    return 0;
+  };
 
   // Filter list by category, team and search query
   const tempSDRs = sdrs.filter(s => {
@@ -2091,14 +2134,14 @@ export default function SDRSection({
             </div>
           </div>
 
-          {/* NEW: Team Goals Card with full editing capabilities */}
+          {/* NEW: Team Goals Card with full editing capabilities (Fully customizable metrics list) */}
           <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-xs">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
               <div className="flex items-center gap-2">
                 <Target className="w-5 h-5 text-neutral-800" />
                 <div>
-                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-display">Metas Globais do Time (Consolidado)</h4>
-                  <p className="text-[11px] text-neutral-450 mt-0.5">Defina os objetivos globais acumulados para o período corrente.</p>
+                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-display">Monitor & Gestão de Targets do Período</h4>
+                  <p className="text-[11px] text-neutral-450 mt-0.5">Adicione, edite ou exclua qualquer meta e acompanhe as realizações cumulativas do time.</p>
                 </div>
               </div>
               {!isEditingTeamGoals ? (
@@ -2106,9 +2149,7 @@ export default function SDRSection({
                   <button
                     type="button"
                     onClick={() => {
-                      setLocalTeamGoalAgend(teamGoals.agendamentos);
-                      setLocalTeamGoalEfet(teamGoals.efetivacoes);
-                      setLocalTeamGoalContas(teamGoals.contasAbertas);
+                      setLocalCustomMetrics([...currentCustomMetrics]);
                       setIsEditingTeamGoals(true);
                     }}
                     className="px-3 py-1 bg-black text-white hover:bg-[#111] rounded-lg text-[11px] font-bold tracking-tight flex items-center gap-1.5 transition-all cursor-pointer"
@@ -2129,86 +2170,124 @@ export default function SDRSection({
                     type="button"
                     onClick={() => {
                       if (onUpdateTeamGoals) {
+                        // Keep legacy properties in sync for compatibility
+                        let updatedAgend = teamGoals.agendamentos;
+                        let updatedEfet = teamGoals.efetivacoes;
+                        let updatedContas = teamGoals.contasAbertas;
+
+                        localCustomMetrics.forEach(m => {
+                          const nameNorm = m.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                          if (nameNorm.includes("agendamento") || nameNorm.includes("reuniao") || nameNorm.includes("agendados")) {
+                            updatedAgend = m.target;
+                          } else if (nameNorm.includes("efetivacao") || nameNorm.includes("reuniao concluida") || nameNorm.includes("efetivados")) {
+                            updatedEfet = m.target;
+                          } else if (nameNorm.includes("contas abertas") || nameNorm.includes("abertura") || nameNorm.includes("conta")) {
+                            updatedContas = m.target;
+                          }
+                        });
+
                         onUpdateTeamGoals({
-                          agendamentos: localTeamGoalAgend,
-                          efetivacoes: localTeamGoalEfet,
-                          contasAbertas: localTeamGoalContas,
+                          agendamentos: updatedAgend,
+                          efetivacoes: updatedEfet,
+                          contasAbertas: updatedContas,
+                          customMetrics: localCustomMetrics,
                         });
                       }
                       setIsEditingTeamGoals(false);
                     }}
                     className="px-3 py-1 bg-black text-white hover:bg-neutral-900 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   >
-                    Salvar
+                    Salvar Metas
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Target Agendamentos */}
-              <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-150">
-                <span className="text-[9px] font-black uppercase tracking-wider text-neutral-450 block mb-1">Meta de Agendamentos</span>
-                {isEditingTeamGoals ? (
-                  <input
-                    type="number"
-                    min="1"
-                    value={localTeamGoalAgend}
-                    onChange={e => setLocalTeamGoalAgend(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full bg-white border border-neutral-350 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-black"
-                  />
-                ) : (
-                  <div>
-                    <div className="text-2xl font-black text-neutral-900 tracking-tight font-display">{teamGoals.agendamentos}</div>
-                    <div className="text-[10px] text-neutral-500 mt-1 flex items-center gap-1 flex-wrap">
-                      Realizado: <strong className="text-neutral-800 font-bold">{teamTotalAgendamentos}</strong> ({teamGoals.agendamentos > 0 ? Math.round((teamTotalAgendamentos / teamGoals.agendamentos) * 100) : 0}%)
+            {isEditingTeamGoals ? (
+              <div className="space-y-3 max-w-xl bg-neutral-50 p-4 rounded-xl border border-neutral-200 animate-fade-in">
+                <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Estipular e Ajustar Métricas</span>
+                <div className="space-y-2">
+                  {localCustomMetrics.map((m, idx) => (
+                    <div key={m.id || idx} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={m.name}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setLocalCustomMetrics(prev => prev.map(x => x.id === m.id ? { ...x, name: val } : x));
+                        }}
+                        placeholder="Ex: Ligações, Cross Sell, etc."
+                        className="flex-1 bg-white border border-neutral-350 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-black focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-neutral-450">Meta:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={m.target}
+                          onChange={e => {
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            setLocalCustomMetrics(prev => prev.map(x => x.id === m.id ? { ...x, target: val } : x));
+                          }}
+                          className="w-20 bg-white border border-neutral-350 rounded-lg px-2 py-1.5 text-xs text-center font-bold focus:ring-1 focus:ring-black focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocalCustomMetrics(prev => prev.filter(x => x.id !== m.id));
+                        }}
+                        className="p-1 px-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg border border-red-200 transition-all cursor-pointer flex items-center justify-center font-bold"
+                        title="Remover Métrica"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  </div>
-                )}
+                  ))}
+                  {localCustomMetrics.length === 0 && (
+                    <p className="text-neutral-500 text-[11px] italic py-2">Nenhuma métrica cadastrada. Adicione uma métrica abaixo!</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocalCustomMetrics(prev => [
+                      ...prev,
+                      { id: `m-${Date.now()}`, name: 'Nova Métrica', target: 20 }
+                    ]);
+                  }}
+                  className="w-full py-2 bg-white hover:bg-neutral-100 border border-dashed border-neutral-300 rounded-lg text-xs font-black text-neutral-800 transition-all flex items-center justify-center gap-1.5 cursor-pointer font-sans"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Métrica
+                </button>
               </div>
-
-              {/* Target Efetivacoes */}
-              <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-150">
-                <span className="text-[9px] font-black uppercase tracking-wider text-neutral-450 block mb-1">Meta de Efetivações</span>
-                {isEditingTeamGoals ? (
-                  <input
-                    type="number"
-                    min="1"
-                    value={localTeamGoalEfet}
-                    onChange={e => setLocalTeamGoalEfet(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full bg-white border border-neutral-350 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-black"
-                  />
-                ) : (
-                  <div>
-                    <div className="text-2xl font-black text-neutral-900 tracking-tight font-display">{teamGoals.efetivacoes}</div>
-                    <div className="text-[10px] text-neutral-500 mt-1 flex items-center gap-1 flex-wrap">
-                      Realizado: <strong className="text-neutral-800 font-bold">{teamTotalEfetivacoes}</strong> ({teamGoals.efetivacoes > 0 ? Math.round((teamTotalEfetivacoes / teamGoals.efetivacoes) * 100) : 0}%)
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
+                {currentCustomMetrics.map((m, idx) => {
+                  const realized = calculateRealized(m.name);
+                  const rate = m.target > 0 ? Math.round((realized / m.target) * 100) : 0;
+                  return (
+                    <div key={m.id || idx} className="bg-neutral-50 p-4 rounded-xl border border-neutral-150 relative overflow-hidden group hover:bg-neutral-100/60 transition-all">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-neutral-450 block mb-1">
+                        Meta de {m.name}
+                      </span>
+                      <div className="flex justify-between items-baseline">
+                        <div className="text-2xl font-black text-neutral-900 tracking-tight font-display">{m.target}</div>
+                        <span className="text-[10px] font-semibold text-neutral-450">Objetivo</span>
+                      </div>
+                      <div className="text-[10px] text-neutral-500 mt-2 flex items-center justify-between">
+                        <span>Realizado: <strong className="text-neutral-800 font-extrabold">{realized}</strong></span>
+                        <span className={rate >= 100 ? "text-emerald-700 font-black" : rate >= 50 ? "text-amber-700 font-black" : "text-neutral-600 font-bold"}>
+                          {rate}%
+                        </span>
+                      </div>
+                      {/* elegant micro status line */}
+                      <div className="absolute bottom-0 left-0 h-0.5 bg-neutral-900 group-hover:bg-[#111] transition-all" style={{ width: `${Math.min(100, rate)}%` }} />
                     </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
-
-              {/* Target Contas Abertas */}
-              <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-150">
-                <span className="text-[9px] font-black uppercase tracking-wider text-neutral-450 block mb-1">Meta de Contas Abertas</span>
-                {isEditingTeamGoals ? (
-                  <input
-                    type="number"
-                    min="1"
-                    value={localTeamGoalContas}
-                    onChange={e => setLocalTeamGoalContas(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full bg-white border border-neutral-350 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-black"
-                  />
-                ) : (
-                  <div>
-                    <div className="text-2xl font-black text-neutral-900 tracking-tight font-display">{teamGoals.contasAbertas}</div>
-                    <div className="text-[10px] text-neutral-500 mt-1 flex items-center gap-1 flex-wrap">
-                      Realizado: <strong className="text-neutral-800 font-bold">{activeSDRs.reduce((sum, s) => sum + (s.contasAbertasCount || 0), 0)}</strong> ({teamGoals.contasAbertas > 0 ? Math.round((activeSDRs.reduce((sum, s) => sum + (s.contasAbertasCount || 0), 0) / teamGoals.contasAbertas) * 100) : 0}%)
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* PAINEL DE CONFIGURAÇÃO RÁPIDA DE METAS DE AGENDAMENTOS POR EQUIPE */}
@@ -3138,22 +3217,57 @@ export default function SDRSection({
               </button>
             </div>
 
-            {/* Team selection filter specifically requested for 1:1 area */}
-            <div className="flex items-center gap-2 self-start md:self-auto bg-neutral-100 border border-neutral-300 py-1.5 px-3 rounded-lg">
-              <span className="text-[10px] font-black uppercase text-neutral-550 whitespace-nowrap">Equipe:</span>
-              <select
-                value={oneOnOneTeamFilter}
-                onChange={(e) => {
-                  setOneOnOneTeamFilter(e.target.value);
-                  setSessionSdrId(''); // Reset selected contributor when filter changes
-                }}
-                className="bg-transparent border-none text-xs font-black text-neutral-900 focus:outline-none cursor-pointer"
-              >
-                <option value="all">Todas as Equipes</option>
-                {teams.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+            {/* Team selection filter specifically requested for 1:1 area with Red Circle "Meu Time" filter */}
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              {currentUser?.role === 'leader' && (
+                <div className="flex items-center bg-white border-2 border-black p-0.5 rounded-lg shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOneOnOneTeamFilter(currentUser.teamName || 'all');
+                      setSessionSdrId('');
+                    }}
+                    className={`text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-md transition-all cursor-pointer ${
+                      oneOnOneTeamFilter === currentUser.teamName
+                        ? 'bg-black text-white'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    🎯 Filtrar Meu Time ({currentUser.teamName})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOneOnOneTeamFilter('all');
+                      setSessionSdrId('');
+                    }}
+                    className={`text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-md transition-all cursor-pointer ${
+                      oneOnOneTeamFilter === 'all'
+                        ? 'bg-black text-white'
+                        : 'text-neutral-500 hover:text-neutral-800'
+                    }`}
+                  >
+                    Ver Geral
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 bg-neutral-100 border border-neutral-350 py-1.5 px-3 rounded-lg">
+                <span className="text-[10px] font-black uppercase text-neutral-500 whitespace-nowrap">Filtro Equipe:</span>
+                <select
+                  value={oneOnOneTeamFilter}
+                  onChange={(e) => {
+                    setOneOnOneTeamFilter(e.target.value);
+                    setSessionSdrId(''); // Reset selected contributor when filter changes
+                  }}
+                  className="bg-transparent border-none text-xs font-black text-neutral-900 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all">Todas as Equipes</option>
+                  {teams.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -3175,7 +3289,7 @@ export default function SDRSection({
               )}
 
               {sessionSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2">
+                <div className="p-3 bg-emerald-50 border border-emerald-350 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2">
                   <Check className="w-4 h-4" />
                   {sessionSuccess}
                 </div>
@@ -3214,173 +3328,210 @@ export default function SDRSection({
                 </div>
               </div>
 
-              {/* GRUPO 1: RELATOS DO DESENVOLVIMENTO (Primeira Seção) */}
-              <div className="border-t border-neutral-100 pt-3 space-y-4">
-                <div className="flex items-center gap-1.5 pb-1">
-                  <span className="text-xs">📝</span>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-black">Relatos e Observações de Desempenho</span>
-                </div>
-                
-                {/* Psychological Input */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black uppercase text-neutral-550 flex items-center gap-1">
-                    <span>🎈</span> Relato de Comportamento Psicológico / Suporte Motivacional
-                  </label>
-                  <textarea
-                    placeholder="Descreva o comportamento, humor, fadiga ou nível de energia do colaborador. Ex: Mostrou-se muito entusiasmado com a prospecção mas ansioso..."
-                    value={sessionPsychNotes}
-                    onChange={(e) => setSessionPsychNotes(e.target.value)}
-                    className="w-full h-18 text-xs px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
-                  />
-                </div>
-
-                {/* Tactical Input */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black uppercase text-neutral-550 flex items-center gap-1">
-                    <span>🎯</span> Relato de Evolução Tática / Insumos Técnicos
-                  </label>
-                  <textarea
-                    placeholder="Que gargalos táticos ou pontos de melhoria técnica foram observados? Ex: Apresenta excelente abordagem inicial, mas tem dificuldades para rebater objeções..."
-                    value={sessionTacticalNotes}
-                    onChange={(e) => setSessionTacticalNotes(e.target.value)}
-                    className="w-full h-18 text-xs px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
-                  />
-                </div>
+              {/* Tab Navigation inside 1:1 Form (Yellow Circle request) */}
+              <div className="flex gap-2 border-b border-neutral-200 pb-1.5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setSessionFormTab('notes')}
+                  className={`pb-2 px-3 font-mono text-[10px] uppercase font-black tracking-wider border-b-2 transition-all ${
+                    sessionFormTab === 'notes'
+                      ? 'border-black text-black'
+                      : 'border-transparent text-neutral-400 hover:text-neutral-700'
+                  }`}
+                >
+                  📝 Notas e Relatos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSessionFormTab('ai_summary')}
+                  className={`pb-2 px-3 font-mono text-[10px] uppercase font-black tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+                    sessionFormTab === 'ai_summary'
+                      ? 'border-indigo-600 text-indigo-600 font-extrabold'
+                      : 'border-transparent text-neutral-400 hover:text-neutral-700'
+                  }`}
+                >
+                  ✨ Conclusão & Diagnóstico IA
+                  {sessionAiFeedback && (
+                    <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping" />
+                  )}
+                </button>
               </div>
 
-              {/* GRUPO 3: AVALIAÇÃO E DIAGNÓSTICO DO PERFIL VIA IA */}
-              <div className="bg-neutral-50/70 border-2 border-neutral-900 rounded-2xl p-4.5 space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-indigo-600" />
-                    <span className="text-[10.5px] font-black uppercase tracking-wider text-indigo-950 font-display">Diagnóstico do Perfil Comercial via IA</span>
-                  </div>
-                  {diagnosedByAI ? (
-                    <span className="text-[9px] bg-indigo-100 text-indigo-800 font-black px-2 py-0.5 rounded border border-indigo-300 uppercase font-mono tracking-wider">
-                      ✨ IA DIAGNOSTICADO
-                    </span>
-                  ) : (
-                    <span className="text-[9px] bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded border border-amber-200 uppercase font-mono tracking-wider">
-                      ⏳ Diagnóstico Pendente
-                    </span>
-                  )}
-                </div>
+              {sessionFormTab === 'notes' ? (
+                <div className="space-y-4 animate-fade-in pt-1">
+                  {/* GRUPO 1: RELATOS DO DESENVOLVIMENTO (Primeira Seção) */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-1.5 pb-1">
+                      <span className="text-xs">📝</span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-black">Relatos e Observações de Desempenho</span>
+                    </div>
+                    
+                    {/* Psychological Input */}
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black uppercase text-neutral-555 flex items-center gap-1">
+                        <span>🎈</span> Relato de Comportamento Psicológico / Suporte Motivacional
+                      </label>
+                      <textarea
+                        placeholder="Descreva o comportamento, humor, fadiga ou nível de energia do colaborador. Ex: Mostrou-se muito entusiasmado com a prospecção mas ansioso..."
+                        value={sessionPsychNotes}
+                        onChange={(e) => setSessionPsychNotes(e.target.value)}
+                        className="w-full h-18 text-xs px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                      />
+                    </div>
 
-                <p className="text-[11px] text-neutral-600 leading-normal">
-                  A avaliação do perfil profissional é gerada por Inteligência Artificial a partir de uma auditoria minuciosa das notas e relatos que você inseriu acima.
-                </p>
-
-                {/* Diagnosed Profile Output */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                  <div className="md:col-span-6 space-y-1">
-                    <span className="text-[9px] font-extrabold uppercase text-neutral-400 block tracking-wide">Perfil Diagnosticado Atual</span>
-                    <div className={`p-3 rounded-xl border flex items-center gap-2.5 ${
-                      sessionProfessionalProfile === 'gestao' 
-                        ? 'bg-purple-50/80 text-purple-900 border-purple-200'
-                        : sessionProfessionalProfile === 'analitico'
-                        ? 'bg-sky-50/80 text-sky-900 border-sky-200'
-                        : sessionProfessionalProfile === 'operacional'
-                        ? 'bg-teal-50/80 text-teal-900 border-teal-200'
-                        : 'bg-orange-50/80 text-orange-900 border-orange-200'
-                    }`}>
-                      <span className="text-lg">
-                        {sessionProfessionalProfile === 'gestao' ? '🛡️' : sessionProfessionalProfile === 'analitico' ? '📊' : sessionProfessionalProfile === 'operacional' ? '⚙️' : '⚡'}
-                      </span>
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-black uppercase block">
-                          {sessionProfessionalProfile === 'gestao' ? 'Gestão / Liderança' : sessionProfessionalProfile === 'analitico' ? 'Analítico (Métricas)' : sessionProfessionalProfile === 'operacional' ? 'Operacional / Backoffice' : 'Comercial / Vendas'}
-                        </span>
-                        <span className="text-[9.5px] opacity-75 font-medium block">
-                          {diagnosedByAI ? 'Mapeado de forma autônoma pela IA' : 'Selecione ou clique para rodar análise'}
-                        </span>
-                      </div>
+                    {/* Tactical Input */}
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black uppercase text-neutral-555 flex items-center gap-1">
+                        <span>🎯</span> Relato de Evolução Tática / Insumos Técnicos
+                      </label>
+                      <textarea
+                        placeholder="Que gargalos táticos ou pontos de melhoria técnica foram observados? Ex: Apresenta excelente abordagem inicial, mas tem dificuldades para rebater objeções..."
+                        value={sessionTacticalNotes}
+                        onChange={(e) => setSessionTacticalNotes(e.target.value)}
+                        className="w-full h-18 text-xs px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                      />
                     </div>
                   </div>
 
-                  <div className="md:col-span-6 space-y-1">
-                    <span className="text-[9px] font-extrabold uppercase text-neutral-450 tracking-wide block">Ajuste de Classificação</span>
-                    <select
-                      value={sessionProfessionalProfile}
-                      onChange={(e) => {
-                        setSessionProfessionalProfile(e.target.value);
-                        setDiagnosedByAI(''); // clear diagnostic label if adjusted manually to keep honest
-                      }}
-                      className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-white text-neutral-800 cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black"
-                    >
-                      <option value="comercial">⚡ Comercial / Vendas</option>
-                      <option value="gestao">🛡️ Gestão / Liderança</option>
-                      <option value="analitico">📊 Analítico (Dados)</option>
-                      <option value="operacional">⚙️ Operacional / Processos</option>
-                    </select>
+                  {/* GRUPO 2: METAS E PLANO DE AÇÃO */}
+                  <div className="border-t border-neutral-105 pt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    
+                    {/* Rating Status */}
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black uppercase text-neutral-555">Status Operacional</label>
+                      <select
+                        value={sessionStatus}
+                        onChange={(e) => setSessionStatus(e.target.value as any)}
+                        className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-neutral-50 text-neutral-800 cursor-pointer font-mono"
+                      >
+                        <option value="NO_CAMINHO">🟢 NO CAMINHO (ENTREGA CONFORME)</option>
+                        <option value="EM_RISCO">🚨 EM RISCO (ALERTA DE DESVIO)</option>
+                        <option value="OUTLIER">🌟 DESTAQUE (SURPREENDENDO)</option>
+                      </select>
+                    </div>
+
+                    {/* Next Date Picker */}
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black uppercase text-neutral-555">Próxima Sessão 1:1</label>
+                      <input
+                        type="date"
+                        value={sessionNextMeeting}
+                        onChange={(e) => setSessionNextMeeting(e.target.value)}
+                        className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-neutral-50 text-neutral-800 font-mono cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Action Plan */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black uppercase text-neutral-555">
+                      🗺️ Plano de Ação & Roteiro Corretivo Estipulado
+                    </label>
+                    <textarea
+                      placeholder="Metas de curto prazo e guias estabelecidas. Ex: Realizar 10 escutas de cold-calls de outliers e rever script de objeção patrimonial até quarta-feira..."
+                      value={sessionActionPlan}
+                      onChange={(e) => setSessionActionPlan(e.target.value)}
+                      className="w-full h-18 text-xs px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
+                    />
                   </div>
                 </div>
+              ) : (
+                <div className="space-y-4 animate-fade-in bg-amber-50/40 p-4 rounded-xl border border-amber-200 mt-2">
+                  {/* Yellow Circle Area: AI Summary & Diagnosis */}
+                  <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-indigo-700 animate-pulse" />
+                      <span className="text-[10.5px] font-black uppercase tracking-wider text-indigo-950 font-display">
+                        Parecer Estratégico & Conclusão da IA
+                      </span>
+                    </div>
+                    {diagnosedByAI ? (
+                      <span className="text-[8px] bg-indigo-100 text-indigo-800 font-black px-2 py-0.5 rounded border border-indigo-300 uppercase font-mono tracking-wider">
+                        🤖 DIAGNÓSTICO ATIVO IA
+                      </span>
+                    ) : (
+                      <span className="text-[8px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded border border-amber-300 uppercase font-mono tracking-wider">
+                        Aguardando IA
+                      </span>
+                    )}
+                  </div>
 
-                {/* Profile Dynamic Insight Description Box */}
-                <div className={`p-2.5 rounded-xl border text-[11px] leading-relaxed ${
-                  sessionProfessionalProfile === 'gestao' 
-                    ? 'bg-purple-50/50 text-purple-800 border-purple-150'
-                    : sessionProfessionalProfile === 'analitico'
-                    ? 'bg-sky-50/50 text-sky-800 border-sky-150'
-                    : sessionProfessionalProfile === 'operacional'
-                    ? 'bg-teal-50/50 text-teal-850 border-teal-150'
-                    : 'bg-orange-50/50 text-orange-850 border-orange-150'
-                }`}>
-                  {sessionProfessionalProfile === 'gestao' && (
-                    <p>🛡️ <strong>Selo de Liderança:</strong> Ideal para coordenar metas e mentorar pares. Direcione o profissional para ajudar na integração de novos membros do time.</p>
+                  {sessionAiFeedback ? (
+                    <div className="text-neutral-800 text-xs leading-relaxed space-y-3 prose pr-1 max-h-[380px] overflow-y-auto custom-scrollbar">
+                      <div className="markdown-body text-justify">
+                        <Markdown>{sessionAiFeedback}</Markdown>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 bg-white/70 rounded-xl border border-dashed border-amber-250 text-neutral-500 text-[11px] leading-relaxed">
+                      <Cpu className="w-6 h-6 mx-auto text-amber-500 mb-2 animate-pulse" />
+                      <p className="max-w-[280px] mx-auto uppercase font-black tracking-wider text-[10px]">
+                        Nenhum feedback consolidado. Escreva as notas na aba de relatos e clique no botão <strong className="text-indigo-600">"Consultar IA"</strong> abaixo.
+                      </p>
+                    </div>
                   )}
-                  {sessionProfessionalProfile === 'analitico' && (
-                    <p>📊 <strong>Selo Analítico:</strong> Excelente em identificar gargalos táticos em dados, mas atenção com paralisia. Estimule conversões práticas sem hesitações.</p>
-                  )}
-                  {sessionProfessionalProfile === 'operacional' && (
-                    <p>⚙️ <strong>Selo Operacional:</strong> Rigor absoluto na execução e governança de dados/CRM. Forneça playbooks de objeções comerciais agressivas para expandir a agilidade.</p>
-                  )}
-                  {sessionProfessionalProfile === 'comercial' && (
-                    <p>⚡ <strong>Selo Comercial:</strong> Foco total em tração, chamadas telefônicas e persuasão. Oriente na disciplina de preenchimento do CRM e follow-ups consistentes.</p>
-                  )}
+
+                  {/* Subordinate Professional Profile Classification Box */}
+                  <div className="bg-white p-3.5 rounded-xl border border-neutral-250 space-y-3.5 mt-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-100 pb-2">
+                      <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Perfil Mapeado do Colaborador</span>
+                      <select
+                        value={sessionProfessionalProfile}
+                        onChange={(e) => {
+                          setSessionProfessionalProfile(e.target.value);
+                          setDiagnosedByAI(''); // Clear indicator to reflect manual change
+                        }}
+                        className="text-[10px] uppercase font-black rounded-lg border border-neutral-300 p-1.5 bg-neutral-50 text-neutral-800 cursor-pointer"
+                      >
+                        <option value="comercial">⚡ Comercial / Vendas</option>
+                        <option value="gestao">🛡️ Gestão / Liderança</option>
+                        <option value="analitico">📊 Analítico (Dados)</option>
+                        <option value="operacional">⚙️ Operacional / Processos</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className={`p-3 rounded-xl border flex items-center gap-2.5 ${
+                        sessionProfessionalProfile === 'gestao' 
+                          ? 'bg-purple-50 text-purple-900 border-purple-200'
+                          : sessionProfessionalProfile === 'analitico'
+                          ? 'bg-sky-50 text-sky-900 border-sky-200'
+                          : sessionProfessionalProfile === 'operacional'
+                          ? 'bg-teal-50 text-teal-900 border-teal-200'
+                          : 'bg-orange-50 text-orange-900 border-orange-200'
+                      }`}>
+                        <span className="text-xl">
+                          {sessionProfessionalProfile === 'gestao' ? '🛡️' : sessionProfessionalProfile === 'analitico' ? '📊' : sessionProfessionalProfile === 'operacional' ? '⚙️' : '⚡'}
+                        </span>
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-black uppercase block">
+                            {sessionProfessionalProfile === 'gestao' ? 'Gestão / Liderança' : sessionProfessionalProfile === 'analitico' ? 'Analítico (Métricas)' : sessionProfessionalProfile === 'operacional' ? 'Operacional / Backoffice' : 'Comercial / Vendas'}
+                          </span>
+                          <span className="text-[9.5px] opacity-75 font-medium block">
+                            Ideal para orientações assertivas e desenvolvimento tático.
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Profile Dynamic Insight Description Box */}
+                      <div className="text-[11px] leading-relaxed p-2.5 rounded-lg bg-neutral-25 text-neutral-700 border border-neutral-150">
+                        {sessionProfessionalProfile === 'gestao' && (
+                          <p>🛡️ <strong>Selo de Liderança:</strong> Ideal para coordenar metas e mentorar pares. Direcione o profissional para ajudar na integração de novos membros do time.</p>
+                        )}
+                        {sessionProfessionalProfile === 'analitico' && (
+                          <p>📊 <strong>Selo Analítico:</strong> Excelente em identificar gargalos táticos em dados, mas atenção com paralisia. Estimule conversões práticas sem hesitações.</p>
+                        )}
+                        {sessionProfessionalProfile === 'operacional' && (
+                          <p>⚙️ <strong>Selo Operacional:</strong> Rigor absoluto na execução e governança de dados/CRM. Forneça playbooks de objeções comerciais agressivas para expandir a agilidade.</p>
+                        )}
+                        {sessionProfessionalProfile === 'comercial' && (
+                          <p>⚡ <strong>Selo Comercial:</strong> Foco total em tração, chamadas telefônicas e persuasão. Oriente na disciplina de preenchimento do CRM e follow-ups consistentes.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              {/* GRUPO 2: METAS E PLANO DE AÇÃO */}
-              <div className="border-t border-neutral-100 pt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                {/* Rating Status */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black uppercase text-neutral-550">Status Operacional</label>
-                  <select
-                    value={sessionStatus}
-                    onChange={(e) => setSessionStatus(e.target.value as any)}
-                    className="w-full text-xs font-bold uppercase rounded-xl border border-neutral-300 p-2.5 bg-neutral-50 text-neutral-800 cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-black font-mono"
-                  >
-                    <option value="NO_CAMINHO">🟢 NO CAMINHO (ENTREGA CONFORME)</option>
-                    <option value="EM_RISCO">🚨 EM RISCO (ALERTA DE DESVIO)</option>
-                    <option value="OUTLIER">🌟 DESTAQUE (SURPREENDENDO)</option>
-                  </select>
-                </div>
-
-                {/* Next Date Picker */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black uppercase text-neutral-550">Próxima Sessão 1:1</label>
-                  <input
-                    type="date"
-                    value={sessionNextMeeting}
-                    onChange={(e) => setSessionNextMeeting(e.target.value)}
-                    className="w-full text-xs font-bold rounded-xl border border-neutral-300 p-2.5 bg-neutral-50 text-neutral-800 focus:outline-hidden focus:ring-1 focus:ring-black font-mono cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              {/* Action Plan */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-black uppercase text-neutral-550">
-                  🗺️ Plano de Ação & Roteiro Corretivo Estipulado
-                </label>
-                <textarea
-                  placeholder="Metas de curto prazo e guias estabelecidas. Ex: Realizar 10 escutas de cold-calls de outliers e rever script de objeção patrimonial até quarta-feira..."
-                  value={sessionActionPlan}
-                  onChange={(e) => setSessionActionPlan(e.target.value)}
-                  className="w-full h-18 text-xs px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
-                />
-              </div>
+              )}
 
               {/* AI Guidance Actions */}
               <div className="pt-2 flex flex-col sm:flex-row gap-3">
@@ -3679,32 +3830,6 @@ export default function SDRSection({
                   );
                 }
               })()}
-
-              <div className="bg-neutral-900 text-white rounded-2xl p-5 border-2 border-neutral-950 space-y-4 shadow-3xs">
-                <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-400 uppercase tracking-widest">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    Parecer Estratégico Coaxial IA
-                  </div>
-                  <span className="font-mono text-[9px] text-neutral-400 bg-neutral-800 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider leading-none">Gemini 1.5 Pro</span>
-                </div>
-
-                {sessionAiFeedback ? (
-                  <div className="text-neutral-200 text-xs leading-relaxed space-y-3 prose prose-invert overflow-y-auto max-h-[460px] custom-scrollbar text-justify pr-1">
-                    <div className="markdown-body">
-                      {/* Explicit clean type-safe implementation of markdown parsing using standard React Markdown */}
-                      <Markdown>{sessionAiFeedback}</Markdown>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-20 text-neutral-450 text-xs">
-                    <Cpu className="w-7 h-7 mx-auto text-neutral-600 mb-2.5 animate-pulse" />
-                    <p className="max-w-[250px] mx-auto text-[10px] text-neutral-450 uppercase font-black tracking-wider leading-relaxed">
-                      Insira os relatos táticos no formulário e clique em <strong className="text-neutral-300">"Consultar Feedback Coaching"</strong> para computar o parecer conceitual.
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
 
           </div>
