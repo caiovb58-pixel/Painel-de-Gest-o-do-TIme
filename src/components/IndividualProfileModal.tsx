@@ -3,7 +3,7 @@ import {
   X, User, Phone, Calendar, Briefcase, TrendingUp, Award, 
   Shield, CheckCircle2, Clock, FileText, Upload, Camera, 
   Trash2, Check, DollarSign, BarChart2, Star, Link, ArrowRight,
-  TrendingUp as IconTrending, Activity, PhoneCall
+  TrendingUp as IconTrending, Activity, PhoneCall, Download
 } from 'lucide-react';
 import { 
   ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend
@@ -267,6 +267,354 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const handleDownloadFicha = () => {
+    const isSdr = entityType === 'sdr';
+    const roleLabel = entityType === 'sdr' ? 'SDR' : entityType === 'consultor' ? 'Consultor' : 'Assessor';
+    
+    let html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Ficha Geral - ${name}</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 40px;
+      color: #111827;
+      background-color: #ffffff;
+      line-height: 1.5;
+    }
+    .header {
+      border-bottom: 3px solid #111827;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .title-block h1 {
+      font-size: 28px;
+      margin: 0;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: -0.5px;
+    }
+    .role-badge {
+      display: inline-block;
+      background: #111827;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .meta-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .meta-card h3 {
+      font-size: 11px;
+      color: #6b7280;
+      margin: 0 0 5px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .meta-card p {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 5px;
+      margin-top: 40px;
+      margin-bottom: 15px;
+      letter-spacing: 0.5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 10px;
+      text-align: left;
+      font-size: 12px;
+    }
+    th {
+      background: #f3f4f6;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #374151;
+    }
+    .text-right { text-align: right; }
+    .status-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .status-active { background: #d1fae5; color: #065f46; }
+    .status-inactive { background: #f3f4f6; color: #374151; }
+    .footer {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 15px;
+      margin-top: 50px;
+      font-size: 10px;
+      color: #9ca3af;
+      text-align: center;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title-block">
+      <span class="role-badge">${roleLabel}</span>
+      <h1>${name}</h1>
+      <p style="color: #6b7280; margin: 4px 0 0 0; font-size: 13px; font-weight: 500;">
+        Equipe: ${team || 'Sem Equipe Atribuída'} &bull; Ingresso: ${formatDateString(admissionDate)} &bull; Status: ${active ? 'Ativo' : 'Inativo'}
+      </p>
+    </div>
+    <div style="text-align: right; font-size: 11px; color: #9ca3af; font-family: monospace;">
+      <div>Emissão: ${new Date().toLocaleDateString('pt-BR')}</div>
+      <div>VMB PRO CLOUD</div>
+    </div>
+  </div>
+
+  <div class="section-title">📊 Resumo Operacional (Referência ${currentMonth})</div>
+  <div class="meta-grid">
+`;
+
+    if (isSdr) {
+      const pacingAgendados = sdrMetaAgendados > 0 ? ((sdrAgendados / sdrMetaAgendados) * 100).toFixed(0) : '0';
+      const pacingEfetivados = sdrMetaEfetivados > 0 ? ((sdrEfetivados / sdrMetaEfetivados) * 100).toFixed(0) : '0';
+      html += `
+      <div class="meta-card">
+        <h3>Ligações Efetuadas</h3>
+        <p>${sdrCalls} Contatos</p>
+      </div>
+      <div class="meta-card">
+        <h3>Agendamentos</h3>
+        <p>${sdrAgendados} / ${sdrMetaAgendados} (${pacingAgendados}%)</p>
+      </div>
+      <div class="meta-card">
+        <h3>Efetivações</h3>
+        <p>${sdrEfetivados} / ${sdrMetaEfetivados} (${pacingEfetivados}%)</p>
+      </div>
+      `;
+    } else {
+      const currentVolume = assessor?.realizadoNet || assessor?.captacaoMes || 0;
+      html += `
+      <div class="meta-card">
+        <h3>Captação Líquida (NET)</h3>
+        <p>${formatBRL(currentVolume)}</p>
+      </div>
+      <div class="meta-card">
+        <h3>Contas Abertas</h3>
+        <p>${assessor?.realizadoContasAbertas || 0} / ${assessor?.metaContasAbertas || 0}</p>
+      </div>
+      <div class="meta-card">
+        <h3>Cross-Sells Realizados</h3>
+        <p>${assessor?.realizadoCrossSell || 0} / ${assessor?.metaCrossSell || 0}</p>
+      </div>
+      `;
+    }
+
+    html += `
+  </div>
+  
+  <div class="section-title">📈 Evolução de Metas e Performance (Histórico)</div>
+  <table style="width: 100%;">
+    <thead>
+      <tr>
+        <th>Mês</th>
+        <th>Ligações</th>
+        <th>Agendamentos</th>
+        <th>Efetivações / Reuniões</th>
+        <th>Contas Abertas</th>
+        ${!isSdr ? '<th>Vol. Captação (BRL)</th><th>Cross-Sells</th>' : ''}
+      </tr>
+    </thead>
+    <tbody>
+  `;
+
+    const chartData = isSdr ? sdrChartData : assessorChartData;
+    chartData.forEach(row => {
+      html += `
+        <tr>
+          <td style="font-weight: 750;">${row.month || ''}</td>
+          <td>${row['Ligações'] || 0}</td>
+          <td>${row['Agendamentos'] || 0}</td>
+          <td>${row['Efetivações'] || 0}</td>
+          <td>${row['Contas Abertas'] || 0}</td>
+          ${!isSdr ? `<td>${formatBRL((row as any)['NET (Captação)'] || 0)}</td><td>${(row as any)['Cross-Sells'] || 0}</td>` : ''}
+        </tr>
+      `;
+    });
+
+    html += `
+    </tbody>
+  </table>
+
+  <div class="section-title">🏆 Clientes & Contratos Fechados</div>
+  <table style="width: 100%;">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Categoria de Produto</th>
+        <th>SDR Responsável</th>
+        <th>Assessor Responsável</th>
+        <th class="text-right">Volume Total</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+  `;
+
+    const deals = isSdr ? sdrNegocios : assessorNegocios;
+    if (deals.length > 0) {
+      deals.forEach(deal => {
+        html += `
+          <tr>
+            <td style="font-weight: 700;">${deal.clientName}</td>
+            <td style="font-family: monospace;">${deal.produtoCategoria.replace(/_/g, ' ')}</td>
+            <td>${deal.sdrName || '—'}</td>
+            <td>${deal.assessorName || '—'}</td>
+            <td class="text-right" style="font-weight: 700;">${formatBRL(deal.volumeFinanceiro)}</td>
+            <td>
+              <span class="status-badge" style="background: ${deal.status === 'GANHO' ? '#dcfce7' : '#f3f4f6'}; color: ${deal.status === 'GANHO' ? '#15803d' : '#374151'}">
+                ${deal.status}
+              </span>
+            </td>
+          </tr>
+        `;
+      });
+    } else {
+      html += `
+        <tr>
+          <td colspan="6" style="text-align: center; color: #9ca3af; font-style: italic;">Nenhum negócio registrado até o momento.</td>
+        </tr>
+      `;
+    }
+
+    html += `
+      </tbody>
+    </table>
+    `;
+
+    if (isSdr) {
+      html += `
+      <div class="section-title">📋 Sessões One-on-One de Alinhamento</div>
+      <table style="width: 100%;">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Avaliador/Gestor</th>
+            <th>Notas da Reunião</th>
+            <th>Plano de Ação Traçado</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+      `;
+
+      if (sdrOneOnOnes.length > 0) {
+        sdrOneOnOnes.forEach(one => {
+          html += `
+            <tr>
+              <td style="font-family: monospace;">${formatDateString(one.timestamp.substring(0, 10))}</td>
+              <td style="font-weight: 600;">${one.leader}</td>
+              <td style="font-style: italic;">"${one.notes}"</td>
+              <td style="font-weight: 700;">${one.actionPlan}</td>
+              <td><span class="status-badge" style="background: #fef3c7; color: #92400e;">${one.status}</span></td>
+            </tr>
+          `;
+        });
+      } else {
+        html += `
+          <tr>
+            <td colspan="5" style="text-align: center; color: #9ca3af; font-style: italic;">Nenhuma reunião de One-on-One registrada.</td>
+          </tr>
+        `;
+      }
+
+      html += `
+        </tbody>
+      </table>
+
+      <div class="section-title">🛡️ Histórico de Auditorias Operacionais</div>
+      <table style="width: 100%;">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Auditor</th>
+            <th>Geral</th>
+            <th>Notas / Recomendações</th>
+          </tr>
+        </thead>
+        <tbody>
+      `;
+
+      if (sdrAuditLogs.length > 0) {
+        sdrAuditLogs.forEach(aud => {
+          html += `
+            <tr>
+              <td style="font-family: monospace;">${formatDateString(aud.timestamp.substring(0, 10))}</td>
+              <td style="font-weight: 600;">${aud.leader}</td>
+              <td style="font-weight: 800; color: #4f46e5;">${aud.totalScore || 0} Ptos</td>
+              <td>"${aud.notes}"</td>
+            </tr>
+          `;
+        });
+      } else {
+        html += `
+          <tr>
+            <td colspan="4" style="text-align: center; color: #9ca3af; font-style: italic;">Nenhuma auditoria registrada neste mês.</td>
+          </tr>
+        `;
+      }
+
+      html += `
+        </tbody>
+      </table>
+      `;
+    }
+
+    html += `
+    <div class="footer">
+      Documento emitido eletronicamente pelo conselho sênior &bull; vmb pro elite cloud
+    </div>
+  </body>
+  </html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Ficha_Individual_${name.replace(/\s+/g, '_')}_${roleLabel}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="fixed inset-0 bg-neutral-950/75 backdrop-blur-[6px] z-50 flex items-center justify-center p-2 sm:p-6 animate-fade-in">
       <div className="w-full max-w-4xl h-[90vh] sm:h-[86vh] bg-neutral-50 rounded-2xl shadow-2xl border border-neutral-250 flex flex-col overflow-hidden">
@@ -287,13 +635,23 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
               {entityType === 'sdr' ? 'SDR' : entityType === 'consultor' ? 'Consultor' : 'Assessor'}
             </span>
           </div>
-          <button 
-            type="button"
-            onClick={onClose} 
-            className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-500 hover:text-black transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadFicha}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border-2 border-neutral-950 hover:bg-neutral-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-3xs"
+            >
+              <Download className="w-3.5 h-3.5 text-white" />
+              Baixar Ficha
+            </button>
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-500 hover:text-black transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body Scrollable Area */}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SDR, Assessor, MatchResult, ProductType, NegocioFechado } from '../types';
 import { 
-  FileText, Copy, TrendingUp, Users, CheckCircle2, 
+  FileText, Copy, TrendingUp, Users, CheckCircle2, Filter,
   RefreshCw, Compass, BarChart3, ChevronRight, CheckCircle, AlertCircle,
   Sparkles, PhoneCall, Zap, Flame, Award, ShieldAlert, Target, Calendar,
   Download, Table, Info, Trash2, Plus, Coins, Briefcase, Layers, HeartHandshake, Check, Edit2
@@ -67,9 +67,9 @@ interface ReportsSectionProps {
 }
 
 export default function ReportsSection({
-  sdrs,
-  assessores,
-  matches,
+  sdrs: rawSdrs,
+  assessores: rawAssessores,
+  matches: rawMatches,
   startDate,
   endDate,
   onResetToDefaults,
@@ -88,9 +88,95 @@ export default function ReportsSection({
   const [exportAuditLogs, setExportAuditLogs] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
 
-  const oneOnOneLogs = useAppStore(state => state.oneOnOneLogs);
-  const auditLogs = useAppStore(state => state.auditLogs);
+  // Team Selection and Date Interval Filters
+  const [selectedTeam, setSelectedTeam] = useState<string>('todos');
+  const [startDateFilter, setStartDateFilter] = useState<string>(startDate || '2026-06-01');
+  const [endDateFilter, setEndDateFilter] = useState<string>(endDate || '2026-06-30');
+
+  // Dynamic set of teams calculated directly from incoming SDRs and Assessores records
+  const teams = React.useMemo(() => {
+    const tSet = new Set<string>();
+    rawSdrs.forEach(s => { if (s.team) tSet.add(s.team); });
+    rawAssessores.forEach(a => { if (a.team) tSet.add(a.team); });
+    tSet.add('Equipe Alpha');
+    tSet.add('Equipe Beta');
+    tSet.add('Equipe Delta');
+    tSet.add('Equipe do Caio');
+    return Array.from(tSet).sort();
+  }, [rawSdrs, rawAssessores]);
+
+  // Derived filtered collections referenced downstream smoothly using the same names
+  const sdrs = React.useMemo(() => {
+    return rawSdrs.filter(s => selectedTeam === 'todos' || s.team === selectedTeam) || [];
+  }, [rawSdrs, selectedTeam]);
+
+  const assessores = React.useMemo(() => {
+    return rawAssessores.filter(a => selectedTeam === 'todos' || a.team === selectedTeam) || [];
+  }, [rawAssessores, selectedTeam]);
+
+  const matches = React.useMemo(() => {
+    return rawMatches.filter(m => {
+      const sdrObj = rawSdrs.find(s => s.id === m.sdrId || s.name === m.sdrName);
+      const assessorObj = rawAssessores.find(a => a.id === m.assessorId || a.name === m.assessorName);
+      const teamMatchSdr = sdrObj && (selectedTeam === 'todos' || sdrObj.team === selectedTeam);
+      const teamMatchAssessor = assessorObj && (selectedTeam === 'todos' || assessorObj.team === selectedTeam);
+      return teamMatchSdr || teamMatchAssessor;
+    }) || [];
+  }, [rawMatches, rawSdrs, rawAssessores, selectedTeam]);
+
+  // Get raw records because the PDF and display calculations will use these hook-bound objects
+  const rawOneOnOneLogs = useAppStore(state => state.oneOnOneLogs) || [];
+  const rawAuditLogs = useAppStore(state => state.auditLogs) || [];
   const teamGoals = useAppStore(state => state.teamGoals);
+
+  const oneOnOneLogs = React.useMemo(() => {
+    return rawOneOnOneLogs.filter(log => {
+      const sdrObj = rawSdrs.find(s => s.id === log.sdrId || s.name === log.sdrName);
+      const teamMatch = selectedTeam === 'todos' || (sdrObj && sdrObj.team === selectedTeam);
+      const dateStr = log.timestamp.substring(0, 10);
+      return teamMatch && dateStr >= startDateFilter && dateStr <= endDateFilter;
+    }) || [];
+  }, [rawOneOnOneLogs, rawSdrs, selectedTeam, startDateFilter, endDateFilter]);
+
+  const auditLogs = React.useMemo(() => {
+    return rawAuditLogs.filter(log => {
+      const sdrObj = rawSdrs.find(s => s.id === log.sdrId || s.name === log.sdrName);
+      const teamMatch = selectedTeam === 'todos' || (sdrObj && sdrObj.team === selectedTeam);
+      const dateStr = log.timestamp.substring(0, 10);
+      return teamMatch && dateStr >= startDateFilter && dateStr <= endDateFilter;
+    }) || [];
+  }, [rawAuditLogs, rawSdrs, selectedTeam, startDateFilter, endDateFilter]);
+
+  const handlePresetChange = (preset: 'este-mes' | '30-dias' | '3-meses' | 'geral') => {
+    const [yearStr, monthStr] = (currentMonth || '2026-06').split('-');
+    const year = parseInt(yearStr) || 2026;
+    const month = parseInt(monthStr) || 6;
+
+    if (preset === 'este-mes') {
+      const start = `${yearStr}-${monthStr}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+      setStartDateFilter(start);
+      setEndDateFilter(end);
+    } else if (preset === '30-dias') {
+      const lastDay = new Date(year, month, 0).getDate();
+      const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+      const prevDate = new Date(year, month - 1, lastDay - 30);
+      const start = prevDate.toISOString().substring(0, 10);
+      setStartDateFilter(start);
+      setEndDateFilter(end);
+    } else if (preset === '3-meses') {
+      const lastDay = new Date(year, month, 0).getDate();
+      const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+      const prevDate = new Date(year, month - 3, 1);
+      const start = prevDate.toISOString().substring(0, 10);
+      setStartDateFilter(start);
+      setEndDateFilter(end);
+    } else if (preset === 'geral') {
+      setStartDateFilter('2026-01-01');
+      setEndDateFilter('2026-12-31');
+    }
+  };
 
   const handlePrintPdf = async () => {
     setIsPrinting(true);
@@ -455,7 +541,168 @@ export default function ReportsSection({
     }
   };
 
-  const pacing = useProductPacing();
+  const pacing = React.useMemo(() => {
+    const rawNegocios = useAppStore.getState().negocios || [];
+    const filteredNegocios = rawNegocios.filter(n => {
+      const sdrObj = rawSdrs.find(s => s.id === n.sdrId || s.name === n.sdrName);
+      const assessorObj = rawAssessores.find(a => a.id === n.assessorId || a.name === n.assessorName);
+      const teamMatchSdr = sdrObj && (selectedTeam === 'todos' || sdrObj.team === selectedTeam);
+      const teamMatchAssessor = assessorObj && (selectedTeam === 'todos' || assessorObj.team === selectedTeam);
+      
+      if (selectedTeam !== 'todos' && !teamMatchSdr && !teamMatchAssessor) return false;
+
+      const dateStr = n.dataFechamento ? n.dataFechamento.substring(0, 10) : n.dataCriacaoLead ? n.dataCriacaoLead.substring(0, 10) : '';
+      if (!dateStr) return false;
+      return dateStr >= startDateFilter && dateStr <= endDateFilter;
+    });
+
+    const categories: ProductType[] = [
+      'INVESTIMENTOS_XP', 'OPERACAO_COMPROMISSADA', 'CAMBIO', 'PREVIDENCIA',
+      'SEGURO_VIDA', 'SEGURO_EM_VIDA', 'RESPONSABILIDADE_CIVIL',
+      'CONSORCIO_IMOBILIARIO', 'CONSORCIO_AUTOMOTIVO', 'SUCESSAO_PATRIMONIAL', 'CONTABILIDADE'
+    ];
+
+    const statsMap: Record<ProductType, { totalDays: number; count: number; totalVolume: number; totalRevenue: number }> = {} as any;
+    categories.forEach(cat => { statsMap[cat] = { totalDays: 0, count: 0, totalVolume: 0, totalRevenue: 0 }; });
+
+    filteredNegocios.forEach(n => {
+      if (n.status === 'GANHO') {
+        const hasProducts = n.produtos && n.produtos.length > 0;
+        let diffDays = 0;
+        if (n.dataCriacaoLead && n.dataFechamento) {
+          const createDate = new Date(n.dataCriacaoLead);
+          const closeDate = new Date(n.dataFechamento);
+          diffDays = Math.ceil((closeDate.getTime() - createDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+        }
+        if (hasProducts) {
+          const prodCount = n.produtos!.length;
+          n.produtos!.forEach(p => {
+            if (statsMap[p.produtoCategoria]) {
+              const entry = statsMap[p.produtoCategoria];
+              entry.totalVolume += (n.volumeFinanceiro || 0) / prodCount;
+              entry.totalRevenue += p.receitaEstimada || 0;
+              entry.count += 1;
+              if (diffDays > 0) entry.totalDays += diffDays;
+            }
+          });
+        } else {
+          if (statsMap[n.produtoCategoria]) {
+            const entry = statsMap[n.produtoCategoria];
+            entry.totalVolume += n.volumeFinanceiro || 0;
+            entry.totalRevenue += n.receitaEstimada || 0;
+            entry.count += 1;
+            if (diffDays > 0) entry.totalDays += diffDays;
+          }
+        }
+      }
+    });
+
+    const productStats = categories.map(cat => {
+      const item = statsMap[cat];
+      return {
+        category: cat,
+        averageCycleDays: item.count > 0 ? Math.round(item.totalDays / item.count) : 0,
+        totalVolume: item.totalVolume,
+        totalRevenue: item.totalRevenue,
+        dealCount: item.count,
+      };
+    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    const sdrMap: Record<string, { sdrName: string; totalRevenue: number; totalVolume: number; closedCount: number; totalDays: number }> = {};
+    filteredNegocios.forEach(n => {
+      if (n.status === 'GANHO') {
+        const sdrKey = n.sdrId || 'unassigned';
+        const sdrName = n.sdrName || 'Sem SDR / Direto';
+        if (!sdrMap[sdrKey]) sdrMap[sdrKey] = { sdrName, totalRevenue: 0, totalVolume: 0, closedCount: 0, totalDays: 0 };
+        const entry = sdrMap[sdrKey];
+        entry.totalRevenue += n.receitaEstimada || 0;
+        entry.totalVolume += n.volumeFinanceiro || 0;
+        entry.closedCount += 1;
+        if (n.dataCriacaoLead && n.dataFechamento) {
+          const diffDays = Math.ceil((new Date(n.dataFechamento).getTime() - new Date(n.dataCriacaoLead).getTime()) / (1000 * 60 * 60 * 24)) || 1;
+          entry.totalDays += diffDays;
+        }
+      }
+    });
+
+    const sdrRoiRanking = Object.keys(sdrMap).map(key => {
+      const item = sdrMap[key];
+      return {
+        sdrId: key,
+        sdrName: item.sdrName,
+        totalRevenue: item.totalRevenue,
+        totalVolume: item.totalVolume,
+        closedCount: item.closedCount,
+        averageCycleDays: item.closedCount > 0 ? Math.round(item.totalDays / item.closedCount) : 0,
+      };
+    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    const wonCount = filteredNegocios.filter(n => n.status === 'GANHO').length;
+    const totalVolume = filteredNegocios.filter(n => n.status === 'GANHO').reduce((sum, n) => sum + (n.volumeFinanceiro || 0), 0);
+    const totalRevenue = filteredNegocios.filter(n => n.status === 'GANHO').reduce((sum, n) => sum + (n.receitaEstimada || 0), 0);
+
+    let totalClosedDays = 0;
+    let closedWithDatesCount = 0;
+    filteredNegocios.forEach(n => {
+      if (n.status === 'GANHO' && n.dataCriacaoLead && n.dataFechamento) {
+        const diffDays = Math.ceil((new Date(n.dataFechamento).getTime() - new Date(n.dataCriacaoLead).getTime()) / (1000 * 60 * 60 * 24)) || 1;
+        totalClosedDays += diffDays;
+        closedWithDatesCount += 1;
+      }
+    });
+    const avgSalesCycleGlobal = closedWithDatesCount > 0 ? Math.round(totalClosedDays / closedWithDatesCount) : 0;
+
+    // Cohort Matrix Calculation (Lead Creation Month vs Closing Month)
+    const cells: Record<string, Record<string, { creationMonth: string; closingMonth: string; volume: number; revenue: number; count: number }>> = {};
+    const creationMonthsSet = new Set<string>();
+    const closingMonthsSet = new Set<string>();
+
+    filteredNegocios.forEach((n) => {
+      if (n.status === 'GANHO' && n.dataCriacaoLead && n.dataFechamento) {
+        const creationM = n.dataCriacaoLead.substring(0, 7); // e.g. "2026-03"
+        const closingM = n.dataFechamento.substring(0, 7);   // e.g. "2026-05"
+
+        creationMonthsSet.add(creationM);
+        closingMonthsSet.add(closingM);
+
+        if (!cells[creationM]) {
+          cells[creationM] = {};
+        }
+
+        if (!cells[creationM][closingM]) {
+          cells[creationM][closingM] = {
+            creationMonth: creationM,
+            closingMonth: closingM,
+            volume: 0,
+            revenue: 0,
+            count: 0
+          };
+        }
+
+        const cell = cells[creationM][closingM];
+        cell.volume += n.volumeFinanceiro || 0;
+        cell.revenue += n.receitaEstimada || 0;
+        cell.count += 1;
+      }
+    });
+
+    const creationMonths = Array.from(creationMonthsSet).sort();
+    const closingMonths = Array.from(closingMonthsSet).sort();
+
+    const cohortMatrix = {
+      creationMonths,
+      closingMonths,
+      cells,
+    };
+
+    return {
+      productStats,
+      sdrRoiRanking,
+      summary: { wonCount, totalVolume, totalRevenue, avgSalesCycleGlobal },
+      negocios: filteredNegocios,
+      cohortMatrix,
+    };
+  }, [rawSdrs, rawAssessores, selectedTeam, startDateFilter, endDateFilter]);
   const addNegocio = useAppStore(state => state.addNegocio);
   const deleteNegocio = useAppStore(state => state.deleteNegocio);
   const updateNegocio = useAppStore(state => state.updateNegocio);
@@ -1223,6 +1470,104 @@ export default function ReportsSection({
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             Inteligência de Performance
+          </button>
+        </div>
+      </div>
+
+      {/* Painel de Filtros Exclusivo de Equipe e Intervalo de Consulta */}
+      <div className="bg-white dark:bg-[#121318] border-2 border-neutral-900 dark:border-neutral-700 p-5 rounded-2xl space-y-4">
+        <div className="flex items-center gap-2 border-b border-neutral-150 pb-2">
+          <Filter className="w-4 h-4 text-neutral-800 dark:text-neutral-300" />
+          <h3 className="text-xs font-black uppercase text-neutral-900 dark:text-white tracking-wider">
+            Painel de Filtros e Intervalo de Consulta
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Seletor de Equipe */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-500 block">
+              Filtrar por Equipe / Time
+            </label>
+            <div className="relative">
+              <select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+                className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs hover:bg-white dark:hover:bg-neutral-850 transition"
+              >
+                <option value="todos">🌟 Todos os Times (Geral)</option>
+                {teams.map((tName) => (
+                  <option key={tName} value={tName}>
+                    👥 {tName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Data Inicial */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-500 block">
+              Data de Início do Período
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={startDateFilter}
+                onChange={(e) => setStartDateFilter(e.target.value)}
+                className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs"
+              />
+            </div>
+          </div>
+
+          {/* Data Final */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-500 block">
+              Data de Término do Período
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={endDateFilter}
+                onChange={(e) => setEndDateFilter(e.target.value)}
+                className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Shortcuts for intervals */}
+        <div className="pt-2 border-t border-dashed border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-widest mr-2">
+            Atalhos rápidos de período:
+          </span>
+          <button
+            onClick={() => handlePresetChange('este-mes')}
+            className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all border cursor-pointer ${
+              startDateFilter.substring(5, 7) === currentMonth.split('-')[1] && startDateFilter.substring(8, 10) === '01'
+                ? 'bg-neutral-900 text-white border-neutral-900'
+                : 'bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-150 text-neutral-700 dark:text-neutral-300 border-neutral-250 dark:border-neutral-700'
+            }`}
+          >
+            🗓️ Este Mês ({currentMonth})
+          </button>
+          <button
+            onClick={() => handlePresetChange('30-dias')}
+            className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-150 text-neutral-700 dark:text-neutral-300 border border-neutral-250 dark:border-neutral-700 cursor-pointer transition"
+          >
+            ⏱️ Últimos 30 dias
+          </button>
+          <button
+            onClick={() => handlePresetChange('3-meses')}
+            className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-150 text-neutral-700 dark:text-neutral-300 border border-neutral-250 dark:border-neutral-700 cursor-pointer transition"
+          >
+            📊 Últimos 3 meses
+          </button>
+          <button
+            onClick={() => handlePresetChange('geral')}
+            className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-150 text-neutral-700 dark:text-neutral-300 border border-neutral-250 dark:border-neutral-700 cursor-pointer transition"
+          >
+            🌍 Todo o Período
           </button>
         </div>
       </div>
