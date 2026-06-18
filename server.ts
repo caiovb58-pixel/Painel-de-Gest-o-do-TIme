@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import fs from "fs";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -342,7 +343,6 @@ O profissional foi classificado como **${profileReadable}** com base na análise
 // ========================================================
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
-import fs from "fs";
 
 let firebaseConfig: any = null;
 let firestoreDb: any = null;
@@ -714,11 +714,23 @@ app.post("/api/db/save", async (req, res) => {
 
 // 3. STORAGE CONNECTION STATUS ENQUIRY ENDPOINT
 app.get("/api/db/status", (req, res) => {
+  const hostIdentifier = firebaseConfig 
+    ? `${firebaseConfig.projectId || ""}-${firebaseConfig.authDomain || "default-cluster"}`
+    : "local-sqlite-cache-contingency-cluster";
+
+  // Calculate a short, secure hexadecimal connection fingerprint/hash
+  const connectionHash = crypto
+    .createHash("sha256")
+    .update(hostIdentifier)
+    .digest("hex")
+    .slice(0, 16);
+
   res.json({
     ok: isFirestoreConnected,
     databaseConnected: isFirestoreConnected,
     databaseType: "Firebase Cloud Firestore",
     databaseUrl: firebaseConfig?.authDomain || "Default Cluster (thin-eye-bw532)",
+    connectionHash: connectionHash,
     lastError: lastFirestoreError,
     message: isFirestoreConnected 
       ? "O banco de dados de nuvem permanente do Firebase Firestore está ativo, conectado e seguro!" 

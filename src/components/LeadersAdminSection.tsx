@@ -55,7 +55,8 @@ export default function LeadersAdminSection({
   const [formData, setFormData] = useState({
     name: '',
     teamName: '',
-    passcode: ''
+    passcode: '',
+    role: 'leader' as 'admin' | 'leader'
   });
   
   const [titleType, setTitleType] = useState('Líder de SDR');
@@ -66,7 +67,8 @@ export default function LeadersAdminSection({
   const [editFormData, setEditFormData] = useState({
     name: '',
     teamName: '',
-    passcode: ''
+    passcode: '',
+    role: 'leader' as 'admin' | 'leader'
   });
 
   const [editTitleType, setEditTitleType] = useState('Líder de SDR');
@@ -99,14 +101,16 @@ export default function LeadersAdminSection({
       name: formData.name.trim(),
       teamName: formData.teamName.trim(),
       leaderTitle: resolvedTitle,
-      passcode: formData.passcode.trim()
+      passcode: formData.passcode.trim(),
+      role: formData.role
     });
 
     // Clear form
     setFormData({
       name: '',
       teamName: '',
-      passcode: ''
+      passcode: '',
+      role: 'leader'
     });
     setCustomTitle('');
     setTitleType('Líder de SDR');
@@ -117,7 +121,8 @@ export default function LeadersAdminSection({
     setEditFormData({
       name: leader.name,
       teamName: leader.teamName,
-      passcode: leader.passcode
+      passcode: leader.passcode,
+      role: leader.role || 'leader'
     });
 
     if (PREDEFINED_TITLES.includes(leader.leaderTitle)) {
@@ -148,7 +153,8 @@ export default function LeadersAdminSection({
       name: editFormData.name.trim(),
       teamName: editFormData.teamName.trim(),
       leaderTitle: resolvedTitle,
-      passcode: editFormData.passcode.trim()
+      passcode: editFormData.passcode.trim(),
+      role: editFormData.role
     });
 
     setEditingId(null);
@@ -329,6 +335,19 @@ export default function LeadersAdminSection({
               </div>
             </div>
 
+            <div className="flex items-center gap-2 pt-1 pb-1">
+              <input
+                type="checkbox"
+                id={`edit-is-admin-${l.id}`}
+                checked={editFormData.role === 'admin'}
+                onChange={e => setEditFormData(prev => ({ ...prev, role: e.target.checked ? 'admin' : 'leader' }))}
+                className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900 cursor-pointer accent-[#f59e0b]"
+              />
+              <label htmlFor={`edit-is-admin-${l.id}`} className="text-[10px] font-black uppercase text-neutral-800 tracking-wider cursor-pointer">
+                Atribuir Permissões de Administrador (Admin)
+              </label>
+            </div>
+
             <div className="flex gap-2 justify-end pt-1">
               <button
                 onClick={() => setEditingId(null)}
@@ -355,6 +374,11 @@ export default function LeadersAdminSection({
                 <span className="text-[9px] bg-black text-brand-sand font-black px-1.5 py-0.5 rounded leading-none">
                   {l.teamName}
                 </span>
+                {(l.role === 'admin' || l.name?.toLowerCase() === 'caio') && (
+                  <span className="text-[9px] bg-amber-50 border border-amber-250 text-amber-700 font-black px-1.5 py-0.5 rounded leading-none flex items-center gap-0.5 uppercase tracking-wider">
+                    <Shield className="w-2.5 h-2.5 text-amber-600" /> Admin
+                  </span>
+                )}
               </div>
               
               <p className="text-[10px] font-medium text-neutral-500 font-sans">
@@ -524,6 +548,19 @@ export default function LeadersAdminSection({
                 />
                 <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-3" />
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1 pb-1">
+              <input
+                type="checkbox"
+                id="add-is-admin"
+                checked={formData.role === 'admin'}
+                onChange={e => setFormData(prev => ({ ...prev, role: e.target.checked ? 'admin' : 'leader' }))}
+                className="w-4 h-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900 cursor-pointer accent-[#f59e0b]"
+              />
+              <label htmlFor="add-is-admin" className="text-[10px] font-black uppercase text-neutral-800 tracking-wider cursor-pointer">
+                Conceder privilégios de Administrador (Admin)
+              </label>
             </div>
 
             <button

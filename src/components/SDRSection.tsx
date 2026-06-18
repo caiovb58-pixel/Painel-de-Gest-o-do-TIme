@@ -559,6 +559,13 @@ export default function SDRSection({
   const [promotingSdrId, setPromotingSdrId] = useState<string | null>(null);
   const [promotingAgendaLink, setPromotingAgendaLink] = useState('');
   const [promotingRotation, setPromotingRotation] = useState(true);
+  const [promotingRoleType, setPromotingRoleType] = useState<'assessor' | 'consultor'>('assessor');
+
+  // Editing existing promotion states
+  const [editingPromotionSdrId, setEditingPromotionSdrId] = useState<string | null>(null);
+  const [editingPromotionDate, setEditingPromotionDate] = useState('');
+  const [editingPromotionTeam, setEditingPromotionTeam] = useState('');
+  const [editingPromotionRoleType, setEditingPromotionRoleType] = useState<'assessor' | 'consultor'>('assessor');
 
   // Local editing states for Team Goals
   const [isEditingTeamGoals, setIsEditingTeamGoals] = useState(false);
@@ -2040,41 +2047,137 @@ export default function SDRSection({
 
           {/* Promoted SDRs Rollback Section */}
           {sdrs.some(s => s.promotedToAssessor) && (
-            <div className="bg-white border border-neutral-250 p-6 rounded-2xl mt-10 space-y-4 shadow-3xs">
-              <div className="flex items-center gap-2">
+            <div className="bg-white border border-neutral-250 p-6 rounded-2xl mt-10 space-y-4 shadow-3xs text-left">
+              <div className="flex items-center gap-2 text-left">
                 <Crown className="w-5 h-5 text-amber-500 animate-pulse" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 tracking-tight">SDRs Promovidos a Assessor de Negócios</h3>
-                  <p className="text-xs text-neutral-500">Mapeamento histórico de SDRs que subiram de cargo. Se você errou ou deseja reverter a promoção, clique no botão para restabelecê-lo como SDR ativo.</p>
+                <div className="text-left">
+                  <h3 className="text-sm font-bold text-neutral-900 tracking-tight">SDRs Promovidos (Assessores / Consultores)</h3>
+                  <p className="text-xs text-neutral-500">Mapeamento histórico de SDRs que subiram de cargo. Se você errou ou deseja ajustar a promoção (data, equipe ou cargo), use as opções abaixo.</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-sans">
-                {sdrs.filter(s => s.promotedToAssessor).map(s => (
-                  <div key={s.id} className="border border-neutral-200 bg-neutral-50 px-4 py-3.5 rounded-lg flex flex-col justify-between gap-3 text-xs">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-start">
-                        <strong className="text-sm font-bold text-neutral-900">{s.name}</strong>
-                        <span className="text-[9px] font-bold text-neutral-450 uppercase">{s.team || 'Sem Equipe'}</span>
-                      </div>
-                      <p className="text-[10px] text-neutral-500">
-                        Promovido em: <strong className="text-neutral-700 font-semibold">{s.promotedDate ? formatDate(s.promotedDate) : 'Recente'}</strong>
-                      </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-sans text-left">
+                {sdrs.filter(s => s.promotedToAssessor).map(s => {
+                  const companion = (assessores || []).find(a => a.exclusiveSdrId === s.id);
+                  const isEditingThis = editingPromotionSdrId === s.id;
+
+                  return (
+                    <div key={s.id} className="border border-neutral-200 bg-neutral-50 px-4 py-3.5 rounded-lg flex flex-col justify-between gap-3 text-xs text-left">
+                      {isEditingThis ? (
+                        <div className="space-y-3 text-left">
+                          <div className="flex justify-between items-center pb-2 border-b border-neutral-150">
+                            <strong className="text-xs font-bold text-neutral-900">Ajustar: {s.name}</strong>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Data de Promoção</label>
+                            <input
+                              type="date"
+                              value={editingPromotionDate}
+                              onChange={e => setEditingPromotionDate(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white border border-neutral-300 rounded text-xs focus:ring-1 focus:ring-neutral-900 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Cargo Vinculado</label>
+                            <select
+                              value={editingPromotionRoleType}
+                              onChange={e => setEditingPromotionRoleType(e.target.value as 'assessor' | 'consultor')}
+                              className="w-full px-2 py-1.5 bg-white border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                            >
+                              <option value="assessor">Assessor (Fechamento)</option>
+                              <option value="consultor">Consultor</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Equipe Vinculada</label>
+                            <select
+                              value={editingPromotionTeam}
+                              onChange={e => setEditingPromotionTeam(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                            >
+                              <option value="Equipe Alpha">Equipe Alpha</option>
+                              <option value="Equipe Beta">Equipe Beta</option>
+                              <option value="Equipe Delta">Equipe Delta</option>
+                            </select>
+                          </div>
+
+                          <div className="flex gap-2 pt-2 border-t border-neutral-150">
+                            <button
+                              type="button"
+                              onClick={() => setEditingPromotionSdrId(null)}
+                              className="flex-1 py-1 bg-neutral-100 hover:bg-neutral-200 border border-neutral-250 rounded text-[10px] font-bold text-neutral-600 uppercase"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onUpdateSDR) {
+                                  onUpdateSDR(s.id, {
+                                    promotedDate: editingPromotionDate,
+                                    team: editingPromotionTeam
+                                  });
+                                }
+                                if (onUpdateAssessor && companion) {
+                                  onUpdateAssessor(companion.id, {
+                                    team: editingPromotionTeam,
+                                    roleType: editingPromotionRoleType
+                                  });
+                                }
+                                setEditingPromotionSdrId(null);
+                              }}
+                              className="flex-1 py-1 bg-black hover:bg-neutral-900 rounded text-[10px] font-bold text-white uppercase"
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col justify-between h-full gap-3 text-left">
+                          <div className="space-y-1 text-left">
+                            <div className="flex justify-between items-start">
+                              <strong className="text-sm font-bold text-neutral-900">{s.name}</strong>
+                              <span className="text-[9px] font-bold text-neutral-450 uppercase">{companion?.team || s.team || 'Sem Equipe'}</span>
+                            </div>
+                            <div className="text-[10px] text-neutral-500 space-y-0.5">
+                              <p>Cargo: <strong className="text-neutral-700 capitalize">{companion?.roleType || 'assessor'}</strong></p>
+                              <p>Data: <strong className="text-neutral-700 font-semibold">{s.promotedDate ? formatDate(s.promotedDate) : 'Não editada'}</strong></p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingPromotionSdrId(s.id);
+                                setEditingPromotionDate(s.promotedDate || new Date().toISOString().substring(0, 10));
+                                setEditingPromotionTeam(companion?.team || s.team || 'Equipe Alpha');
+                                setEditingPromotionRoleType(companion?.roleType || 'assessor');
+                              }}
+                              className="flex-1 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded text-[10px] font-bold uppercase text-neutral-700 flex items-center justify-center gap-1 transition-all"
+                            >
+                              <Edit2 className="w-3 h-3 text-neutral-600" /> Editar Ficha
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Deseja desfazer a promoção de ${s.name}? Ele voltará ao rodízio de SDRs e o Assessor correspondente será removido.`)) {
+                                  onRevertPromotion?.(s.id);
+                                }
+                              }}
+                              className="flex-1 py-1.5 bg-white hover:bg-red-50 hover:text-red-700 hover:border-red-300 border border-neutral-300 rounded text-[10px] font-bold uppercase text-neutral-700 flex items-center justify-center gap-1 transition-all"
+                            >
+                              <RefreshCw className="w-3 h-3 text-neutral-600" /> Reverter
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(`Deseja desfazer a promoção de ${s.name}? Ele voltará ao rodízio de SDRs e o Assessor correspondente será removido.`)) {
-                          onRevertPromotion?.(s.id);
-                        }
-                      }}
-                      className="w-full py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded-md text-[10px] font-black uppercase text-neutral-750 flex items-center justify-center gap-1.5 transition-all"
-                    >
-                      <RefreshCw className="w-3 h-3 text-neutral-600 animate-spin" style={{ animationDuration: '4s' }} /> Corrigir e Reverter Promoção
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2607,14 +2710,26 @@ export default function SDRSection({
                   <p><strong>A transição estipula as seguintes regras:</strong></p>
                   <ul className="list-disc list-inside space-y-0.5 text-[10px] text-amber-800">
                     <li>O SDR será marcado como <strong>promovido</strong> e desativado da lista de SDRs ativos.</li>
-                    <li>Um novo registro de Assessor será criado com as metas de rodízio configuradas.</li>
-                    <li>Todo o histórico de conquistas do SDR continuará salvo nos registros mensais.</li>
+                    <li>Um novo registro de Assessor/Consultor será criado com as metas configuradas.</li>
+                    <li>O perfil será transferido e manterá a foto de identificação integrada.</li>
                   </ul>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Equipe de Assessores Alvo</label>
+                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Cargo de Destino</label>
+                    <select
+                      value={promotingRoleType}
+                      onChange={e => setPromotingRoleType(e.target.value as 'assessor' | 'consultor')}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold focus:outline-none"
+                    >
+                      <option value="assessor">Assessor (Fechamento)</option>
+                      <option value="consultor">Consultor</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Equipe Alvo</label>
                     <select
                       value={editTeam}
                       onChange={e => setEditTeam(e.target.value)}
@@ -2627,7 +2742,7 @@ export default function SDRSection({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Calendly / Agenda do Novo Assessor</label>
+                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Calendly / Agenda do Novo {promotingRoleType === 'consultor' ? 'Consultor' : 'Assessor'}</label>
                     <input
                       type="url"
                       placeholder="Ex: https://calendly.com/... ou link de reuniões"
@@ -2676,6 +2791,8 @@ export default function SDRSection({
                           team: editTeam,
                           participatesInRotation: promotingRotation,
                           exclusiveSdrId: sdr.id,
+                          photo: sdr.photo,
+                          roleType: promotingRoleType,
                         });
 
                         onUpdateSDR(sdr.id, {
@@ -2685,7 +2802,7 @@ export default function SDRSection({
                         });
 
                         setPromotingSdrId(null);
-                        alert(`Parabéns! ${sdr.name} foi promovido(a) a Assessor(a) com sucesso!`);
+                        alert(`Parabéns! ${sdr.name} foi promovido(a) a ${promotingRoleType === 'consultor' ? 'Consultor(a)' : 'Assessor(a)'} com sucesso!`);
                       }
                     }}
                     className="flex-1 py-1.5 bg-black hover:bg-neutral-900 rounded-lg text-xs font-black text-white uppercase tracking-tight flex items-center justify-center gap-1.5"

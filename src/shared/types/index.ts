@@ -130,7 +130,8 @@ export const TeamLeaderSchema = z.object({
   leaderTitle: z.string(),
   passcode: z.string(),
   name: z.string(),
-  photo: z.string().optional()
+  photo: z.string().optional(),
+  role: z.enum(['admin', 'leader']).optional()
 });
 
 export const MatchResultSchema = z.object({

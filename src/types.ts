@@ -98,6 +98,7 @@ export interface TeamLeader {
   passcode: string;
   name: string;
   photo?: string;
+  role?: 'admin' | 'leader';
 }
 
 export interface MatchResult {

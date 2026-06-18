@@ -212,26 +212,57 @@ export default function App() {
     lastError?: string | null;
   } | null>(null);
 
-  // Automatic Background Synchronization with Neon/Local-Cache on mount
+  const [lastSyncTime, setLastSyncTime] = React.useState<Date>(new Date());
+  const [isSyncing, setIsSyncing] = React.useState<boolean>(false);
+
+  // Automatic Background Synchronization with Firebase Cloud Firestore on mount and polling every 12s
   React.useEffect(() => {
-    syncFromSupabase()
-      .then((res) => {
+    const runSync = async () => {
+      setIsSyncing(true);
+      try {
+        const res = await syncFromSupabase();
+        
+        // Fetch absolute database status and connection metadata
+        const statusRes = await fetch("/api/db/status");
+        const statusData = await statusRes.json();
+        setDbStatus(statusData);
+
         if (res.success) {
-          console.log(`[Database Auto-Sync] Sincronização inicial concluída com sucesso: ${res.message}`);
+          setLastSyncTime(new Date());
+          console.log(`[Database Auto-Sync] Sincronização concluída com sucesso: ${res.message}`);
+          console.info(`[Database Connection INFO] Conectado e ativo na nuvem. Endpoint/Host: ${statusData.databaseUrl} (Fingerprint: ${statusData.connectionHash || 'n/a'})`);
         } else {
           console.warn(`[Database Auto-Sync] Aviso: ${res.message}`);
+          console.warn(`[Database Connection INFO] Modo contingência/offline. Endpoint/Host: ${statusData.databaseUrl} (Fingerprint: ${statusData.connectionHash || 'n/a'})`);
         }
-      })
-      .catch((err) => {
-        console.error('[Database Auto-Sync] Erro inesperado durante a carga inicial:', err);
-      });
+      } catch (err: any) {
+        console.error('[Database Auto-Sync] Erro inesperado durante sincronização:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    // Run initial sync
+    runSync();
 
     // Query server configuration and status
     fetch("/api/db/status")
       .then(res => res.json())
-      .then(info => setDbStatus(info))
-      .catch(err => console.error("Erro consultando status do Neon DB:", err));
-  }, [syncFromSupabase]);
+      .then(info => {
+        setDbStatus(info);
+        console.info(`[Database Init Connection INFO] Firebase Cloud Firestore ativo com host/cluster: ${info.databaseUrl} (Fingerprint único: ${info.connectionHash || 'n/a'})`);
+      })
+      .catch(err => console.error("Erro consultando status do DB:", err));
+
+    // Setup background interval polling when tab is active and user is logged in
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible' && currentUser) {
+        runSync();
+      }
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [syncFromSupabase, currentUser]);
 
   // Banner state and calculations
   const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
@@ -799,6 +830,45 @@ export default function App() {
                 <div className="px-1.5 py-0.5">SDRs: <span className="text-page-text font-black">{activeSDRsCount}</span></div>
                 <div className="px-1.5 py-0.5 border-l border-page-border">ASSESSORES: <span className="text-page-text font-black">{activeAssessoresCount}</span></div>
               </div>
+
+              {/* Real-time Cloud Firestore Database Sync Indicator */}
+              {currentUser?.role === 'admin' && (
+                <div className="flex items-center gap-2 bg-white border border-page-border px-2.5 py-1.5 rounded-lg shadow-xs text-[9px] font-black uppercase tracking-wider text-page-text-muted">
+                  <span className="relative flex h-2 w-2">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dbStatus?.ok ? 'bg-emerald-400' : 'bg-orange-400'}`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${dbStatus?.ok ? 'bg-emerald-500' : 'bg-orange-500'}`}></span>
+                  </span>
+                  <span className="hidden md:inline font-bold text-neutral-500 text-[8.5px]">Nuvem:</span>
+                  <span className="text-page-text leading-none text-[9.5px]">
+                    {isSyncing ? "Atualizando..." : `Sincronizado: ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsSyncing(true);
+                      const res = await syncFromSupabase();
+                      try {
+                        const statusRes = await fetch("/api/db/status");
+                        const statusData = await statusRes.json();
+                        setDbStatus(statusData);
+                        console.log(`[Database Manual Sync] Sincronização manual concluída.`);
+                        console.info(`[Database Connection INFO] Conectado e ativo na nuvem. Endpoint/Host: ${statusData.databaseUrl} (Fingerprint: ${statusData.connectionHash || 'n/a'})`);
+                      } catch (e: any) {
+                        console.error("Erro ao atualizar status da conexão:", e.message);
+                      }
+                      if (res.success) {
+                        setLastSyncTime(new Date());
+                      }
+                      setIsSyncing(false);
+                    }}
+                    disabled={isSyncing}
+                    className="p-0.5 ml-1 text-neutral-400 hover:text-[#f59e0b] rounded transition cursor-pointer"
+                    title="Forçar sincronização remota agora"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-[#f59e0b]' : ''}`} />
+                  </button>
+                </div>
+              )}
 
               {/* Profile Bubble */}
               <div className="flex items-center gap-2 border-l border-neutral-200 dark:border-neutral-800 pl-3">
