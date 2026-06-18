@@ -71,6 +71,14 @@ export async function authenticateLeaderOnFirebase(leaderId: string, name: strin
     console.log("[Firebase Auth] Authentication successful for leader:", email);
     return cred.user;
   } catch (loginErr: any) {
+    if (loginErr.code === "auth/operation-not-allowed") {
+      console.warn(
+        "[Firebase Auth] ERROR: Email/Password sign-in provider is disabled in this Firebase project. " +
+        "Please go to the Firebase Console -> Authentication -> Sign-in Method, and enable 'Email/Password' to resolve auth/operation-not-allowed."
+      );
+      return null;
+    }
+
     // If user does not exist, or credential fails on first create, register them dynamically on Firebase Auth
     // Firebase auth returns 'auth/user-not-found' when user doesn't exist. Sometimes 'auth/invalid-credential' is returned.
     if (loginErr.code === "auth/user-not-found" || loginErr.code === "auth/invalid-credential") {
@@ -80,6 +88,13 @@ export async function authenticateLeaderOnFirebase(leaderId: string, name: strin
         console.log("[Firebase Auth] Dynamic signup successful for leader:", email);
         return cred.user;
       } catch (signupErr: any) {
+        if (signupErr.code === "auth/operation-not-allowed") {
+          console.warn(
+            "[Firebase Auth] ERROR: Email/Password dynamic signup/sign-in provider is disabled in this Firebase project. " +
+            "Please go to the Firebase Console -> Authentication -> Sign-in Method, and enable 'Email/Password' to resolve auth/operation-not-allowed."
+          );
+          return null;
+        }
         console.error("[Firebase Auth] Error registering leader:", signupErr.message);
         throw signupErr;
       }

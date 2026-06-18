@@ -316,20 +316,10 @@ export function LoginGate({ onLogin, leaders }: LoginGateProps) {
 
             {/* Helper password box */}
             <div className="flex items-center justify-between pt-1">
-              <div className="text-[10px] text-neutral-400 font-medium inline-flex items-center gap-1">
-                <Shield className="w-3 h-3 text-neutral-400" />
-                Acesso Restrito
+              <div className="text-[10px] text-neutral-450 font-semibold inline-flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-neutral-450" />
+                Acesso Restrito ao Sistema
               </div>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  alert('🔒 Chave de Segurança:\nEntre em contato com Caio ou redefina as credenciais diretamente no painel Administrativo.');
-                }}
-                className="text-[10.5px] font-extrabold text-neutral-600 hover:text-neutral-900 transition underline cursor-pointer"
-              >
-                Esqueci minha senha
-              </button>
             </div>
 
             {/* Submit Button */}
