@@ -14,6 +14,7 @@ import AssessorSection from './components/AssessorSection';
 import MatchDashboard from './components/MatchDashboard';
 import ReportsSection from './components/ReportsSection';
 import LeadersAdminSection from './components/LeadersAdminSection';
+import MyTeamSection from './components/MyTeamSection';
 import SyncHistory from './components/SyncHistory';
 import { IndividualProfileModal } from './components/IndividualProfileModal';
 import { signOutLeader } from './lib/firebaseClient';
@@ -681,17 +682,33 @@ export default function App() {
               Favoritos & Módulos
             </div>
 
-            <button
-              onClick={() => { setActiveTab('sdrs'); if (window.innerWidth < 768) setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
-                activeTab === 'sdrs'
-                  ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
-                  : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
-              }`}
-            >
-              <Users className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-              Gestão de Time ({derivedSdrsForActiveMonth.length})
-            </button>
+            {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
+              <button
+                onClick={() => { setActiveTab('team-management'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                  activeTab === 'team-management'
+                    ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                    : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+                }`}
+              >
+                <Users className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Gestão de Time
+              </button>
+            )}
+
+            {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
+              <button
+                onClick={() => { setActiveTab('sdrs'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                  activeTab === 'sdrs'
+                    ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                    : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Previsões SDR (Run-Rate)
+              </button>
+            )}
 
             {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
               <button
@@ -1049,6 +1066,10 @@ export default function App() {
                 onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
               />
             )
+          )}
+
+          {activeTab === 'team-management' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
+            <MyTeamSection />
           )}
 
           {activeTab === 'sdrs' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (

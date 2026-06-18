@@ -3,7 +3,8 @@ import {
   X, User, Phone, Calendar, Briefcase, TrendingUp, Award, 
   Shield, CheckCircle2, Clock, FileText, Upload, Camera, 
   Trash2, Check, DollarSign, BarChart2, Star, Link, ArrowRight,
-  TrendingUp as IconTrending, Activity, PhoneCall, Download
+  TrendingUp as IconTrending, Activity, PhoneCall, Download,
+  Eye, ZoomIn, Lock
 } from 'lucide-react';
 import { 
   ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend
@@ -27,11 +28,13 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
     negocios, 
     updateSDR, 
     updateAssessor,
-    currentMonth
+    currentMonth,
+    currentUser
   } = useAppStore();
 
-  const [activeSubTab, setActiveSubTab] = useState<'resumo' | 'historico_metas' | 'negocios' | 'auditorias' | 'evolucao_graficos'>('resumo');
+  const [activeSubTab, setActiveSubTab] = useState<'resumo' | 'historico_metas' | 'negocios' | 'auditorias' | 'evolucao_graficos' | 'editar_metas'>('resumo');
   const [photoUrlInput, setPhotoUrlInput] = useState('');
+  const [isPhotoZoomed, setIsPhotoZoomed] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +43,143 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
   const assessor = (entityType === 'assessor' || entityType === 'consultor') 
     ? assessores.find(a => a.id === entityId) 
     : null;
+
+  // Editing states for assessor Profile & Goals
+  const [editName, setEditName] = useState('');
+  const [editTeam, setEditTeam] = useState('');
+  const [editRoleType, setEditRoleType] = useState<'assessor' | 'consultor'>('assessor');
+  const [editAdmissionDate, setEditAdmissionDate] = useState('');
+  const [editAgendaLink, setEditAgendaLink] = useState('');
+  const [editProfessionalProfile, setEditProfessionalProfile] = useState('');
+
+  // Primary goals states
+  const [editMetaLigacoes, setEditMetaLigacoes] = useState(0);
+  const [editMetaReunioesAgendadas, setEditMetaReunioesAgendadas] = useState(0);
+  const [editMetaReunioesRealizadas, setEditMetaReunioesRealizadas] = useState(0);
+  const [editMetaContasAbertas, setEditMetaContasAbertas] = useState(0);
+  const [editMetaNet, setEditMetaNet] = useState(0);
+  const [editMetaCrossSell, setEditMetaCrossSell] = useState(0);
+
+  const [editRealizadoLigacoes, setEditRealizadoLigacoes] = useState(0);
+  const [editRealizadoReunioesAgendadas, setEditRealizadoReunioesAgendadas] = useState(0);
+  const [editRealizadoReunioesRealizadas, setEditRealizadoReunioesRealizadas] = useState(0);
+  const [editRealizadoContasAbertas, setEditRealizadoContasAbertas] = useState(0);
+  const [editRealizadoNet, setEditRealizadoNet] = useState(0);
+  const [editRealizadoCrossSell, setEditRealizadoCrossSell] = useState(0);
+
+  // Detailed Cross Sell Goals & Results
+  const [editCrossSellSeguroMeta, setEditCrossSellSeguroMeta] = useState(0);
+  const [editCrossSellSeguroRealizado, setEditCrossSellSeguroRealizado] = useState(0);
+  const [editCrossSellConsorcioMeta, setEditCrossSellConsorcioMeta] = useState(0);
+  const [editCrossSellConsorcioRealizado, setEditCrossSellConsorcioRealizado] = useState(0);
+  const [editCrossSellContabilidadeMeta, setEditCrossSellContabilidadeMeta] = useState(0);
+  const [editCrossSellContabilidadeRealizado, setEditCrossSellContabilidadeRealizado] = useState(0);
+  const [editCrossSellPlanoSaudeMeta, setEditCrossSellPlanoSaudeMeta] = useState(0);
+  const [editCrossSellPlanoSaudeRealizado, setEditCrossSellPlanoSaudeRealizado] = useState(0);
+  const [editCrossSellCambioMeta, setEditCrossSellCambioMeta] = useState(0);
+  const [editCrossSellCambioRealizado, setEditCrossSellCambioRealizado] = useState(0);
+  const [editCrossSellOutrosMeta, setEditCrossSellOutrosMeta] = useState(0);
+  const [editCrossSellOutrosRealizado, setEditCrossSellOutrosRealizado] = useState(0);
+
+  const canEdit = useMemo(() => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    if (currentUser.role === 'leader') {
+      return assessor?.team === currentUser.teamName;
+    }
+    return false;
+  }, [currentUser, assessor]);
+
+  // Synchronize state values from backing store object on selection change
+  React.useEffect(() => {
+    if (assessor) {
+      setEditName(assessor.name || '');
+      setEditTeam(assessor.team || '');
+      setEditRoleType(assessor.roleType || 'assessor');
+      setEditAdmissionDate(assessor.admissionDate || '');
+      setEditAgendaLink(assessor.agendaLink || '');
+      setEditProfessionalProfile(assessor.professionalProfile || 'Comercial');
+
+      setEditMetaLigacoes(assessor.metaLigacoes || 0);
+      setEditMetaReunioesAgendadas(assessor.metaReunioesAgendadas || 0);
+      setEditMetaReunioesRealizadas(assessor.metaReunioesRealizadas || 0);
+      setEditMetaContasAbertas(assessor.metaContasAbertas || 0);
+      setEditMetaNet(assessor.metaNet || 0);
+      setEditMetaCrossSell(assessor.metaCrossSell || 0);
+
+      setEditRealizadoLigacoes(assessor.realizadoLigacoes || 0);
+      setEditRealizadoReunioesAgendadas(assessor.realizadoReunioesAgendadas || 0);
+      setEditRealizadoReunioesRealizadas(assessor.realizadoReunioesRealizadas || 0);
+      setEditRealizadoContasAbertas(assessor.realizadoContasAbertas || 0);
+      setEditRealizadoNet(assessor.realizadoNet || assessor.captacaoMes || 0);
+      setEditRealizadoCrossSell(assessor.realizadoCrossSell || assessor.crossSellCount || 0);
+
+      setEditCrossSellSeguroMeta(assessor.crossSellSeguroMeta || 0);
+      setEditCrossSellSeguroRealizado(assessor.crossSellSeguroRealizado || 0);
+      setEditCrossSellConsorcioMeta(assessor.crossSellConsorcioMeta || 0);
+      setEditCrossSellConsorcioRealizado(assessor.crossSellConsorcioRealizado || 0);
+      setEditCrossSellContabilidadeMeta(assessor.crossSellContabilidadeMeta || 0);
+      setEditCrossSellContabilidadeRealizado(assessor.crossSellContabilidadeRealizado || 0);
+      setEditCrossSellPlanoSaudeMeta(assessor.crossSellPlanoSaudeMeta || 0);
+      setEditCrossSellPlanoSaudeRealizado(assessor.crossSellPlanoSaudeRealizado || 0);
+      setEditCrossSellCambioMeta(assessor.crossSellCambioMeta || 0);
+      setEditCrossSellCambioRealizado(assessor.crossSellCambioRealizado || 0);
+      setEditCrossSellOutrosMeta(assessor.crossSellOutrosMeta || 0);
+      setEditCrossSellOutrosRealizado(assessor.crossSellOutrosRealizado || 0);
+    }
+  }, [assessor]);
+
+  const handleSaveAssessor = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assessor) return;
+
+    updateAssessor(assessor.id, {
+      name: editName.trim(),
+      team: editTeam,
+      roleType: editRoleType,
+      admissionDate: editAdmissionDate,
+      agendaLink: editAgendaLink.trim(),
+      professionalProfile: editProfessionalProfile,
+
+      metaLigacoes: Number(editMetaLigacoes),
+      metaReunioesAgendadas: Number(editMetaReunioesAgendadas),
+      metaReunioesRealizadas: Number(editMetaReunioesRealizadas),
+      metaContasAbertas: Number(editMetaContasAbertas),
+      metaNet: Number(editMetaNet),
+      metaCrossSell: Number(editMetaCrossSell),
+
+      realizadoLigacoes: Number(editRealizadoLigacoes),
+      realizadoReunioesAgendadas: Number(editRealizadoReunioesAgendadas),
+      realizadoReunioesRealizadas: Number(editRealizadoReunioesRealizadas),
+      realizadoContasAbertas: Number(editRealizadoContasAbertas),
+      realizadoNet: Number(editRealizadoNet),
+      realizadoCrossSell: Number(editRealizadoCrossSell),
+
+      crossSellSeguroMeta: Number(editCrossSellSeguroMeta),
+      crossSellSeguroRealizado: Number(editCrossSellSeguroRealizado),
+      crossSellConsorcioMeta: Number(editCrossSellConsorcioMeta),
+      crossSellConsorcioRealizado: Number(editCrossSellConsorcioRealizado),
+      crossSellContabilidadeMeta: Number(editCrossSellContabilidadeMeta),
+      crossSellContabilidadeRealizado: Number(editCrossSellContabilidadeRealizado),
+      crossSellPlanoSaudeMeta: Number(editCrossSellPlanoSaudeMeta),
+      crossSellPlanoSaudeRealizado: Number(editCrossSellPlanoSaudeRealizado),
+      crossSellCambioMeta: Number(editCrossSellCambioMeta),
+      crossSellCambioRealizado: Number(editCrossSellCambioRealizado),
+      crossSellOutrosMeta: Number(editCrossSellOutrosMeta),
+      crossSellOutrosRealizado: Number(editCrossSellOutrosRealizado),
+
+      customMonitorMetrics: [
+        { key: 'ligacoes', name: 'Ligações', target: Number(editMetaLigacoes), real: Number(editRealizadoLigacoes) },
+        { key: 'agendadas', name: 'Reun. Agendadas', target: Number(editMetaReunioesAgendadas), real: Number(editRealizadoReunioesAgendadas) },
+        { key: 'realizadas', name: 'Reuniões Realizadas', target: Number(editMetaReunioesRealizadas), real: Number(editRealizadoReunioesRealizadas) },
+        { key: 'contas_abertas', name: 'Contas Novas', target: Number(editMetaContasAbertas), real: Number(editRealizadoContasAbertas) },
+        { key: 'net', name: 'Captação Líquida (NET)', target: Number(editMetaNet), real: Number(editRealizadoNet) },
+        { key: 'cross_sell', name: 'Qtd. Cross-Sell', target: Number(editMetaCrossSell), real: Number(editRealizadoCrossSell) },
+      ]
+    });
+
+    setActiveSubTab('resumo');
+  };
 
   if (!sdr && !assessor) {
     return (
@@ -63,6 +203,16 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
   const admissionDate = sdr ? sdr.admissionDate : assessor!.admissionDate;
   const professionalProfile = sdr ? sdr.professionalProfile : assessor!.professionalProfile;
   const photo = sdr ? sdr.photo : assessor!.photo;
+
+  const canEditOrDeletePhoto = useMemo(() => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'admin') return true;
+    if (currentUser.role === 'leader') {
+      const entityTeam = sdr ? sdr.team : assessor?.team;
+      return entityTeam === currentUser.teamName;
+    }
+    return false;
+  }, [currentUser, sdr, assessor]);
 
   // Handles standard base64 image uploading with frontend size compression and canvas scaling
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -661,8 +811,12 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
           <div className="p-6 bg-white border-b border-neutral-150 flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
             
             {/* Visual Avatar Container with Custom Photo & base64 Action hooks */}
-            <div className="relative group shrink-0">
-              <div className="w-24 h-24 rounded-2xl bg-neutral-100 border-2 border-neutral-300 overflow-hidden shadow-md flex items-center justify-center relative">
+            <div className="relative group shrink-0 animate-fade-in">
+              <div 
+                className="w-24 h-24 rounded-2xl bg-neutral-100 border-2 border-neutral-300 overflow-hidden shadow-md flex items-center justify-center relative cursor-pointer"
+                onClick={() => setIsPhotoZoomed(true)}
+                title="Visualizar foto ampliada"
+              >
                 {photo ? (
                   <img src={photo} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
@@ -674,45 +828,71 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
                   </div>
                 )}
 
-                {/* Overlaid upload trigger */}
-                <button 
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-black uppercase tracking-wider cursor-pointer font-mono"
-                >
-                  <Camera className="w-5 h-5 mb-1 text-white" />
-                  Mudar Foto
-                </button>
-              </div>
-
-              {/* Photo Options actions bar */}
-              <div className="flex justify-center mt-2.5 gap-2">
-                <button 
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-[9.5px] font-black uppercase text-neutral-500 hover:text-black hover:underline cursor-pointer flex items-center gap-1 leading-none"
-                >
-                  <Upload className="w-3.5 h-3.5" /> Enviar Arquivo
-                </button>
-                {photo && (
+                {/* Overlaid upload or zoom trigger */}
+                {canEditOrDeletePhoto ? (
                   <button 
                     type="button"
-                    onClick={handleRemovePhoto}
-                    className="text-[9.5px] font-black uppercase text-red-500 hover:text-red-700 hover:underline cursor-pointer flex items-center gap-1 leading-none border-l border-neutral-300 pl-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-black uppercase tracking-wider cursor-pointer font-mono"
                   >
-                    Excluir
+                    <Camera className="w-5 h-5 mb-1 text-white" />
+                    Mudar Foto
                   </button>
+                ) : (
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-black uppercase tracking-wider cursor-pointer font-mono">
+                    <Eye className="w-5 h-5 mb-1 text-white" />
+                    Ampliar Foto
+                  </div>
                 )}
               </div>
 
+              {/* Photo Options actions bar */}
+              <div className="flex flex-col items-center mt-2.5 gap-2 w-full">
+                <div className="flex justify-center flex-wrap items-center gap-2 text-center w-full">
+                  <button 
+                    type="button"
+                    onClick={() => setIsPhotoZoomed(true)}
+                    className="text-[9.5px] font-black uppercase text-[#d97706] hover:text-[#b45309] hover:underline cursor-pointer flex items-center gap-1 leading-none bg-[#fef3c7] px-2 py-1 rounded border border-[#fde68a]"
+                    title="Ampliar foto em tamanho maior"
+                  >
+                    <ZoomIn className="w-3 .5 h-3.5" /> Ampliar
+                  </button>
+                  {canEditOrDeletePhoto && (
+                    <>
+                      <button 
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[9.5px] font-black uppercase text-neutral-500 hover:text-black hover:underline cursor-pointer flex items-center gap-1 leading-none pl-1"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Enviar
+                      </button>
+                      {photo && (
+                        <button 
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          className="text-[9.5px] font-black uppercase text-red-500 hover:text-red-700 hover:underline cursor-pointer flex items-center gap-1 leading-none border-l border-neutral-300 pl-2"
+                        >
+                          Excluir
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* Input file handler hidden hook */}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handlePhotoUpload} 
-                accept="image/*" 
-                className="hidden" 
-              />
+              {canEditOrDeletePhoto && (
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handlePhotoUpload} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
+              )}
             </div>
 
             {/* General Identity Details Block */}
@@ -753,22 +933,24 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
                 )}
               </div>
 
-              {/* URL photo quick form helper */}
-              <form onSubmit={handleApplyPhotoUrl} className="flex gap-2 max-w-sm mt-3 pt-2 border-t border-neutral-100/80 mx-auto md:mx-0">
-                <input 
-                  type="url" 
-                  placeholder="Ou insira um Link de foto/avatar..."
-                  value={photoUrlInput}
-                  onChange={e => setPhotoUrlInput(e.target.value)}
-                  className="flex-1 px-2.5 py-1 text-[10.5px] border border-neutral-300 rounded bg-neutral-50 text-neutral-800 placeholder-neutral-450 focus:outline-none focus:ring-1 focus:ring-black"
-                />
-                <button 
-                  type="submit" 
-                  className="px-2.5 py-1 bg-black text-white text-[9.5px] font-black uppercase rounded hover:bg-neutral-800 shrink-0 cursor-pointer"
-                >
-                  Ok
-                </button>
-              </form>
+              {/* URL photo quick form helper (Only if allowed to edit) */}
+              {canEditOrDeletePhoto && (
+                <form onSubmit={handleApplyPhotoUrl} className="flex gap-2 max-w-sm mt-3 pt-2 border-t border-neutral-100/80 mx-auto md:mx-0">
+                  <input 
+                    type="url" 
+                    placeholder="Ou insira um Link de foto/avatar..."
+                    value={photoUrlInput}
+                    onChange={e => setPhotoUrlInput(e.target.value)}
+                    className="flex-1 px-2.5 py-1 text-[10.5px] border border-neutral-300 rounded bg-neutral-50 text-neutral-800 placeholder-neutral-450 focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                  <button 
+                    type="submit" 
+                    className="px-2.5 py-1 bg-black text-white text-[9.5px] font-black uppercase rounded hover:bg-neutral-800 shrink-0 cursor-pointer"
+                  >
+                    Ok
+                  </button>
+                </form>
+              )}
               {errorMsg && <p className="text-[10px] text-red-500 font-semibold">{errorMsg}</p>}
             </div>
 
@@ -837,6 +1019,20 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
                 }`}
               >
                 📋 Auditorias & 1On1s ({sdrAuditLogs.length + sdrOneOnOnes.length})
+              </button>
+            )}
+
+            {assessor && (
+              <button 
+                type="button"
+                onClick={() => setActiveSubTab('editar_metas')}
+                className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
+                  activeSubTab === 'editar_metas'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-neutral-400 hover:text-neutral-700'
+                }`}
+              >
+                ⚙️ {canEdit ? 'Editar Ficha & Metas' : 'Visualizar Ficha & Metas'}
               </button>
             )}
           </div>
@@ -1564,6 +1760,459 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
               </div>
             )}
 
+            {/* SUB TAB 6: EDIT AND VIEW PROFILE & METAS FORM PANEL */}
+            {activeSubTab === 'editar_metas' && assessor && (
+              <form onSubmit={handleSaveAssessor} className="space-y-6">
+                {!canEdit && (
+                  <div className="bg-amber-50 border border-amber-250 p-4 rounded-xl flex items-start gap-2.5">
+                    <Lock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-black text-amber-800 uppercase tracking-wide">Modo de Apenas Leitura</h4>
+                      <p className="text-[11px] text-amber-700/90 mt-1 leading-relaxed">
+                        Este profissional pertence à mesa / time <strong className="font-extrabold">{assessor.team || 'Alpha'}</strong>. Como você não faz parte deste time específico, as metas e informações estão bloqueadas para gravação, permitindo apenas a sua visualização detalhada.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 1: Basic Information */}
+                <div className="bg-neutral-50/55 p-5 border border-neutral-200 rounded-xl space-y-4">
+                  <h3 className="text-xs font-black text-neutral-850 uppercase tracking-widest flex items-center gap-1.5 border-b pb-2">
+                    <User className="w-4 h-4 text-neutral-600" />
+                    1. Dados Cadastrais e Profissionais
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                        Nome do Profissional
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!canEdit}
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none focus:ring-1 focus:ring-black"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                        Mesa / Canal
+                      </label>
+                      <select
+                        disabled={!canEdit}
+                        value={editTeam}
+                        onChange={e => setEditTeam(e.target.value)}
+                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none cursor-pointer"
+                      >
+                        <option value="Mesa Inv. Private">Mesa Inv. Private</option>
+                        <option value="Mesa Investimento Wealth">Mesa Investimento Wealth</option>
+                        <option value="Célula Speed Outbound">Célula Speed Outbound</option>
+                        <option value="Célula Speed Inbound">Célula Speed Inbound</option>
+                        <option value="Célula Corporate & FX">Célula Corporate & FX</option>
+                        <option value="Célula Expansão & B2B">Célula Expansão & B2B</option>
+                        <option value="Institucional">Institucional</option>
+                        <option value="Parceiros B2B">Parceiros B2B</option>
+                        <option value="">Sem Equipe</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                        Cargo / Tipo de Função
+                      </label>
+                      <select
+                        disabled={!canEdit}
+                        value={editRoleType}
+                        onChange={e => setEditRoleType(e.target.value as 'assessor' | 'consultor')}
+                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none cursor-pointer"
+                      >
+                        <option value="assessor">Assessor de Investimentos</option>
+                        <option value="consultor">Consultor de Negócios</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                        Data de Admissão
+                      </label>
+                      <input
+                        type="date"
+                        disabled={!canEdit}
+                        value={editAdmissionDate}
+                        onChange={e => setEditAdmissionDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                        Link da Agenda (Calendário)
+                      </label>
+                      <input
+                        type="url"
+                        disabled={!canEdit}
+                        value={editAgendaLink}
+                        onChange={e => setEditAgendaLink(e.target.value)}
+                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-mono font-bold text-neutral-900 focus:outline-none"
+                        placeholder="Ex: https://calendly.com/user"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                        Perfil do Assessor
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!canEdit}
+                        value={editProfessionalProfile}
+                        onChange={e => setEditProfessionalProfile(e.target.value)}
+                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none"
+                        placeholder="Ex: Hunter, Farmer, Closer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Core Goals & actual accomplishments */}
+                <div className="bg-neutral-50/55 p-5 border border-neutral-200 rounded-xl space-y-4">
+                  <h3 className="text-xs font-black text-neutral-850 uppercase tracking-widest flex items-center gap-1.5 border-b pb-2">
+                    <Activity className="w-4 h-4 text-neutral-600" />
+                    2. Metas Operacionais de Funil e Realizados do Mês Ativo
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {/* Linha 1: Ligações */}
+                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
+                      <span className="block text-[10px] font-black text-neutral-500 uppercase">📞 Ligações Telefônicas</span>
+                      <div className="flex gap-2">
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editMetaLigacoes}
+                            onChange={e => setEditMetaLigacoes(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editRealizadoLigacoes}
+                            onChange={e => setEditRealizadoLigacoes(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linha 2: Reuniões Agendadas */}
+                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
+                      <span className="block text-[10px] font-black text-neutral-500 uppercase">📅 Reuniões Agendadas</span>
+                      <div className="flex gap-2">
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editMetaReunioesAgendadas}
+                            onChange={e => setEditMetaReunioesAgendadas(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editRealizadoReunioesAgendadas}
+                            onChange={e => setEditRealizadoReunioesAgendadas(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linha 3: Reuniões Realizadas */}
+                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
+                      <span className="block text-[10px] font-black text-neutral-500 uppercase">🤝 Reuniões Realizadas</span>
+                      <div className="flex gap-2">
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editMetaReunioesRealizadas}
+                            onChange={e => setEditMetaReunioesRealizadas(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editRealizadoReunioesRealizadas}
+                            onChange={e => setEditRealizadoReunioesRealizadas(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linha 4: Contas Abertas */}
+                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
+                      <span className="block text-[10px] font-black text-neutral-500 uppercase">✨ Contas Abertas</span>
+                      <div className="flex gap-2">
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editMetaContasAbertas}
+                            onChange={e => setEditMetaContasAbertas(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editRealizadoContasAbertas}
+                            onChange={e => setEditRealizadoContasAbertas(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linha 5: Net Captação */}
+                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
+                      <span className="block text-[10px] font-black text-neutral-500 uppercase">💸 NET Captação Líquida</span>
+                      <div className="flex gap-2">
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta (R$)</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editMetaNet}
+                            onChange={e => setEditMetaNet(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado (R$)</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editRealizadoNet}
+                            onChange={e => setEditRealizadoNet(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linha 6: Qtd Cross Sell */}
+                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
+                      <span className="block text-[10px] font-black text-neutral-500 uppercase">🛡️ Qtd. Cross-Sell Geral</span>
+                      <div className="flex gap-2">
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editMetaCrossSell}
+                            onChange={e => setEditMetaCrossSell(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                        <div className="w-1/2">
+                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
+                          <input
+                            type="number"
+                            disabled={!canEdit}
+                            value={editRealizadoCrossSell}
+                            onChange={e => setEditRealizadoCrossSell(Number(e.target.value))}
+                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Cross Sell Product Details */}
+                <div className="bg-neutral-50/55 p-5 border border-neutral-200 rounded-xl space-y-4">
+                  <h3 className="text-xs font-black text-neutral-850 uppercase tracking-widest flex items-center gap-1.5 border-b pb-2">
+                    <DollarSign className="w-4 h-4 text-neutral-600" />
+                    3. Metas e Realizados de Produtos Específicos (Cross-Selling)
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                    {/* Seguro */}
+                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
+                      <span className="block text-[9px] font-black text-neutral-600 uppercase">🛡️ Seguro</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellSeguroMeta}
+                          onChange={e => setEditCrossSellSeguroMeta(Number(e.target.value))}
+                          placeholder="Meta"
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellSeguroRealizado}
+                          onChange={e => setEditCrossSellSeguroRealizado(Number(e.target.value))}
+                          placeholder="Real."
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Consórcio */}
+                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
+                      <span className="block text-[9px] font-black text-neutral-600 uppercase">🏢 Consórcio</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellConsorcioMeta}
+                          onChange={e => setEditCrossSellConsorcioMeta(Number(e.target.value))}
+                          placeholder="Meta"
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellConsorcioRealizado}
+                          onChange={e => setEditCrossSellConsorcioRealizado(Number(e.target.value))}
+                          placeholder="Real."
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Contabilidade */}
+                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
+                      <span className="block text-[9px] font-black text-neutral-600 uppercase">📑 Contabilid.</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellContabilidadeMeta}
+                          onChange={e => setEditCrossSellContabilidadeMeta(Number(e.target.value))}
+                          placeholder="Meta"
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellContabilidadeRealizado}
+                          onChange={e => setEditCrossSellContabilidadeRealizado(Number(e.target.value))}
+                          placeholder="Real."
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Plano de Saúde */}
+                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
+                      <span className="block text-[9px] font-black text-neutral-600 uppercase">🩺 P. Saúde</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellPlanoSaudeMeta}
+                          onChange={e => setEditCrossSellPlanoSaudeMeta(Number(e.target.value))}
+                          placeholder="Meta"
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellPlanoSaudeRealizado}
+                          onChange={e => setEditCrossSellPlanoSaudeRealizado(Number(e.target.value))}
+                          placeholder="Real."
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Câmbio */}
+                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
+                      <span className="block text-[9px] font-black text-neutral-600 uppercase">💱 Câmbio</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellCambioMeta}
+                          onChange={e => setEditCrossSellCambioMeta(Number(e.target.value))}
+                          placeholder="Meta"
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellCambioRealizado}
+                          onChange={e => setEditCrossSellCambioRealizado(Number(e.target.value))}
+                          placeholder="Real."
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Outros */}
+                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
+                      <span className="block text-[9px] font-black text-neutral-600 uppercase">📦 Outros</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellOutrosMeta}
+                          onChange={e => setEditCrossSellOutrosMeta(Number(e.target.value))}
+                          placeholder="Meta"
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                        <input
+                          type="number"
+                          disabled={!canEdit}
+                          value={editCrossSellOutrosRealizado}
+                          onChange={e => setEditCrossSellOutrosRealizado(Number(e.target.value))}
+                          placeholder="Real."
+                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {canEdit && (
+                  <div className="flex justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSubTab('resumo')}
+                      className="px-4 py-2 border rounded-lg hover:bg-neutral-100 text-xs font-bold text-neutral-600 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-black hover:bg-neutral-900 text-white text-xs font-black uppercase tracking-wider rounded-lg shadow-sm cursor-pointer"
+                    >
+                      Salvar Alterações
+                    </button>
+                  </div>
+                )}
+              </form>
+            )}
+
           </div>
 
         </div>
@@ -1578,6 +2227,42 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
             Fechar Ficha
           </button>
         </div>
+
+        {/* Contact/Zoom Lightbox Overlay */}
+        {isPhotoZoomed && (
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4"
+            onClick={() => setIsPhotoZoomed(false)}
+          >
+            <div 
+              className="relative max-w-full max-h-full flex flex-col items-center bg-white border border-neutral-300 rounded-2xl p-6 shadow-2xl shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button 
+                type="button"
+                onClick={() => setIsPhotoZoomed(false)}
+                className="absolute top-4 right-4 bg-neutral-900 hover:bg-black text-white p-2 rounded-full cursor-pointer z-10 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="w-80 h-80 sm:w-110 sm:h-110 max-w-[calc(100vw-3rem)] max-h-[calc(100vh-14rem)] bg-neutral-50 rounded-xl overflow-hidden border border-neutral-200 flex items-center justify-center shadow-inner">
+                {photo ? (
+                  <img src={photo} alt={name} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-neutral-400 p-8">
+                    <User className="w-20 h-20 stroke-[1]" />
+                    <p className="text-xs font-black uppercase text-neutral-400 font-mono mt-4">Sem Foto de Perfil</p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 text-center">
+                <p className="text-sm font-black text-neutral-900">{name}</p>
+                <p className="text-[10px] font-mono uppercase text-neutral-550 mt-1">{team || 'Sem Equipe Atribuída'}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -156,6 +156,7 @@ export default function AssessorSection({
   const [expandedPerformanceId, setExpandedPerformanceId] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<'all' | 'assessor' | 'consultor'>('all');
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
+  const [showOnlyMyTeam, setShowOnlyMyTeam] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const activeSDRs = sdrs.filter(s => s.active);
@@ -407,9 +408,13 @@ export default function AssessorSection({
     ? assessores 
     : assessores.filter(a => a.roleType === typeFilter || (!a.roleType && typeFilter === 'assessor'));
 
+  const filteredByMyTeam = (currentUser && currentUser.role === 'leader' && currentUser.teamName && showOnlyMyTeam)
+    ? filteredByRole.filter(a => a.team === currentUser.teamName)
+    : filteredByRole;
+
   const finalFiltered = selectedTeamFilter === 'all'
-    ? filteredByRole
-    : filteredByRole.filter(a => a.team === selectedTeamFilter);
+    ? filteredByMyTeam
+    : filteredByMyTeam.filter(a => a.team === selectedTeamFilter);
 
   // Counts
   const totalAssessores = assessores.filter(a => !a.roleType || a.roleType === 'assessor').length;
@@ -974,6 +979,20 @@ export default function AssessorSection({
             >
               SÓ CONSULTORES ({totalConsultores})
             </button>
+            {currentUser && currentUser.role === 'leader' && currentUser.teamName && (
+              <button
+                type="button"
+                onClick={() => setShowOnlyMyTeam(!showOnlyMyTeam)}
+                className={`ml-1 px-3 py-1 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  showOnlyMyTeam
+                    ? 'bg-amber-100 text-amber-900 shadow-3xs border border-amber-300'
+                    : 'text-neutral-500 hover:text-black border border-transparent'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${showOnlyMyTeam ? 'bg-amber-600 animate-pulse' : 'bg-neutral-450'}`} />
+                Meus Liderados ({currentUser.teamName})
+              </button>
+            )}
           </div>
 
           <div className="h-4 w-px bg-neutral-300 hidden md:block"></div>

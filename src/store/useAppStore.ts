@@ -35,7 +35,7 @@ const DEFAULT_TEAMS = ['Equipe do Caio', 'Equipe Alpha', 'Equipe Beta', 'Equipe 
 // Zustand State Definition
 interface AppState {
   currentUser: AuthUser | null;
-  activeTab: 'matches' | 'sdrs' | 'assessores' | 'leaders' | 'reports' | 'leaders-admin';
+  activeTab: 'matches' | 'sdrs' | 'assessores' | 'leaders' | 'reports' | 'leaders-admin' | 'team-management';
   currentMonth: string;
   sdrs: SDR[];
   assessores: Assessor[];
@@ -139,10 +139,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (raw) {
       try {
         const user = JSON.parse(raw);
-        if (user && user.role === 'leader') return 'sdrs' as AppState['activeTab'];
+        if (user && user.role === 'leader') return 'team-management' as AppState['activeTab'];
       } catch {}
     }
-    return 'sdrs' as AppState['activeTab'];
+    return 'team-management' as AppState['activeTab'];
   })(),
   currentMonth: (() => {
     const today = new Date();
