@@ -11,12 +11,21 @@ export function usePredictiveRunRate(derivedSdrsForActiveMonth: SDR[], currentMo
     // Expected monthly target percentage linear extrapolation based on workdays passed
     const expectedPercent = totalBusinessDays > 0 ? Math.round((elapsedBusinessDays / totalBusinessDays) * 100) : 0;
 
-    // Direct deliveries calculation
+    // Direct deliveries calculation: AGENDAMENTOS
     const totalRealized = activeSdrsList.reduce((sum, s) => sum + (s.agendamentosCount || 0), 0);
     const totalTarget = activeSdrsList.reduce((sum, s) => sum + (s.metaAgendamentos || 20), 0);
-
     const realizedPercent = totalTarget > 0 ? Math.round((totalRealized / totalTarget) * 100) : 0;
     const progressGap = realizedPercent - expectedPercent;
+
+    // Direct deliveries calculation: CONTAS ABERTAS
+    const totalContasRealized = activeSdrsList.reduce((sum, s) => sum + (s.contasAbertasCount || 0), 0);
+    const totalContasTarget = activeSdrsList.reduce((sum, s) => sum + (s.metaContasAbertas || 10), 0);
+    const realizedContasPercent = totalContasTarget > 0 ? Math.round((totalContasRealized / totalContasTarget) * 100) : 0;
+
+    // Direct deliveries calculation: EFETIVAÇÕES
+    const totalEfetivacoesRealized = activeSdrsList.reduce((sum, s) => sum + (s.efetivacoesCount || 0), 0);
+    const totalEfetivacoesTarget = activeSdrsList.reduce((sum, s) => sum + (s.metaEfetivacoes || 10), 0);
+    const realizedEfetivacoesPercent = totalEfetivacoesTarget > 0 ? Math.round((totalEfetivacoesRealized / totalEfetivacoesTarget) * 100) : 0;
 
     // Evaluate trends automatically
     let temperature = '⚖️ EM EQUILÍBRIO';
@@ -55,7 +64,15 @@ export function usePredictiveRunRate(derivedSdrsForActiveMonth: SDR[], currentMo
       currentDaysElapsed: elapsedBusinessDays,
       totalDaysInMonth: totalBusinessDays,
       totalRealized,
-      totalTarget
+      totalTarget,
+
+      // Additional metas for Referência
+      totalContasRealized,
+      totalContasTarget,
+      realizedContasPercent,
+      totalEfetivacoesRealized,
+      totalEfetivacoesTarget,
+      realizedEfetivacoesPercent
     };
   }, [derivedSdrsForActiveMonth, currentMonth]);
 
@@ -67,36 +84,91 @@ export function usePredictiveRunRate(derivedSdrsForActiveMonth: SDR[], currentMo
       const { elapsedBusinessDays: sdrElapsedDays, totalBusinessDays: sdrTotalDays } = 
         DateService.getSdrBusinessDays(sdr.admissionDate, currentMonth);
 
-      const realizado = sdr.agendamentosCount || 0;
-      const meta = sdr.metaAgendamentos || 20;
+      const daysElapsed = sdrElapsedDays || 1;
+      const daysTotal = sdrTotalDays || 22;
 
-      // Média de agendamento por dia útil considerando apenas o período em que este SDR esteve ativo no mês
-      const dailyAvg = sdrElapsedDays > 0 ? (realizado / sdrElapsedDays) : 0;
+      // Metas e Realizados
+      const RealAgend = sdr.agendamentosCount || 0;
+      const MetaAgend = sdr.metaAgendamentos || 20;
 
-      // Projeção de Fechamento (Run Rate): média diária anterior multiplicada pelo total de dias de atividade do SDR neste mês
-      const forecastValue = sdrElapsedDays > 0 ? (dailyAvg * sdrTotalDays) : 0;
-      const forecastPercent = meta > 0 ? (forecastValue / meta) * 100 : 0;
+      const RealContas = sdr.contasAbertasCount || 0;
+      const MetaContas = sdr.metaContasAbertas || 10;
 
-      // Tag de Status do Fechamento
+      const RealEfetiv = sdr.efetivacoesCount || 0;
+      const MetaEfetiv = sdr.metaEfetivacoes || 10;
+
+      // Média diária por dia útil ativo no mês
+      const dailyAvg = RealAgend / daysElapsed;
+      const dailyAvgContas = RealContas / daysElapsed;
+      const dailyAvgEfetiv = RealEfetiv / daysElapsed;
+
+      // Projeção de Fechamento (Run Rate)
+      const forecastValue = dailyAvg * daysTotal;
+      const forecastContas = dailyAvgContas * daysTotal;
+      const forecastEfetiv = dailyAvgEfetiv * daysTotal;
+
+      const forecastPercent = MetaAgend > 0 ? (forecastValue / MetaAgend) * 100 : 0;
+      const forecastContasPercent = MetaContas > 0 ? (forecastContas / MetaContas) * 100 : 0;
+      const forecastEfetivPercent = MetaEfetiv > 0 ? (forecastEfetiv / MetaEfetiv) * 100 : 0;
+
+      // Tag de Status Preditivo baseado principalmente no indicador mestre (agendamento)
       let statusPreditivo: 'OUTLIER' | 'NO_CAMINHO' | 'EM_RISCO' = 'EM_RISCO';
       
       if (sdrElapsedDays === 0) {
-        // Se ainda não iniciou ou não teve dias úteis decorridos de atividade neste mês, assume "NO_CAMINHO" por segurança
         statusPreditivo = 'NO_CAMINHO';
-      } else if (forecastValue > meta * 1.25 && realizado > meta * 1.25) {
+      } else if (forecastValue > MetaAgend * 1.25 && RealAgend > MetaAgend * 1.25) {
         statusPreditivo = 'OUTLIER';
-      } else if (forecastValue >= meta) {
+      } else if (forecastValue >= MetaAgend) {
         statusPreditivo = 'NO_CAMINHO';
       } else {
         statusPreditivo = 'EM_RISCO';
       }
 
+      // Dynamic AI Action Plan based on results
+      let aiActionPlan = '';
+      const gapAgend = MetaAgend - forecastValue;
+      const gapContas = MetaContas - forecastContas;
+      const gapEfetiv = MetaEfetiv - forecastEfetiv;
+
+      if (gapAgend <= 0 && gapContas <= 0 && gapEfetiv <= 0) {
+        aiActionPlan = '🏆 PERFEITO ACORDO TÁTICO: Projeção de run-rate aponta superação global em todas as três métricas! Plano sugerido: Compartilhar pitch vencedor em reunião geral com o time, colaborar com treinamentos práticos de objeção tributária e testar nova lista segmentada de Wealth Management para aceleração adicional.';
+      } else {
+        const plans: string[] = [];
+        if (gapAgend > 0) {
+          const neededConns = Math.ceil(gapAgend * 12);
+          plans.push(`Elevar taxa de agendamento: Projeção com gap de ${gapAgend.toFixed(1)} uni. Necessita de conexões extras para cobrir o desvio. Sugere-se realizar +${neededConns} novas ligações ativas nesta quinzena e focar no gancho tático de 5 segundos iniciais.`);
+        }
+        if (gapContas > 0) {
+          plans.push(`Estabilizar Aberturas: Projeção em desalinhamento de ${gapContas.toFixed(1)} contas de investimento. Plano: Criar régua rápida de follow-up via WhatsApp em 25 minutos pós-reunião com o assessor, garantindo envio do link e suporte síncrono para saneamento de dúvidas cadastrais.`);
+        }
+        if (gapEfetiv > 0) {
+          plans.push(`Garantir Efetivação: Gap preditivo de ${gapEfetiv.toFixed(1)} contas ativadas. Plano: Focar intensamente na qualificação prévia (leads com aporte imediato > R$ 50k) e agendar um alinhamento bilateral tático de 10 min com o assessor para preparar o foco comercial da reunião.`);
+        }
+
+        const profileText = sdr.professionalProfile === 'analitico'
+          ? '📊 DIAGNÓSTICO IA (Perfil Analítico): Profissional focado em dados. Aproveite relatórios detalhados para sanear os leads frios que travam no limbo tático do funil. '
+          : sdr.professionalProfile === 'operacional'
+          ? '⚙️ DIAGNÓSTICO IA (Perfil Operacional): Executa o play com rigor. Forneça playbooks de conversão agressivos com ganchos de persuasão comercial rápida. '
+          : sdr.professionalProfile === 'gestao'
+          ? '🛡️ DIAGNÓSTICO IA (Perfil Gestão): Potencial mentor. Ideal para organizar dinâmicas bilaterais de roleplaying de objeções com os pares. '
+          : '⚡ DIAGNÓSTICO IA (Perfil Comercial): Ativo e focado em chamadas. Forçar refinamento preventivo de CRM para não perder follow-ups essenciais. ';
+
+        aiActionPlan = `${profileText}\n\nAções Corretivas Mandatórias:\n${plans.map((p, idx) => `${idx + 1}. ${p}`).join('\n')}`;
+      }
+
       return {
         ...sdr,
         dailyAvg,
+        dailyAvgContas,
+        dailyAvgEfetiv,
         forecastValue,
+        forecastContas,
+        forecastEfetiv,
         forecastPercent,
-        statusPreditivo
+        forecastContasPercent,
+        forecastEfetivPercent,
+        statusPreditivo,
+        aiActionPlan
       };
     });
   }, [derivedSdrsForActiveMonth, currentMonth]);

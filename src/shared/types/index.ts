@@ -13,11 +13,19 @@ import {
   TeamCampaign as IPTeamCampaign,
   ProductType as IPProductType,
   NegocioFechado as IPNegocioFechado,
-  NegocioFechadoProduto as IPNegocioFechadoProduto
+  NegocioFechadoProduto as IPNegocioFechadoProduto,
+  IndividualGoal as IPIndividualGoal,
+  PerformanceGoal as IPPerformanceGoal,
+  RotationParticipant as IPRotationParticipant,
+  RotationHistoryEntry as IPRotationHistoryEntry,
+  TimelineEvent as IPTimelineEvent,
+  SystemAuditLog as IPSystemAuditLog
 } from '../../types';
 
 // Re-export original TypeScript interfaces for central reference
 export type SDRMonthlyRecord = IPSDRMonthlyRecord;
+export type IndividualGoal = IPIndividualGoal;
+export type PerformanceGoal = IPPerformanceGoal;
 export type SDR = IPSDR;
 export type Assessor = IPAssessor;
 export type TeamLeader = IPTeamLeader;
@@ -31,6 +39,10 @@ export type TeamCampaign = IPTeamCampaign;
 export type ProductType = IPProductType;
 export type NegocioFechado = IPNegocioFechado;
 export type NegocioFechadoProduto = IPNegocioFechadoProduto;
+export type RotationParticipant = IPRotationParticipant;
+export type RotationHistoryEntry = IPRotationHistoryEntry;
+export type TimelineEvent = IPTimelineEvent;
+export type SystemAuditLog = IPSystemAuditLog;
 
 // --- ZOD SCHEMAS FOR RUNTIME SECURITY DISCIPLINE ---
 
@@ -64,6 +76,7 @@ export const OneOnOneLogSchema = z.object({
   notes: z.string().catch(''),
   aiFeedback: z.string().optional().catch(''),
   professionalProfile: z.string().optional().catch('comercial'),
+  answers: z.record(z.string(), z.string()).optional().catch({}),
 });
 
 export const IntegrationSettingsSchema = z.object({
@@ -85,6 +98,46 @@ export const SDRMonthlyRecordSchema = z.object({
   metaEfetivacoes: z.number().optional().catch(10),
   metaEfetivacaoRate: z.number().optional().catch(50),
   metaContasAbertas: z.number().optional().catch(5),
+  metaLigacoes: z.number().optional().catch(100),
+  configuredGoals: z.array(z.any()).optional().catch([]),
+});
+
+export const IndividualGoalSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  target: z.number().catch(0),
+  weight: z.number().catch(0),
+  type: z.string().catch('quantity'),
+  period: z.string().catch('mensal'),
+  realized: z.number().optional().catch(0),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  changedBy: z.string().optional(),
+  changedAt: z.string().optional(),
+});
+
+export const TimelineEventSchema = z.object({
+  id: z.string(),
+  timestamp: z.string(),
+  type: z.enum(['admission', 'role_change', 'team_change', 'promotion', 'goal_change', 'weight_change', 'feedback', 'ranking_change', 'audit', 'custom']),
+  title: z.string(),
+  description: z.string(),
+  user: z.string(),
+  oldValue: z.string().optional(),
+  newValue: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+export const SystemAuditLogSchema = z.object({
+  id: z.string(),
+  timestamp: z.string(),
+  user: z.string(),
+  operation: z.string(),
+  targetId: z.string(),
+  targetName: z.string(),
+  previousValue: z.string().optional(),
+  newValue: z.string().optional(),
+  reason: z.string().optional(),
 });
 
 export const SDRSchema = z.object({
@@ -98,6 +151,8 @@ export const SDRSchema = z.object({
   metaEfetivacoes: z.number().optional().catch(10),
   metaEfetivacaoRate: z.number().catch(50),
   metaContasAbertas: z.number().optional().catch(5),
+  metaLigacoes: z.number().optional().catch(100),
+  individualGoals: z.array(IndividualGoalSchema).optional().catch([]),
   active: z.boolean().catch(true),
   admissionDate: z.string().optional().catch(''),
   team: z.string().optional().catch(''),
@@ -106,6 +161,15 @@ export const SDRSchema = z.object({
   promotedDate: z.string().optional(),
   promotedAssessorId: z.string().optional(),
   professionalProfile: z.string().optional().catch('comercial'),
+  photo: z.string().optional(),
+  rankingHistory: z.array(z.any()).optional().catch([]),
+  timeline: z.array(TimelineEventSchema).optional().catch([]),
+  individualWeights: z.object({
+    ligacoes: z.number().catch(20),
+    reunioes: z.number().catch(35),
+    comparecimento: z.number().catch(25),
+    indicacoes: z.number().catch(20)
+  }).optional(),
 });
 
 export const AssessorSchema = z.object({
@@ -122,6 +186,50 @@ export const AssessorSchema = z.object({
   crossSellDetails: z.string().optional().catch(''),
   professionalProfile: z.string().optional().catch('comercial'),
   admissionDate: z.string().optional().catch(''),
+  roleType: z.enum(['assessor', 'consultor']).optional(),
+  metaLigacoes: z.number().optional().catch(100),
+  metaReunioesAgendadas: z.number().optional().catch(15),
+  metaReunioesRealizadas: z.number().optional().catch(10),
+  metaContasAbertas: z.number().optional().catch(5),
+  metaNet: z.number().optional().catch(1000000),
+  metaCrossSell: z.number().optional().catch(4),
+  realizadoLigacoes: z.number().optional().catch(0),
+  realizadoReunioesAgendadas: z.number().optional().catch(0),
+  realizadoReunioesRealizadas: z.number().optional().catch(0),
+  realizadoContasAbertas: z.number().optional().catch(0),
+  realizadoNet: z.number().optional().catch(0),
+  realizadoCrossSell: z.number().optional().catch(0),
+  crossSellSeguroMeta: z.number().optional().catch(0),
+  crossSellSeguroRealizado: z.number().optional().catch(0),
+  crossSellConsorcioMeta: z.number().optional().catch(0),
+  crossSellConsorcioRealizado: z.number().optional().catch(0),
+  crossSellContabilidadeMeta: z.number().optional().catch(0),
+  crossSellContabilidadeRealizado: z.number().optional().catch(0),
+  crossSellPlanoSaudeMeta: z.number().optional().catch(0),
+  crossSellPlanoSaudeRealizado: z.number().optional().catch(0),
+  crossSellCambioMeta: z.number().optional().catch(0),
+  crossSellCambioRealizado: z.number().optional().catch(0),
+  crossSellOutrosMeta: z.number().optional().catch(0),
+  crossSellOutrosRealizado: z.number().optional().catch(0),
+  photo: z.string().optional(),
+  leaderId: z.string().optional(),
+  leaderName: z.string().optional(),
+  customMonitorMetrics: z.array(z.object({
+    key: z.string(),
+    name: z.string(),
+    target: z.number(),
+    real: z.number(),
+  })).optional().catch([]),
+  individualGoals: z.array(IndividualGoalSchema).optional().catch([]),
+  rankingHistory: z.array(z.any()).optional().catch([]),
+  timeline: z.array(TimelineEventSchema).optional().catch([]),
+  monthlyRecords: z.record(z.string(), SDRMonthlyRecordSchema).optional().catch({}),
+  individualWeights: z.object({
+    ligacoes: z.number().catch(20),
+    reunioes: z.number().catch(35),
+    comparecimento: z.number().catch(25),
+    indicacoes: z.number().catch(20)
+  }).optional(),
 });
 
 export const TeamLeaderSchema = z.object({
@@ -143,6 +251,22 @@ export const MatchResultSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   isExclusive: z.boolean().optional().catch(false),
+  status: z.enum(['Ativo', 'Inativo']).optional().catch('Ativo'),
+  disponibilidade: z.enum(['Disponível', 'Ausente', 'Férias', 'Licença', 'Inativo']).optional().catch('Disponível'),
+  ordem: z.number().optional().catch(0),
+  maxClientesDia: z.number().optional().catch(0),
+  maxClientesSemana: z.number().optional().catch(0),
+  maxClientesSimultaneos: z.number().optional().catch(0),
+  distribuicoesCount: z.number().optional().catch(0),
+  lastUsed: z.boolean().optional().catch(false),
+  lastUsedAt: z.string().optional(),
+});
+
+export const PerformanceGoalSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  target: z.number(),
+  weight: z.number(),
 });
 
 export const TeamGoalsSchema = z.object({
@@ -155,6 +279,10 @@ export const TeamGoalsSchema = z.object({
     name: z.string(),
     target: z.number(),
   })).optional().catch([]),
+  teamSpecificGoals: z.record(z.string(), z.any()).optional().catch({}),
+  performanceGoals: z.array(PerformanceGoalSchema).optional().catch([]),
+  wealthDealsGoal: z.number().optional().catch(12),
+  wealthRevenueGoal: z.number().optional().catch(1600000),
 });
 
 export const NegocioFechadoProdutoSchema = z.object({

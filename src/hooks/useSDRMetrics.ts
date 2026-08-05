@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import useAppStore from '../store/useAppStore';
 import { SDR, Assessor, MatchResult } from '../types';
 import { useShallow } from 'zustand/react/shallow';
+import { getFilteredMembers } from '../utils/teamFilters';
 
 export function useSDRMetrics() {
   const { sdrs, assessores, matches, currentMonth, currentUser } = useAppStore(
@@ -14,12 +15,19 @@ export function useSDRMetrics() {
     }))
   );
 
+  const { sdrs: filteredSdrs, assessores: filteredAssessores, matches: filteredMatches } = useMemo(() => {
+    return getFilteredMembers(currentUser, sdrs, assessores, matches);
+  }, [currentUser, sdrs, assessores, matches]);
+
   const derivedSdrsForActiveMonth = useMemo<SDR[]>(() => {
-    let source = sdrs;
-    if (currentUser && currentUser.role !== 'admin' && currentUser.teamName) {
-      source = sdrs.filter(s => s.team === currentUser.teamName);
-    }
-    return source.map((sdr: SDR): SDR => {
+    return filteredSdrs.filter(s => {
+      if (s.promotedToAssessor) return false;
+      // Exclude if admission month is after the current active month
+      if (s.admissionDate && currentMonth < s.admissionDate.substring(0, 7)) {
+        return false;
+      }
+      return true;
+    }).map((sdr: SDR): SDR => {
       const record = sdr.monthlyRecords?.[currentMonth];
       return {
         ...sdr,
@@ -33,32 +41,30 @@ export function useSDRMetrics() {
         metaContasAbertas: record ? (record.metaContasAbertas ?? 5) : (sdr.metaContasAbertas ?? 5),
       };
     });
-  }, [sdrs, currentMonth, currentUser]);
+  }, [filteredSdrs, currentMonth]);
+
+  const derivedAssessoresForActiveMonth = useMemo<Assessor[]>(() => {
+    return filteredAssessores.filter(a => {
+      // Exclude if admission month is after the current active month
+      if (a.admissionDate && currentMonth < a.admissionDate.substring(0, 7)) {
+        return false;
+      }
+      return true;
+    });
+  }, [filteredAssessores, currentMonth]);
 
   const activeSDRsCount = useMemo(() => {
     return derivedSdrsForActiveMonth.filter(s => s.active).length;
   }, [derivedSdrsForActiveMonth]);
 
-  const filteredAssessores = useMemo<Assessor[]>(() => {
-    return assessores;
-  }, [assessores]);
-
   const activeAssessoresCount = useMemo(() => {
-    return filteredAssessores.filter(a => a.active).length;
-  }, [filteredAssessores]);
-
-  const filteredMatches = useMemo<MatchResult[]>(() => {
-    if (currentUser && currentUser.role !== 'admin' && currentUser.teamName) {
-      const teamSdrIds = new Set(derivedSdrsForActiveMonth.map(s => s.id));
-      return matches.filter(m => teamSdrIds.has(m.sdrId));
-    }
-    return matches;
-  }, [matches, derivedSdrsForActiveMonth, currentUser]);
+    return derivedAssessoresForActiveMonth.filter(a => a.active).length;
+  }, [derivedAssessoresForActiveMonth]);
 
   return {
     derivedSdrsForActiveMonth,
     activeSDRsCount,
-    filteredAssessores,
+    filteredAssessores: derivedAssessoresForActiveMonth,
     activeAssessoresCount,
     filteredMatches,
     currentMonth,

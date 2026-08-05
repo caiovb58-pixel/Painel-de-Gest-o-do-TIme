@@ -40,7 +40,12 @@ export default function AssessorSection({
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
   const [agendaLink, setAgendaLink] = useState('');
-  const [team, setTeam] = useState('Tier 3 A');
+  const [team, setTeam] = useState(() => {
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      return currentUser.teamName;
+    }
+    return 'Tier 3 A';
+  });
   const [exclusiveSdrIds, setExclusiveSdrIds] = useState<string[]>([]);
   const [participatesInRotation, setParticipatesInRotation] = useState(true);
   const [roleType, setRoleType] = useState<'assessor' | 'consultor'>('assessor');
@@ -48,14 +53,18 @@ export default function AssessorSection({
   const [professionalProfile, setProfessionalProfile] = useState('Comercial');
   const [error, setError] = useState('');
 
-  // Auto-sync team select option when roleType changes
+  // Auto-sync team select option when roleType changes (only if admin)
   React.useEffect(() => {
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      setTeam(currentUser.teamName);
+      return;
+    }
     if (roleType === 'assessor') {
       setTeam('Tier 3 A');
     } else {
       setTeam('Consultoria');
     }
-  }, [roleType]);
+  }, [roleType, currentUser]);
 
   // Primary goals states
   const [metaLigacoes, setMetaLigacoes] = useState(0);
@@ -73,13 +82,13 @@ export default function AssessorSection({
   const [realizadoCrossSell, setRealizadoCrossSell] = useState(0);
 
   // Detailed Cross Sell Goals & Results
-  const [crossSellSeguroMeta, setCrossSellSeguroMeta] = useState(0);
+  const [crossSellSeguroMeta, setCrossSellSeguroMeta] = useState(1);
   const [crossSellSeguroRealizado, setCrossSellSeguroRealizado] = useState(0);
-  const [crossSellConsorcioMeta, setCrossSellConsorcioMeta] = useState(0);
+  const [crossSellConsorcioMeta, setCrossSellConsorcioMeta] = useState(1);
   const [crossSellConsorcioRealizado, setCrossSellConsorcioRealizado] = useState(0);
-  const [crossSellContabilidadeMeta, setCrossSellContabilidadeMeta] = useState(0);
+  const [crossSellContabilidadeMeta, setCrossSellContabilidadeMeta] = useState(1);
   const [crossSellContabilidadeRealizado, setCrossSellContabilidadeRealizado] = useState(0);
-  const [crossSellPlanoSaudeMeta, setCrossSellPlanoSaudeMeta] = useState(0);
+  const [crossSellPlanoSaudeMeta, setCrossSellPlanoSaudeMeta] = useState(1);
   const [crossSellPlanoSaudeRealizado, setCrossSellPlanoSaudeRealizado] = useState(0);
   const [crossSellCambioMeta, setCrossSellCambioMeta] = useState(0);
   const [crossSellCambioRealizado, setCrossSellCambioRealizado] = useState(0);
@@ -96,6 +105,8 @@ export default function AssessorSection({
   const [editRoleType, setEditRoleType] = useState<'assessor' | 'consultor'>('assessor');
   const [editAdmissionDate, setEditAdmissionDate] = useState('');
   const [editProfessionalProfile, setEditProfessionalProfile] = useState('');
+  const [photo, setPhoto] = useState<string | undefined>(undefined);
+  const [editPhoto, setEditPhoto] = useState<string | undefined>(undefined);
 
   // Dynamic metrics list for monitor
   const [customMetrics, setCustomMetrics] = useState<{key: string; name: string; target: number; real: number;}[]>([
@@ -139,13 +150,13 @@ export default function AssessorSection({
   const [editRealizadoCrossSell, setEditRealizadoCrossSell] = useState(0);
 
   // Editing cross products
-  const [editCrossSellSeguroMeta, setEditCrossSellSeguroMeta] = useState(0);
+  const [editCrossSellSeguroMeta, setEditCrossSellSeguroMeta] = useState(1);
   const [editCrossSellSeguroRealizado, setEditCrossSellSeguroRealizado] = useState(0);
-  const [editCrossSellConsorcioMeta, setEditCrossSellConsorcioMeta] = useState(0);
+  const [editCrossSellConsorcioMeta, setEditCrossSellConsorcioMeta] = useState(1);
   const [editCrossSellConsorcioRealizado, setEditCrossSellConsorcioRealizado] = useState(0);
-  const [editCrossSellContabilidadeMeta, setEditCrossSellContabilidadeMeta] = useState(0);
+  const [editCrossSellContabilidadeMeta, setEditCrossSellContabilidadeMeta] = useState(1);
   const [editCrossSellContabilidadeRealizado, setEditCrossSellContabilidadeRealizado] = useState(0);
-  const [editCrossSellPlanoSaudeMeta, setEditCrossSellPlanoSaudeMeta] = useState(0);
+  const [editCrossSellPlanoSaudeMeta, setEditCrossSellPlanoSaudeMeta] = useState(1);
   const [editCrossSellPlanoSaudeRealizado, setEditCrossSellPlanoSaudeRealizado] = useState(0);
   const [editCrossSellCambioMeta, setEditCrossSellCambioMeta] = useState(0);
   const [editCrossSellCambioRealizado, setEditCrossSellCambioRealizado] = useState(0);
@@ -198,6 +209,7 @@ export default function AssessorSection({
       roleType: roleType,
       admissionDate: admissionDate,
       professionalProfile: professionalProfile,
+      photo: photo,
       
       // Core Metrics & Goals
       metaLigacoes: finalMetaLigacoes,
@@ -240,7 +252,11 @@ export default function AssessorSection({
     setAgendaLink('');
     setExclusiveSdrIds([]);
     setParticipatesInRotation(true);
-    setTeam('Tier 3 A');
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      setTeam(currentUser.teamName);
+    } else {
+      setTeam('Tier 3 A');
+    }
     setRoleType('assessor');
     setAdmissionDate(new Date().toISOString().substring(0, 10));
     setProfessionalProfile('Comercial');
@@ -260,18 +276,19 @@ export default function AssessorSection({
     setRealizadoNet(0);
     setRealizadoCrossSell(0);
 
-    setCrossSellSeguroMeta(0);
+    setCrossSellSeguroMeta(1);
     setCrossSellSeguroRealizado(0);
-    setCrossSellConsorcioMeta(0);
+    setCrossSellConsorcioMeta(1);
     setCrossSellConsorcioRealizado(0);
-    setCrossSellContabilidadeMeta(0);
+    setCrossSellContabilidadeMeta(1);
     setCrossSellContabilidadeRealizado(0);
-    setCrossSellPlanoSaudeMeta(0);
+    setCrossSellPlanoSaudeMeta(1);
     setCrossSellPlanoSaudeRealizado(0);
     setCrossSellCambioMeta(0);
     setCrossSellCambioRealizado(0);
     setCrossSellOutrosMeta(0);
     setCrossSellOutrosRealizado(0);
+    setPhoto(undefined);
 
     setCustomMetrics([
       { key: 'ligacoes', name: 'Ligações', target: 0, real: 0 },
@@ -293,6 +310,7 @@ export default function AssessorSection({
     setEditRoleType(assessor.roleType || 'assessor');
     setEditAdmissionDate(assessor.admissionDate || new Date().toISOString().substring(0, 10));
     setEditProfessionalProfile(assessor.professionalProfile || 'Comercial');
+    setEditPhoto(assessor.photo);
     
     let existingIds: string[] = [];
     if (Array.isArray(assessor.exclusiveSdrIds)) {
@@ -318,13 +336,13 @@ export default function AssessorSection({
     setEditRealizadoNet(assessor.realizadoNet || 0);
     setEditRealizadoCrossSell(assessor.realizadoCrossSell || 0);
 
-    setEditCrossSellSeguroMeta(assessor.crossSellSeguroMeta || 0);
+    setEditCrossSellSeguroMeta(assessor.crossSellSeguroMeta || 1);
     setEditCrossSellSeguroRealizado(assessor.crossSellSeguroRealizado || 0);
-    setEditCrossSellConsorcioMeta(assessor.crossSellConsorcioMeta || 0);
+    setEditCrossSellConsorcioMeta(assessor.crossSellConsorcioMeta || 1);
     setEditCrossSellConsorcioRealizado(assessor.crossSellConsorcioRealizado || 0);
-    setEditCrossSellContabilidadeMeta(assessor.crossSellContabilidadeMeta || 0);
+    setEditCrossSellContabilidadeMeta(assessor.crossSellContabilidadeMeta || 1);
     setEditCrossSellContabilidadeRealizado(assessor.crossSellContabilidadeRealizado || 0);
-    setEditCrossSellPlanoSaudeMeta(assessor.crossSellPlanoSaudeMeta || 0);
+    setEditCrossSellPlanoSaudeMeta(assessor.crossSellPlanoSaudeMeta || 1);
     setEditCrossSellPlanoSaudeRealizado(assessor.crossSellPlanoSaudeRealizado || 0);
     setEditCrossSellCambioMeta(assessor.crossSellCambioMeta || 0);
     setEditCrossSellCambioRealizado(assessor.crossSellCambioRealizado || 0);
@@ -370,6 +388,7 @@ export default function AssessorSection({
         roleType: editRoleType,
         admissionDate: editAdmissionDate,
         professionalProfile: editProfessionalProfile,
+        photo: editPhoto,
 
         metaLigacoes: finalMetaLigacoes,
         metaReunioesAgendadas: finalMetaAgendadas,
@@ -669,7 +688,7 @@ export default function AssessorSection({
           {/* BASIC METADATA CONFIGURATION */}
           <div className="bg-neutral-50/50 p-4 border border-neutral-200 rounded-xl space-y-4">
             <h4 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">1. Dados Importantes de Entrada</h4>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
                   Nome Completo
@@ -715,17 +734,66 @@ export default function AssessorSection({
                 <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
                   Célula / Canal
                 </label>
-                <select
-                  value={team}
-                  onChange={e => setTeam(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none cursor-pointer"
-                  style={{ color: '#000000' }}
-                >
-                  {(roleType === 'assessor' ? ASSESSOR_TEAMS : CONSULTOR_TEAMS).map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                  <option value="">Sem Equipe</option>
-                </select>
+                {currentUser?.role === 'leader' ? (
+                  <div className="w-full px-3 py-2 bg-neutral-100 border border-neutral-250 rounded-lg text-xs text-neutral-600 font-mono font-black uppercase flex items-center gap-1.5 cursor-not-allowed">
+                    🔒 {currentUser.teamName || 'Sua Equipe'}
+                  </div>
+                ) : (
+                  <select
+                    value={team}
+                    onChange={e => setTeam(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs text-black font-bold focus:outline-none cursor-pointer"
+                    style={{ color: '#000000' }}
+                  >
+                    {(roleType === 'assessor' ? ASSESSOR_TEAMS : CONSULTOR_TEAMS).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                    <option value="">Sem Equipe</option>
+                  </select>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
+                  Foto de Perfil
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  {photo ? (
+                    <div className="relative w-9 h-9 rounded-lg border border-neutral-350 overflow-hidden shrink-0">
+                      <img src={photo} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPhoto(undefined)}
+                        className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-full hover:bg-red-650 cursor-pointer"
+                        title="Remover"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 rounded-lg border border-dashed border-neutral-350 flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-400">
+                      <User className="w-5 h-5" />
+                    </div>
+                  )}
+                  <label className="px-2.5 py-1.5 bg-neutral-100 hover:bg-neutral-250 text-[10px] font-bold uppercase rounded border border-neutral-350 cursor-pointer transition-all text-neutral-700 select-none">
+                    Upload
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setPhoto(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -814,33 +882,33 @@ export default function AssessorSection({
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div className="bg-white border border-neutral-150 p-2.5 rounded-lg text-xs space-y-1">
-                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">🛡️ Seguro</span>
+                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">🛡️ Seguro (Fixo: 1)</span>
                 <div className="flex gap-1">
-                  <input type="number" placeholder="Meta" value={crossSellSeguroMeta} onChange={e => setCrossSellSeguroMeta(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
+                  <input type="number" placeholder="Meta" value={1} disabled className="w-1/2 p-1 bg-neutral-100 text-neutral-400 border text-[11px] font-mono text-center cursor-not-allowed"/>
                   <input type="number" placeholder="Real." value={crossSellSeguroRealizado} onChange={e => setCrossSellSeguroRealizado(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
                 </div>
               </div>
 
               <div className="bg-white border border-neutral-150 p-2.5 rounded-lg text-xs space-y-1">
-                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">🏢 Consórcio</span>
+                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">🏢 Consórcio (Fixo: 1)</span>
                 <div className="flex gap-1">
-                  <input type="number" placeholder="Meta" value={crossSellConsorcioMeta} onChange={e => setCrossSellConsorcioMeta(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
+                  <input type="number" placeholder="Meta" value={1} disabled className="w-1/2 p-1 bg-neutral-100 text-neutral-400 border text-[11px] font-mono text-center cursor-not-allowed"/>
                   <input type="number" placeholder="Real." value={crossSellConsorcioRealizado} onChange={e => setCrossSellConsorcioRealizado(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
                 </div>
               </div>
 
               <div className="bg-white border border-neutral-150 p-2.5 rounded-lg text-xs space-y-1">
-                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">📑 Contabilidade</span>
+                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">📑 Contabilidade (Fixo: 1)</span>
                 <div className="flex gap-1">
-                  <input type="number" placeholder="Meta" value={crossSellContabilidadeMeta} onChange={e => setCrossSellContabilidadeMeta(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
+                  <input type="number" placeholder="Meta" value={1} disabled className="w-1/2 p-1 bg-neutral-100 text-neutral-400 border text-[11px] font-mono text-center cursor-not-allowed"/>
                   <input type="number" placeholder="Real." value={crossSellContabilidadeRealizado} onChange={e => setCrossSellContabilidadeRealizado(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
                 </div>
               </div>
 
               <div className="bg-white border border-neutral-150 p-2.5 rounded-lg text-xs space-y-1">
-                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">🩺 Plano Saúde</span>
+                <span className="text-[9px] font-black text-[#f59e0b] uppercase block">🩺 Plano Saúde (Fixo: 1)</span>
                 <div className="flex gap-1">
-                  <input type="number" placeholder="Meta" value={crossSellPlanoSaudeMeta} onChange={e => setCrossSellPlanoSaudeMeta(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
+                  <input type="number" placeholder="Meta" value={1} disabled className="w-1/2 p-1 bg-neutral-100 text-neutral-400 border text-[11px] font-mono text-center cursor-not-allowed"/>
                   <input type="number" placeholder="Real." value={crossSellPlanoSaudeRealizado} onChange={e => setCrossSellPlanoSaudeRealizado(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
                 </div>
               </div>
@@ -856,7 +924,7 @@ export default function AssessorSection({
               <div className="bg-white border border-neutral-150 p-2.5 rounded-lg text-xs space-y-1">
                 <span className="text-[9px] font-black text-[#f59e0b] uppercase block">📦 Outros</span>
                 <div className="flex gap-1">
-                  <input type="number" placeholder="Meta" value={crossSellOutrosMeta} onChange={e => setEditCrossSellOutrosMeta(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
+                  <input type="number" placeholder="Meta" value={crossSellOutrosMeta} onChange={e => setCrossSellOutrosMeta(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
                   <input type="number" placeholder="Real." value={crossSellOutrosRealizado} onChange={e => setCrossSellOutrosRealizado(Number(e.target.value))} className="w-1/2 p-1 bg-neutral-50 border text-[11px] font-mono text-black text-center"/>
                 </div>
               </div>
@@ -1072,14 +1140,57 @@ export default function AssessorSection({
                       </div>
 
                       <div className="grid grid-cols-1 gap-2.5">
-                        <div>
-                          <label className="block text-[9px] font-bold text-neutral-400 uppercase">Nome</label>
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={e => setEditName(e.target.value)}
-                            className="w-full bg-neutral-50 border border-neutral-300 rounded px-2 py-1.5 font-bold text-xs text-black"
-                          />
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="block text-[9px] font-bold text-neutral-400 uppercase">Nome</label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={e => setEditName(e.target.value)}
+                              className="w-full bg-neutral-50 border border-neutral-300 rounded px-2 py-1.5 font-bold text-xs text-black"
+                            />
+                          </div>
+                          <div className="shrink-0 w-24">
+                            <label className="block text-[9px] font-bold text-neutral-400 uppercase">Foto</label>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {editPhoto ? (
+                                <div className="relative w-8 h-8 rounded border border-neutral-300 overflow-hidden shrink-0">
+                                  <img src={editPhoto} alt="Preview" className="w-full h-full object-cover" />
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditPhoto(undefined)}
+                                    className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-full hover:bg-red-650 cursor-pointer flex items-center justify-center"
+                                    style={{ width: '12px', height: '12px', padding: 0 }}
+                                    title="Remover"
+                                  >
+                                    <X style={{ width: '8px', height: '8px' }} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded border border-dashed border-neutral-350 flex items-center justify-center shrink-0 bg-neutral-100 text-neutral-400">
+                                  <User className="w-4 h-4" />
+                                </div>
+                              )}
+                              <label className="px-1.5 py-1.5 bg-neutral-100 hover:bg-neutral-250 text-[8.5px] font-extrabold uppercase rounded border border-neutral-350 cursor-pointer transition-all text-neutral-700 select-none leading-none">
+                                Upload
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        setEditPhoto(reader.result as string);
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -1096,16 +1207,22 @@ export default function AssessorSection({
                           </div>
                           <div>
                             <label className="block text-[9px] font-bold text-neutral-400 uppercase">Mesa / Canal</label>
-                            <select
-                              value={editTeam}
-                              onChange={e => setEditTeam(e.target.value)}
-                              className="w-full bg-neutral-50 border border-neutral-300 rounded px-1.5 py-1 text-xs text-black cursor-pointer animate-fade-in"
-                            >
-                              {(editRoleType === 'assessor' ? ASSESSOR_TEAMS : CONSULTOR_TEAMS).map(t => (
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                              <option value="">Sem Equipe</option>
-                            </select>
+                            {currentUser?.role === 'leader' ? (
+                              <span className="block w-full bg-neutral-100 border border-neutral-300 rounded px-1.5 py-1 text-xs font-mono font-black text-neutral-600">
+                                {editTeam || 'Nenhuma'}
+                              </span>
+                            ) : (
+                              <select
+                                value={editTeam}
+                                onChange={e => setEditTeam(e.target.value)}
+                                className="w-full bg-neutral-50 border border-neutral-300 rounded px-1.5 py-1 text-xs text-black cursor-pointer animate-fade-in"
+                              >
+                                {(editRoleType === 'assessor' ? ASSESSOR_TEAMS : CONSULTOR_TEAMS).map(t => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                                <option value="">Sem Equipe</option>
+                              </select>
+                            )}
                           </div>
                         </div>
 
@@ -1255,30 +1372,30 @@ export default function AssessorSection({
                           <span className="font-extrabold text-neutral-500 block uppercase">Realizados de Cross-Sell Detalhados:</span>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <span>Seguro Target / Real</span>
+                              <span>Seguro Target (Fixo: 1) / Real</span>
                               <div className="flex gap-1">
-                                <input type="number" value={editCrossSellSeguroMeta} onChange={e => setEditCrossSellSeguroMeta(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
+                                <input type="number" value={1} disabled className="w-1/2 border p-0.5 text-center bg-neutral-100 text-neutral-450 cursor-not-allowed font-bold"/>
                                 <input type="number" value={editCrossSellSeguroRealizado} onChange={e => setEditCrossSellSeguroRealizado(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
                               </div>
                             </div>
                             <div>
-                              <span>Consórcio Target / Real</span>
+                              <span>Consórcio Target (Fixo: 1) / Real</span>
                               <div className="flex gap-1">
-                                <input type="number" value={editCrossSellConsorcioMeta} onChange={e => setEditCrossSellConsorcioMeta(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
+                                <input type="number" value={1} disabled className="w-1/2 border p-0.5 text-center bg-neutral-100 text-neutral-450 cursor-not-allowed font-bold"/>
                                 <input type="number" value={editCrossSellConsorcioRealizado} onChange={e => setEditCrossSellConsorcioRealizado(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
                               </div>
                             </div>
                             <div>
-                              <span>Contabilidade Target / Real</span>
+                              <span>Contabilidade Target (Fixo: 1) / Real</span>
                               <div className="flex gap-1">
-                                <input type="number" value={editCrossSellContabilidadeMeta} onChange={e => setEditCrossSellContabilidadeMeta(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
+                                <input type="number" value={1} disabled className="w-1/2 border p-0.5 text-center bg-neutral-100 text-neutral-450 cursor-not-allowed font-bold"/>
                                 <input type="number" value={editCrossSellContabilidadeRealizado} onChange={e => setEditCrossSellContabilidadeRealizado(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
                               </div>
                             </div>
                             <div>
-                              <span>Plano de Saúde Target / Real</span>
+                              <span>Plano de Saúde Target (Fixo: 1) / Real</span>
                               <div className="flex gap-1">
-                                <input type="number" value={editCrossSellPlanoSaudeMeta} onChange={e => setEditCrossSellPlanoSaudeMeta(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
+                                <input type="number" value={1} disabled className="w-1/2 border p-0.5 text-center bg-neutral-100 text-neutral-450 cursor-not-allowed font-bold"/>
                                 <input type="number" value={editCrossSellPlanoSaudeRealizado} onChange={e => setEditCrossSellPlanoSaudeRealizado(Number(e.target.value))} className="w-1/2 border p-0.5 text-center text-black"/>
                               </div>
                             </div>
@@ -1572,53 +1689,44 @@ export default function AssessorSection({
 
                           <h4 className="text-[10px] font-black text-[#f59e0b] uppercase tracking-widest pt-2">Breakdown de Cross-Sell</h4>
                           <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-                            <div className="p-2 border rounded bg-white">
-                              <span className="font-bold text-neutral-800 block">🛡️ Seguro</span>
-                              <div className="mt-1 flex justify-between font-mono">
-                                <span className="text-neutral-500">Meta / Real:</span>
-                                <span className="font-extrabold">{assr.crossSellSeguroRealizado || 0} / {assr.crossSellSeguroMeta || 0}</span>
-                              </div>
-                            </div>
+                            {(() => {
+                              const renderProductCard = (title: string, icon: string, real: number, meta: number, isFixed: boolean) => {
+                                const target = isFixed ? 1 : (meta || 0);
+                                const pct = target > 0 ? Math.min(100, Math.round((real / target) * 100)) : 0;
+                                const status = target > 0 
+                                  ? (real >= target ? { text: 'Concluído', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' } : real > 0 ? { text: 'Em andamento', cls: 'bg-amber-50 text-amber-700 border-amber-200' } : { text: 'Não iniciado', cls: 'bg-neutral-50 text-neutral-500 border-neutral-200' })
+                                  : { text: 'Sem Meta', cls: 'bg-neutral-50 text-neutral-450 border-neutral-200' };
 
-                            <div className="p-2 border rounded bg-white">
-                              <span className="font-bold text-neutral-800 block">🏢 Consórcio</span>
-                              <div className="mt-1 flex justify-between font-mono">
-                                <span className="text-neutral-500">Meta / Real:</span>
-                                <span className="font-extrabold">{assr.crossSellConsorcioRealizado || 0} / {assr.crossSellConsorcioMeta || 0}</span>
-                              </div>
-                            </div>
+                                return (
+                                  <div className="p-2.5 border border-neutral-150 rounded-xl bg-white space-y-1.5 shadow-2xs">
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-bold text-neutral-800">{icon} {title}</span>
+                                      <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-black border uppercase tracking-wider ${status.cls}`}>
+                                        {status.text}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] font-mono text-neutral-500">
+                                      <span>Realizado: <strong>{real}</strong> / {target}</span>
+                                      <span>{pct}%</span>
+                                    </div>
+                                    <div className="w-full bg-neutral-100 h-1 rounded overflow-hidden">
+                                      <div className="bg-neutral-900 h-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                                    </div>
+                                  </div>
+                                );
+                              };
 
-                            <div className="p-2 border rounded bg-white">
-                              <span className="font-bold text-neutral-800 block">📑 Contabilidade</span>
-                              <div className="mt-1 flex justify-between font-mono">
-                                <span className="text-neutral-500">Meta / Real:</span>
-                                <span className="font-extrabold">{assr.crossSellContabilidadeRealizado || 0} / {assr.crossSellContabilidadeMeta || 0}</span>
-                              </div>
-                            </div>
-
-                            <div className="p-2 border rounded bg-white">
-                              <span className="font-bold text-neutral-800 block">🩺 Plano Saúde</span>
-                              <div className="mt-1 flex justify-between font-mono">
-                                <span className="text-neutral-500">Meta / Real:</span>
-                                <span className="font-extrabold">{assr.crossSellPlanoSaudeRealizado || 0} / {assr.crossSellPlanoSaudeMeta || 0}</span>
-                              </div>
-                            </div>
-
-                            <div className="p-2 border rounded bg-white">
-                              <span className="font-bold text-neutral-800 block">💱 Câmbio</span>
-                              <div className="mt-1 flex justify-between font-mono">
-                                <span className="text-neutral-500">Meta / Real:</span>
-                                <span className="font-extrabold">{assr.crossSellCambioRealizado || 0} / {assr.crossSellCambioMeta || 0}</span>
-                              </div>
-                            </div>
-
-                            <div className="p-2 border rounded bg-white">
-                              <span className="font-bold text-neutral-800 block">📦 Outros</span>
-                              <div className="mt-1 flex justify-between font-mono">
-                                <span className="text-neutral-500">Meta / Real:</span>
-                                <span className="font-extrabold">{assr.crossSellOutrosRealizado || 0} / {assr.crossSellOutrosMeta || 0}</span>
-                              </div>
-                            </div>
+                              return (
+                                <>
+                                  {renderProductCard('Seguro', '🛡️', assr.crossSellSeguroRealizado || 0, 1, true)}
+                                  {renderProductCard('Consórcio', '🏢', assr.crossSellConsorcioRealizado || 0, 1, true)}
+                                  {renderProductCard('Contabilidade', '📑', assr.crossSellContabilidadeRealizado || 0, 1, true)}
+                                  {renderProductCard('Plano Saúde', '🩺', assr.crossSellPlanoSaudeRealizado || 0, 1, true)}
+                                  {renderProductCard('Câmbio', '💱', assr.crossSellCambioRealizado || 0, assr.crossSellCambioMeta || 0, false)}
+                                  {renderProductCard('Outros', '📦', assr.crossSellOutrosRealizado || 0, assr.crossSellOutrosMeta || 0, false)}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}

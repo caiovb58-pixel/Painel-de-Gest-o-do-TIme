@@ -1,16 +1,9 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  X, User, Phone, Calendar, Briefcase, TrendingUp, Award, 
-  Shield, CheckCircle2, Clock, FileText, Upload, Camera, 
-  Trash2, Check, DollarSign, BarChart2, Star, Link, ArrowRight,
-  TrendingUp as IconTrending, Activity, PhoneCall, Download,
-  Eye, ZoomIn, Lock
+  X, User, Download
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend
-} from 'recharts';
 import useAppStore from '../store/useAppStore';
-import { SDR, Assessor, AuditLog, OneOnOneLog, NegocioFechado } from '../types';
+import RedesignedProfileCard from './RedesignedProfileCard';
 
 interface IndividualProfileModalProps {
   entityType: 'sdr' | 'assessor' | 'consultor';
@@ -18,7 +11,7 @@ interface IndividualProfileModalProps {
   onClose: () => void;
 }
 
-export function IndividualProfileModal({ entityType, entityId, onClose }: IndividualProfileModalProps) {
+export function IndividualProfileModal({ entityType: initialEntityType, entityId: initialEntityId, onClose }: IndividualProfileModalProps) {
   const { 
     sdrs, 
     assessores, 
@@ -26,160 +19,27 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
     auditLogs, 
     oneOnOneLogs, 
     negocios, 
-    updateSDR, 
-    updateAssessor,
-    currentMonth,
-    currentUser
+    currentMonth
   } = useAppStore();
 
-  const [activeSubTab, setActiveSubTab] = useState<'resumo' | 'historico_metas' | 'negocios' | 'auditorias' | 'evolucao_graficos' | 'editar_metas'>('resumo');
-  const [photoUrlInput, setPhotoUrlInput] = useState('');
+  const [activeId, setActiveId] = useState(initialEntityId);
+  const [activeType, setActiveType] = useState(initialEntityType);
+
+  const entityId = activeId;
+  const entityType = activeType;
+
+  React.useEffect(() => {
+    setActiveId(initialEntityId);
+    setActiveType(initialEntityType);
+  }, [initialEntityId, initialEntityType]);
+
   const [isPhotoZoomed, setIsPhotoZoomed] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Parse SDR or Assessor
   const sdr = entityType === 'sdr' ? sdrs.find(s => s.id === entityId) : null;
   const assessor = (entityType === 'assessor' || entityType === 'consultor') 
     ? assessores.find(a => a.id === entityId) 
     : null;
-
-  // Editing states for assessor Profile & Goals
-  const [editName, setEditName] = useState('');
-  const [editTeam, setEditTeam] = useState('');
-  const [editRoleType, setEditRoleType] = useState<'assessor' | 'consultor'>('assessor');
-  const [editAdmissionDate, setEditAdmissionDate] = useState('');
-  const [editAgendaLink, setEditAgendaLink] = useState('');
-  const [editProfessionalProfile, setEditProfessionalProfile] = useState('');
-
-  // Primary goals states
-  const [editMetaLigacoes, setEditMetaLigacoes] = useState(0);
-  const [editMetaReunioesAgendadas, setEditMetaReunioesAgendadas] = useState(0);
-  const [editMetaReunioesRealizadas, setEditMetaReunioesRealizadas] = useState(0);
-  const [editMetaContasAbertas, setEditMetaContasAbertas] = useState(0);
-  const [editMetaNet, setEditMetaNet] = useState(0);
-  const [editMetaCrossSell, setEditMetaCrossSell] = useState(0);
-
-  const [editRealizadoLigacoes, setEditRealizadoLigacoes] = useState(0);
-  const [editRealizadoReunioesAgendadas, setEditRealizadoReunioesAgendadas] = useState(0);
-  const [editRealizadoReunioesRealizadas, setEditRealizadoReunioesRealizadas] = useState(0);
-  const [editRealizadoContasAbertas, setEditRealizadoContasAbertas] = useState(0);
-  const [editRealizadoNet, setEditRealizadoNet] = useState(0);
-  const [editRealizadoCrossSell, setEditRealizadoCrossSell] = useState(0);
-
-  // Detailed Cross Sell Goals & Results
-  const [editCrossSellSeguroMeta, setEditCrossSellSeguroMeta] = useState(0);
-  const [editCrossSellSeguroRealizado, setEditCrossSellSeguroRealizado] = useState(0);
-  const [editCrossSellConsorcioMeta, setEditCrossSellConsorcioMeta] = useState(0);
-  const [editCrossSellConsorcioRealizado, setEditCrossSellConsorcioRealizado] = useState(0);
-  const [editCrossSellContabilidadeMeta, setEditCrossSellContabilidadeMeta] = useState(0);
-  const [editCrossSellContabilidadeRealizado, setEditCrossSellContabilidadeRealizado] = useState(0);
-  const [editCrossSellPlanoSaudeMeta, setEditCrossSellPlanoSaudeMeta] = useState(0);
-  const [editCrossSellPlanoSaudeRealizado, setEditCrossSellPlanoSaudeRealizado] = useState(0);
-  const [editCrossSellCambioMeta, setEditCrossSellCambioMeta] = useState(0);
-  const [editCrossSellCambioRealizado, setEditCrossSellCambioRealizado] = useState(0);
-  const [editCrossSellOutrosMeta, setEditCrossSellOutrosMeta] = useState(0);
-  const [editCrossSellOutrosRealizado, setEditCrossSellOutrosRealizado] = useState(0);
-
-  const canEdit = useMemo(() => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    if (currentUser.role === 'leader') {
-      return assessor?.team === currentUser.teamName;
-    }
-    return false;
-  }, [currentUser, assessor]);
-
-  // Synchronize state values from backing store object on selection change
-  React.useEffect(() => {
-    if (assessor) {
-      setEditName(assessor.name || '');
-      setEditTeam(assessor.team || '');
-      setEditRoleType(assessor.roleType || 'assessor');
-      setEditAdmissionDate(assessor.admissionDate || '');
-      setEditAgendaLink(assessor.agendaLink || '');
-      setEditProfessionalProfile(assessor.professionalProfile || 'Comercial');
-
-      setEditMetaLigacoes(assessor.metaLigacoes || 0);
-      setEditMetaReunioesAgendadas(assessor.metaReunioesAgendadas || 0);
-      setEditMetaReunioesRealizadas(assessor.metaReunioesRealizadas || 0);
-      setEditMetaContasAbertas(assessor.metaContasAbertas || 0);
-      setEditMetaNet(assessor.metaNet || 0);
-      setEditMetaCrossSell(assessor.metaCrossSell || 0);
-
-      setEditRealizadoLigacoes(assessor.realizadoLigacoes || 0);
-      setEditRealizadoReunioesAgendadas(assessor.realizadoReunioesAgendadas || 0);
-      setEditRealizadoReunioesRealizadas(assessor.realizadoReunioesRealizadas || 0);
-      setEditRealizadoContasAbertas(assessor.realizadoContasAbertas || 0);
-      setEditRealizadoNet(assessor.realizadoNet || assessor.captacaoMes || 0);
-      setEditRealizadoCrossSell(assessor.realizadoCrossSell || assessor.crossSellCount || 0);
-
-      setEditCrossSellSeguroMeta(assessor.crossSellSeguroMeta || 0);
-      setEditCrossSellSeguroRealizado(assessor.crossSellSeguroRealizado || 0);
-      setEditCrossSellConsorcioMeta(assessor.crossSellConsorcioMeta || 0);
-      setEditCrossSellConsorcioRealizado(assessor.crossSellConsorcioRealizado || 0);
-      setEditCrossSellContabilidadeMeta(assessor.crossSellContabilidadeMeta || 0);
-      setEditCrossSellContabilidadeRealizado(assessor.crossSellContabilidadeRealizado || 0);
-      setEditCrossSellPlanoSaudeMeta(assessor.crossSellPlanoSaudeMeta || 0);
-      setEditCrossSellPlanoSaudeRealizado(assessor.crossSellPlanoSaudeRealizado || 0);
-      setEditCrossSellCambioMeta(assessor.crossSellCambioMeta || 0);
-      setEditCrossSellCambioRealizado(assessor.crossSellCambioRealizado || 0);
-      setEditCrossSellOutrosMeta(assessor.crossSellOutrosMeta || 0);
-      setEditCrossSellOutrosRealizado(assessor.crossSellOutrosRealizado || 0);
-    }
-  }, [assessor]);
-
-  const handleSaveAssessor = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assessor) return;
-
-    updateAssessor(assessor.id, {
-      name: editName.trim(),
-      team: editTeam,
-      roleType: editRoleType,
-      admissionDate: editAdmissionDate,
-      agendaLink: editAgendaLink.trim(),
-      professionalProfile: editProfessionalProfile,
-
-      metaLigacoes: Number(editMetaLigacoes),
-      metaReunioesAgendadas: Number(editMetaReunioesAgendadas),
-      metaReunioesRealizadas: Number(editMetaReunioesRealizadas),
-      metaContasAbertas: Number(editMetaContasAbertas),
-      metaNet: Number(editMetaNet),
-      metaCrossSell: Number(editMetaCrossSell),
-
-      realizadoLigacoes: Number(editRealizadoLigacoes),
-      realizadoReunioesAgendadas: Number(editRealizadoReunioesAgendadas),
-      realizadoReunioesRealizadas: Number(editRealizadoReunioesRealizadas),
-      realizadoContasAbertas: Number(editRealizadoContasAbertas),
-      realizadoNet: Number(editRealizadoNet),
-      realizadoCrossSell: Number(editRealizadoCrossSell),
-
-      crossSellSeguroMeta: Number(editCrossSellSeguroMeta),
-      crossSellSeguroRealizado: Number(editCrossSellSeguroRealizado),
-      crossSellConsorcioMeta: Number(editCrossSellConsorcioMeta),
-      crossSellConsorcioRealizado: Number(editCrossSellConsorcioRealizado),
-      crossSellContabilidadeMeta: Number(editCrossSellContabilidadeMeta),
-      crossSellContabilidadeRealizado: Number(editCrossSellContabilidadeRealizado),
-      crossSellPlanoSaudeMeta: Number(editCrossSellPlanoSaudeMeta),
-      crossSellPlanoSaudeRealizado: Number(editCrossSellPlanoSaudeRealizado),
-      crossSellCambioMeta: Number(editCrossSellCambioMeta),
-      crossSellCambioRealizado: Number(editCrossSellCambioRealizado),
-      crossSellOutrosMeta: Number(editCrossSellOutrosMeta),
-      crossSellOutrosRealizado: Number(editCrossSellOutrosRealizado),
-
-      customMonitorMetrics: [
-        { key: 'ligacoes', name: 'Ligações', target: Number(editMetaLigacoes), real: Number(editRealizadoLigacoes) },
-        { key: 'agendadas', name: 'Reun. Agendadas', target: Number(editMetaReunioesAgendadas), real: Number(editRealizadoReunioesAgendadas) },
-        { key: 'realizadas', name: 'Reuniões Realizadas', target: Number(editMetaReunioesRealizadas), real: Number(editRealizadoReunioesRealizadas) },
-        { key: 'contas_abertas', name: 'Contas Novas', target: Number(editMetaContasAbertas), real: Number(editRealizadoContasAbertas) },
-        { key: 'net', name: 'Captação Líquida (NET)', target: Number(editMetaNet), real: Number(editRealizadoNet) },
-        { key: 'cross_sell', name: 'Qtd. Cross-Sell', target: Number(editMetaCrossSell), real: Number(editRealizadoCrossSell) },
-      ]
-    });
-
-    setActiveSubTab('resumo');
-  };
 
   if (!sdr && !assessor) {
     return (
@@ -201,88 +61,35 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
   const active = sdr ? sdr.active : assessor!.active;
   const team = sdr ? sdr.team : assessor!.team;
   const admissionDate = sdr ? sdr.admissionDate : assessor!.admissionDate;
-  const professionalProfile = sdr ? sdr.professionalProfile : assessor!.professionalProfile;
   const photo = sdr ? sdr.photo : assessor!.photo;
 
-  const canEditOrDeletePhoto = useMemo(() => {
-    if (!currentUser) return true;
-    if (currentUser.role === 'admin') return true;
-    if (currentUser.role === 'leader') {
-      const entityTeam = sdr ? sdr.team : assessor?.team;
-      return entityTeam === currentUser.teamName;
+  // Sibling list navigation helper logic
+  const siblingList = useMemo(() => {
+    if (activeType === 'sdr') {
+      return sdrs;
+    } else if (activeType === 'consultor') {
+      return assessores.filter(a => a.roleType === 'consultor');
+    } else {
+      return assessores.filter(a => !a.roleType || a.roleType === 'assessor');
     }
-    return false;
-  }, [currentUser, sdr, assessor]);
+  }, [activeType, sdrs, assessores]);
 
-  // Handles standard base64 image uploading with frontend size compression and canvas scaling
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const currentIdx = useMemo(() => {
+    return siblingList.findIndex(x => x.id === activeId);
+  }, [siblingList, activeId]);
 
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-      
-      const maxDim = 250;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, width, height);
-        const base64String = canvas.toDataURL('image/jpeg', 0.7);
-        if (sdr) {
-          updateSDR(sdr.id, { photo: base64String });
-        } else if (assessor) {
-          updateAssessor(assessor.id, { photo: base64String });
-        }
-        setErrorMsg('');
-      } else {
-        setErrorMsg("Não foi possível processar o formato da imagem.");
-      }
-      URL.revokeObjectURL(img.src);
-    };
-    img.onerror = () => {
-      setErrorMsg("Ocorreu um erro ao carregar o arquivo.");
-      URL.revokeObjectURL(img.src);
-    };
+  const handlePrev = () => {
+    if (siblingList.length <= 1) return;
+    const prevIdx = (currentIdx - 1 + siblingList.length) % siblingList.length;
+    setActiveId(siblingList[prevIdx].id);
   };
 
-  const handleApplyPhotoUrl = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!photoUrlInput.trim()) return;
-
-    if (sdr) {
-      updateSDR(sdr.id, { photo: photoUrlInput.trim() });
-    } else if (assessor) {
-      updateAssessor(assessor.id, { photo: photoUrlInput.trim() });
-    }
-    setPhotoUrlInput('');
-    setErrorMsg('');
+  const handleNext = () => {
+    if (siblingList.length <= 1) return;
+    const nextIdx = (currentIdx + 1) % siblingList.length;
+    setActiveId(siblingList[nextIdx].id);
   };
 
-  const handleRemovePhoto = () => {
-    if (sdr) {
-      updateSDR(sdr.id, { photo: undefined });
-    } else if (assessor) {
-      updateAssessor(assessor.id, { photo: undefined });
-    }
-    setErrorMsg('');
-  };
-
-  // Helper formatting dates safely
   const formatDateString = (dt?: string) => {
     if (!dt) return 'Não informada';
     try {
@@ -292,167 +99,359 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
     }
   };
 
-  // SDR-specific calculations and lists
-  const sdrAuditLogs = sdr ? auditLogs.filter(log => log.sdrId === sdr.id) : [];
-  const sdrOneOnOnes = sdr ? oneOnOneLogs.filter(log => log.sdrId === sdr.id) : [];
-  const sdrNegocios = sdr ? negocios.filter(n => n.sdrId === sdr.id) : [];
-  const sdrMatches = sdr ? matches.filter(m => m.sdrId === sdr.id) : [];
+  // Dedicated download HTML print routine
+  const handleDownloadFicha = () => {
+    const isSdr = activeType === 'sdr';
+    const roleLabel = activeType === 'sdr' ? 'SDR' : activeType === 'consultor' ? 'Consultor' : 'Assessor';
 
-  // Assessor-specific calculations and lists
-  const assessorNegocios = assessor ? negocios.filter(n => n.assessorId === assessor.id) : [];
-  const assessorMatches = assessor ? matches.filter(m => m.assessorId === assessor.id) : [];
+    // Parse sibling info for current member
+    const currentMemberPhoto = sdr ? sdr.photo : assessor?.photo;
+    const currentMemberName = sdr ? sdr.name : assessor?.name;
+    const currentMemberTeam = sdr ? sdr.team : assessor?.team;
+    const currentMemberAdmission = sdr ? sdr.admissionDate : assessor?.admissionDate;
+    const currentMemberActive = sdr ? sdr.active : assessor?.active;
+    const currentMemberBio = sdr ? sdr.professionalProfile : assessor?.professionalProfile;
 
-  // Memoized Chart data for SDRs
-  const sdrChartData = useMemo(() => {
-    if (!sdr) return [];
-    
-    const months = ['2026-03', '2026-04', '2026-05', '2026-06'];
-    
-    return months.map(m => {
-      const isCurrent = m === currentMonth;
-      const rec = sdr.monthlyRecords?.[m] || (isCurrent ? {
-        agendamentosCount: sdr.agendamentosCount || 0,
-        efetivacoesCount: sdr.efetivacoesCount || 0,
-        contasAbertasCount: sdr.contasAbertasCount || 0,
-        callsCount: sdr.callsCount || 0,
-      } : {
-        // Generate realistic historical baseline values proportional to their achievements
-        agendamentosCount: Math.round((sdr.agendamentosCount || 15) * (m === '2026-05' ? 0.9 : m === '2026-04' ? 0.8 : 0.7)),
-        efetivacoesCount: Math.round((sdr.efetivacoesCount || 8) * (m === '2026-05' ? 0.95 : m === '2026-04' ? 0.85 : 0.65)),
-        contasAbertasCount: Math.round((sdr.contasAbertasCount || 4) * (m === '2026-05' ? 0.8 : m === '2026-04' ? 0.7 : 0.5)),
-        callsCount: Math.round((sdr.callsCount || 120) * (m === '2026-05' ? 0.92 : m === '2026-04' ? 0.86 : 0.74)),
-      });
-      
-      return {
-        month: m,
-        Ligações: rec.callsCount || 0,
-        Agendamentos: rec.agendamentosCount || 0,
-        Efetivações: rec.efetivacoesCount || 0,
-        'Contas Abertas': rec.contasAbertasCount || 0,
-      };
-    });
-  }, [sdr, currentMonth]);
+    // Working tenure calculation
+    const calcWorkingTime = () => {
+      const dateStr = currentMemberAdmission;
+      if (!dateStr) return 'Não informado';
+      try {
+        const admission = new Date(dateStr + 'T12:00:00');
+        const now = new Date();
+        let years = now.getFullYear() - admission.getFullYear();
+        let months = now.getMonth() - admission.getMonth();
+        let days = now.getDate() - admission.getDate();
+        if (days < 0) {
+          months -= 1;
+          days += 30;
+        }
+        if (months < 0) {
+          years -= 1;
+          months += 12;
+        }
+        const parts: string[] = [];
+        if (years > 0) parts.push(`${years} ${years === 1 ? 'ano' : 'anos'}`);
+        if (months > 0) parts.push(`${months} ${months === 1 ? 'mês' : 'meses'}`);
+        if (days > 0 || parts.length === 0) parts.push(`${days} ${days === 1 ? 'dia' : 'dias'}`);
+        return parts.join(', ');
+      } catch {
+        return 'Formato inválido';
+      }
+    };
+    const tenureString = calcWorkingTime();
 
-  // Memoized Chart data for Assessores / Consultores
-  const assessorChartData = useMemo(() => {
-    if (!assessor) return [];
+    // Sibling partner matches (Vínculos)
+    let partnerName = 'Nenhum vínculo ativo registrado';
+    let partnerPhoto = '';
+    let partnerRole = '';
+    let partnerPeriod = '';
+
+    if (activeType === 'sdr') {
+      const activeMatch = matches.find(m => m.sdrId === entityId);
+      if (activeMatch) {
+        partnerName = activeMatch.assessorName;
+        const partnerAssessor = assessores.find(a => a.id === activeMatch.assessorId);
+        partnerPhoto = partnerAssessor?.photo || '';
+        partnerRole = partnerAssessor?.roleType === 'consultor' ? 'Consultor' : 'Assessor';
+        partnerPeriod = `${formatDateString(activeMatch.startDate)} até ${formatDateString(activeMatch.endDate)}`;
+      }
+    } else {
+      const activeMatch = matches.find(m => m.assessorId === entityId);
+      if (activeMatch) {
+        partnerName = activeMatch.sdrName;
+        const partnerSdr = sdrs.find(s => s.id === activeMatch.sdrId);
+        partnerPhoto = partnerSdr?.photo || '';
+        partnerRole = 'SDR';
+        partnerPeriod = `${formatDateString(activeMatch.startDate)} até ${formatDateString(activeMatch.endDate)}`;
+      }
+    }
+
+    // Current month active metrics mapped exactly like useSDRMetrics for full safety
+    const sdrActiveRecord = sdr ? {
+      agendamentosCount: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].agendamentosCount ?? 0) : 0,
+      efetivacoesCount: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].efetivacoesCount ?? 0) : 0,
+      contasAbertasCount: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].contasAbertasCount ?? 0) : 0,
+      callsCount: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].callsCount ?? 0) : 0,
+      metaAgendamentos: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].metaAgendamentos ?? 20) : (sdr.metaAgendamentos ?? 20),
+      metaEfetivacaoRate: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].metaEfetivacaoRate ?? 50) : (sdr.metaEfetivacaoRate ?? 50),
+      metaEfetivacoes: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].metaEfetivacoes ?? 10) : (sdr.metaEfetivacoes ?? 10),
+      metaContasAbertas: sdr.monthlyRecords?.[currentMonth] ? (sdr.monthlyRecords[currentMonth].metaContasAbertas ?? 5) : (sdr.metaContasAbertas ?? 5),
+    } : null;
+
+    const valAgendados = sdr ? (sdrActiveRecord?.agendamentosCount || 0) : (assessor?.realizadoReunioesAgendadas || 0);
+    const metaAgendados = sdr ? (sdrActiveRecord?.metaAgendamentos || 20) : (assessor?.metaReunioesAgendadas || 15);
     
-    const months = ['2026-03', '2026-04', '2026-05', '2026-06'];
+    const valEfetivados = sdr ? (sdrActiveRecord?.efetivacoesCount || 0) : (assessor?.realizadoReunioesRealizadas || 0);
+    const metaEfetivados = sdr ? (sdrActiveRecord?.metaEfetivacoes || 3) : (assessor?.metaReunioesRealizadas || 10);
     
-    return months.map(m => {
-      const isCurrent = m === currentMonth;
-      
-      const currentLigacoes = assessor.realizadoLigacoes || 0;
-      const currentAgendadas = assessor.realizadoReunioesAgendadas || 0;
-      const currentRealizadas = assessor.realizadoReunioesRealizadas || 0;
-      const currentContas = assessor.realizadoContasAbertas || 0;
-      const currentNet = assessor.realizadoNet || assessor.captacaoMes || 0;
-      const currentCrossSell = assessor.realizadoCrossSell || assessor.crossSellCount || 0;
-      
-      if (isCurrent) {
+    const valContas = sdr ? (sdrActiveRecord?.contasAbertasCount || 0) : (assessor?.realizadoContasAbertas || 0);
+    const metaContas = sdr ? (sdrActiveRecord?.metaContasAbertas || 1) : (assessor?.metaContasAbertas || 5);
+
+    const valLigações = sdr ? (sdrActiveRecord?.callsCount || 0) : (assessor?.realizadoLigacoes || 0);
+
+    const pacingAgendados = metaAgendados > 0 ? (valAgendados / metaAgendados) * 100 : 0;
+    const pacingEfetivados = metaEfetivados > 0 ? (valEfetivados / metaEfetivados) * 100 : 0;
+    const pacingContas = metaContas > 0 ? (valContas / metaContas) * 100 : 0;
+
+    const ligacoesPorAgendamento = valLigações > 0 ? Math.round(valLigações / (valAgendados > 0 ? valAgendados : 1)) : 0;
+    const taxaConversao = valAgendados > 0 ? Math.round((valEfetivados / valAgendados) * 100) : 0;
+
+    const getHistoricalRecord = (mkey: string) => {
+      const isCurrent = mkey === currentMonth;
+      if (sdr) {
+        const rec = sdr.monthlyRecords?.[mkey];
+        if (rec) {
+          return {
+            agendamentosCount: rec.agendamentosCount || 0,
+            efetivacoesCount: rec.efetivacoesCount || 0,
+            contasAbertasCount: rec.contasAbertasCount || 0,
+            callsCount: rec.callsCount || 0,
+            metaAgendamentos: rec.metaAgendamentos || 20,
+            metaEfetivacoes: rec.metaEfetivacoes || 10,
+            metaContasAbertas: rec.metaContasAbertas || 5,
+          };
+        }
+        if (isCurrent) {
+          return {
+            agendamentosCount: sdrActiveRecord?.agendamentosCount || 0,
+            efetivacoesCount: sdrActiveRecord?.efetivacoesCount || 0,
+            contasAbertasCount: sdrActiveRecord?.contasAbertasCount || 0,
+            callsCount: sdrActiveRecord?.callsCount || 0,
+            metaAgendamentos: sdrActiveRecord?.metaAgendamentos || 20,
+            metaEfetivacoes: sdrActiveRecord?.metaEfetivacoes || 10,
+            metaContasAbertas: sdrActiveRecord?.metaContasAbertas || 5,
+          };
+        }
+        const charCodeSum = currentMemberName!.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        const monthNum = parseInt(mkey.replace('-', ''));
+        const hash = (charCodeSum + monthNum) % 100;
+        const factor = 0.6 + (hash / 200);
+        const baseAgendados = sdr.agendamentosCount || 15;
+        const baseEfetivados = sdr.efetivacoesCount || 8;
+        const baseContas = sdr.contasAbertasCount || 4;
+        const baseCalls = sdr.callsCount || 120;
         return {
-          month: m,
-          Ligações: currentLigacoes,
-          Agendamentos: currentAgendadas,
-          Efetivações: currentRealizadas,
-          'Contas Abertas': currentContas,
-          'NET (Captação)': currentNet,
-          'Cross-Sells': currentCrossSell,
+          agendamentosCount: Math.round(baseAgendados * factor),
+          efetivacoesCount: Math.round(baseEfetivados * factor),
+          contasAbertasCount: Math.round(baseContas * factor),
+          callsCount: Math.round(baseCalls * factor),
+          metaAgendamentos: sdrActiveRecord?.metaAgendamentos || 20,
+          metaEfetivacoes: sdrActiveRecord?.metaEfetivacoes || 3,
+          metaContasAbertas: sdrActiveRecord?.metaContasAbertas || 1,
+        };
+      } else {
+        if (isCurrent) {
+          return {
+            agendamentosCount: valAgendados,
+            efetivacoesCount: valEfetivados,
+            contasAbertasCount: valContas,
+            callsCount: valLigações,
+            metaAgendamentos: assessor?.metaReunioesAgendadas || 15,
+            metaEfetivacoes: assessor?.metaReunioesRealizadas || 10,
+            metaContasAbertas: assessor?.metaContasAbertas || 5,
+          };
+        }
+        const charCodeSum = currentMemberName!.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        const monthNum = parseInt(mkey.replace('-', ''));
+        const hash = (charCodeSum + monthNum) % 100;
+        const factor = 0.65 + (hash / 250);
+        return {
+          agendamentosCount: Math.round(valAgendados * factor),
+          efetivacoesCount: Math.round(valEfetivados * factor),
+          contasAbertasCount: Math.round(valContas * factor),
+          callsCount: Math.round(valLigações * factor),
+          metaAgendamentos: assessor?.metaReunioesAgendadas || 15,
+          metaEfetivacoes: assessor?.metaReunioesRealizadas || 10,
+          metaContasAbertas: assessor?.metaContasAbertas || 5,
         };
       }
-      
-      // Filter closed ganho deals
-      const dealsInMonth = assessorNegocios.filter(n => {
-        if (!n.dataFechamento) return false;
-        return n.dataFechamento.startsWith(m) && n.status === 'GANHO';
-      });
-      
-      const dealsNet = dealsInMonth.reduce((acc, curr) => acc + (curr.volumeFinanceiro || 0), 0);
-      const dealsCrossCount = dealsInMonth.filter(n => n.produtoCategoria !== 'INVESTIMENTOS_XP').length;
+    };
 
-      const factor = m === '2026-05' ? 0.9 : m === '2026-04' ? 0.75 : 0.6;
+    const isBeforeAdmission = (admissionDateStr: string | undefined, monthStr: string): boolean => {
+      if (!admissionDateStr) return false;
+      let admissionYear = 0;
+      let admissionMonth = 0;
       
-      return {
-        month: m,
-        Ligações: Math.round(currentLigacoes ? currentLigacoes * factor : 80 * factor),
-        Agendamentos: Math.round(currentAgendadas ? currentAgendadas * factor : 12 * factor),
-        Efetivações: Math.round(currentRealizadas ? currentRealizadas * factor : 8 * factor),
-        'Contas Abertas': Math.round(currentContas ? currentContas * factor : 5 * factor),
-        'NET (Captação)': dealsNet > 0 ? dealsNet : Math.round(currentNet ? currentNet * factor : 250000 * factor),
-        'Cross-Sells': dealsCrossCount > 0 ? dealsCrossCount : Math.round(currentCrossSell ? currentCrossSell * factor : 3 * factor),
-      };
+      if (admissionDateStr.includes('-')) {
+        const parts = admissionDateStr.split('-');
+        admissionYear = parseInt(parts[0]);
+        admissionMonth = parseInt(parts[1]);
+      } else if (admissionDateStr.includes('/')) {
+        const parts = admissionDateStr.split('/');
+        admissionYear = parseInt(parts[2]);
+        admissionMonth = parseInt(parts[1]);
+      } else {
+        return false;
+      }
+      
+      const [mYear, mMonth] = monthStr.split('-').map(Number);
+      
+      if (mYear < admissionYear) return true;
+      if (mYear === admissionYear && mMonth < admissionMonth) return true;
+      return false;
+    };
+
+    // Render the chronological list of performance history
+    const ALL_MONTHS = [
+      { key: '2025-01', label: 'Jan/25' },
+      { key: '2025-02', label: 'Fev/25' },
+      { key: '2025-03', label: 'Mar/25' },
+      { key: '2025-04', label: 'Abr/25' },
+      { key: '2025-05', label: 'Mai/25' },
+      { key: '2025-06', label: 'Jun/25' },
+      { key: '2025-07', label: 'Jul/25' },
+      { key: '2025-08', label: 'Ago/25' },
+      { key: '2025-09', label: 'Set/25' },
+      { key: '2025-10', label: 'Out/25' },
+      { key: '2025-11', label: 'Nov/25' },
+      { key: '2025-12', label: 'Dez/25' },
+      { key: '2026-01', label: 'Jan/26' },
+      { key: '2026-02', label: 'Fev/26' },
+      { key: '2026-03', label: 'Mar/26' },
+      { key: '2026-04', label: 'Abr/26' },
+      { key: '2026-05', label: 'Mai/26' },
+      { key: '2026-06', label: 'Jun/26' },
+      { key: '2026-07', label: 'Jul/26' }
+    ].filter(m => !isBeforeAdmission(admissionDate, m.key));
+
+    let historyTableRowsHtml = '';
+    ALL_MONTHS.forEach(m => {
+      const rec = getHistoricalRecord(m.key);
+      const isCurrent = m.key === currentMonth;
+      const rate = rec.agendamentosCount > 0 ? Math.round((rec.efetivacoesCount / rec.agendamentosCount) * 100) : 0;
+      
+      historyTableRowsHtml += `
+        <tr class="${isCurrent ? 'total-row' : ''}" style="${isCurrent ? 'background: #fffbeb !important; border: 2px solid #cbd5e1;' : ''}">
+          <td style="font-weight: 800; font-size: 11px; ${isCurrent ? 'color: #92400e;' : ''}">
+            ${m.label} ${isCurrent ? '<strong>(Mês Atual)</strong>' : ''}
+          </td>
+          <td class="text-center font-mono font-bold">${rec.callsCount ?? '-'}</td>
+          <td class="text-center font-mono">
+            <strong>${rec.agendamentosCount}</strong> 
+            <span style="color: #64748b; font-size: 9px; font-weight: normal;">/ Meta: ${rec.metaAgendamentos}</span>
+          </td>
+          <td class="text-center font-mono text-green">
+            <strong>${rec.efetivacoesCount}</strong>
+            <span style="color: #64748b; font-size: 9px; font-weight: normal;">/ Meta: ${rec.metaEfetivacoes}</span>
+          </td>
+          <td class="text-center font-mono text-orange">
+            <strong>${rec.contasAbertasCount}</strong>
+            <span style="color: #64748b; font-size: 9px; font-weight: normal;">/ Meta: ${rec.metaContasAbertas}</span>
+          </td>
+          <td class="text-center font-mono font-bold" style="font-size: 11px; ${rate >= 50 ? 'color: #10b981;' : 'color: #ef4444;'}">
+            ${rate}%
+          </td>
+        </tr>
+      `;
     });
-  }, [assessor, currentMonth, assessorNegocios]);
 
-  // SDR active month calculations
-  const sdrActiveRecord = sdr?.monthlyRecords?.[currentMonth] || {
-    agendamentosCount: sdr?.agendamentosCount || 0,
-    efetivacoesCount: sdr?.efetivacoesCount || 0,
-    contasAbertasCount: sdr?.contasAbertasCount || 0,
-    callsCount: sdr?.callsCount || 0,
-    metaAgendamentos: sdr?.metaAgendamentos || 20,
-    metaEfetivacaoRate: sdr?.metaEfetivacaoRate || 50,
-    metaEfetivacoes: sdr?.metaEfetivacoes || 10,
-    metaContasAbertas: sdr?.metaContasAbertas || 5,
-  };
+    // Build the ranking history log rows
+    const professionalHistory = activeType === 'sdr' ? sdr?.rankingHistory : assessor?.rankingHistory;
+    let rankingHistoryRowsHtml = '';
+    if (professionalHistory && professionalHistory.length > 0) {
+      professionalHistory.forEach(item => {
+        const badgeColor = item.rank === 'A' ? '#10b981' : item.rank === 'B' ? '#f59e0b' : '#ef4444';
+        const badgeBg = item.rank === 'A' ? '#ecfdf5' : item.rank === 'B' ? '#fffbe6' : '#fef2f2';
+        rankingHistoryRowsHtml += `
+          <tr>
+            <td class="font-mono" style="font-weight: 600;">${item.date}</td>
+            <td class="text-center font-mono font-bold" style="font-size: 11px;">${item.score} pts</td>
+            <td class="text-center">
+              <span class="badge-log-type" style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeColor}30; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 4px;">
+                RANK ${item.rank}
+              </span>
+            </td>
+          </tr>
+        `;
+      });
+    } else {
+      rankingHistoryRowsHtml += `
+        <tr>
+          <td colspan="3" style="text-align: center; color: #94a3b8; font-style: italic; padding: 15px;">
+            Nenhum histórico de evolução de ranking registrado para este profissional ainda.
+          </td>
+        </tr>
+      `;
+    }
 
-  const sdrAgendados = sdrActiveRecord.agendamentosCount || 0;
-  const sdrEfetivados = sdrActiveRecord.efetivacoesCount || 0;
-  const sdrContas = sdrActiveRecord.contasAbertasCount || 0;
-  const sdrCalls = sdrActiveRecord.callsCount || 0;
+    // Historical 1-on-1 records
+    const listOneOnOnes = oneOnOneLogs.filter(log => log.sdrId === entityId);
 
-  const sdrMetaAgendados = sdrActiveRecord.metaAgendamentos || 20;
-  const sdrMetaEfetivados = sdrActiveRecord.metaEfetivacoes || 10;
-  const sdrMetaContas = sdrActiveRecord.metaContasAbertas || 5;
+    // Operational audit logs
+    const listAudits = (auditLogs || []).filter(log => log.sdrId === entityId);
 
-  const sdrPacingAgendados = sdrMetaAgendados > 0 ? (sdrAgendados / sdrMetaAgendados) * 100 : 0;
-  const sdrPacingEfetivados = sdrMetaEfetivados > 0 ? (sdrEfetivados / sdrMetaEfetivados) * 100 : 0;
-  const sdrPacingContas = sdrMetaContas > 0 ? (sdrContas / sdrMetaContas) * 100 : 0;
+    // Business deals closed (Negócios)
+    const listNegocios = activeType === 'sdr'
+      ? negocios.filter(n => n.sdrId === entityId)
+      : negocios.filter(n => n.assessorId === entityId);
 
-  const sdrEfetivacaoRateReal = sdrAgendados > 0 ? (sdrEfetivados / sdrAgendados) * 100 : 0;
+    const totalVolume = listNegocios.reduce((sum, n) => sum + (n.status === 'GANHO' ? n.volumeFinanceiro : 0), 0);
+    const totalReceita = listNegocios.reduce((sum, n) => sum + (n.status === 'GANHO' ? n.receitaEstimada : 0), 0);
 
-  // Format currencies
-  const formatBRL = (val?: number) => {
-    if (val === undefined || isNaN(val)) return 'R$ 0,00';
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
+    const formatBRLValue = (val?: number) => {
+      if (val === undefined || isNaN(val)) return 'R$ 0,00';
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    };
 
-  const handleDownloadFicha = () => {
-    const isSdr = entityType === 'sdr';
-    const roleLabel = entityType === 'sdr' ? 'SDR' : entityType === 'consultor' ? 'Consultor' : 'Assessor';
-    
     let html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Ficha Geral - ${name}</title>
+  <title>Ficha Geral - ${currentMemberName}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 40px;
-      color: #111827;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 40px;
+      color: #1f2937;
       background-color: #ffffff;
       line-height: 1.5;
     }
+    .print-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 25px;
+      gap: 10px;
+      no-print-area: true;
+    }
+    .btn-print {
+      background-color: #111827;
+      color: #ffffff;
+      border: none;
+      padding: 10px 18px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.2s;
+    }
+    .btn-print:hover {
+      opacity: 0.9;
+    }
     .header {
-      border-bottom: 3px solid #111827;
-      padding-bottom: 20px;
+      border-bottom: 2px dashed #d1d5db;
+      padding-bottom: 25px;
       margin-bottom: 30px;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
     }
-    .title-block h1 {
-      font-size: 28px;
-      margin: 0;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: -0.5px;
-    }
-    .role-badge {
+    .title-block .role-badge {
       display: inline-block;
       background: #111827;
-      color: #fff;
+      color: #ffffff;
       font-size: 10px;
       font-weight: 800;
       padding: 4px 10px;
@@ -461,196 +460,518 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
       margin-bottom: 8px;
       letter-spacing: 1px;
     }
-    .meta-grid {
+    .title-block h1 {
+      font-size: 30px;
+      margin: 0;
+      font-weight: 800;
+      letter-spacing: -0.75px;
+      color: #0f172a;
+    }
+    .header-details {
+      color: #4b5563;
+      margin: 8px 0 0 0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .vmb-brand {
+      text-align: right;
+    }
+    .vmb-brand h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #111827;
+    }
+    .vmb-brand p {
+      margin: 4px 0 0 0;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #9ca3af;
+    }
+    
+    /* Bento Grid layout for profiles and records */
+    .profile-summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 20px;
       margin-bottom: 30px;
     }
-    .meta-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      padding: 15px;
-      border-radius: 8px;
+    .bento-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 20px;
+      border-radius: 16px;
+      display: flex;
+      gap: 20px;
     }
-    .meta-card h3 {
+    .bento-card-title {
       font-size: 11px;
-      color: #6b7280;
-      margin: 0 0 5px 0;
+      font-weight: 805;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
+      color: #475569;
+      margin-bottom: 12px;
+      display: block;
     }
-    .meta-card p {
-      font-size: 20px;
-      font-weight: 700;
-      margin: 0;
+    .member-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 12px;
+      background: #f1f5f9;
+      border: 2px solid #cbd5e1;
+      object-cover: true;
+      object-fit: cover;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
     }
-    .section-title {
-      font-size: 14px;
+    .member-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .avatar-placeholder {
+      font-size: 24px;
+      font-weight: 800;
+      color: #94a3b8;
+    }
+    .member-details {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .desc-row {
+      margin: 4px 0;
+      font-size: 12px;
+      color: #334155;
+    }
+    .desc-row strong {
+      color: #0f172a;
+    }
+    .badge-status {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
       font-weight: 800;
       text-transform: uppercase;
-      border-bottom: 2px solid #e5e7eb;
-      padding-bottom: 5px;
-      margin-top: 40px;
+    }
+    .badge-active {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+    .badge-inactive {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+    .bio-text {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-top: 8px;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    /* Current Month Metrics Styles */
+    .metrics-panel {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .metrics-box {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .metrics-box-title {
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #92400e;
       margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .meter-container {
+      margin-bottom: 12px;
+    }
+    .meter-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+    .meter-bar-outer {
+      width: 100%;
+      background: #e5e7eb;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .meter-bar-inner-blue {
+      background: #2563eb;
+      height: 100%;
+      border-radius: 4px;
+    }
+    .meter-bar-inner-green {
+      background: #10b981;
+      height: 100%;
+      border-radius: 4px;
+    }
+    .meter-bar-inner-orange {
+      background: #f59e0b;
+      height: 100%;
+      border-radius: 4px;
+    }
+    .meter-sub-info {
+      font-size: 9px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 3px;
+    }
+    .text-blue { color: #2563eb; }
+    .text-green { color: #10b981; }
+    .text-orange { color: #f59e0b; }
+    
+    .stats-card-mini {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .stats-card-mini-title {
+      font-size: 8.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #6b7280;
       letter-spacing: 0.5px;
     }
+    .stats-card-mini-value {
+      font-size: 20px;
+      font-weight: 900;
+      font-family: 'JetBrains Mono', monospace;
+      color: #111827;
+      margin-top: 2px;
+    }
+    .stats-card-mini-subtitle {
+      font-size: 8px;
+      font-weight: 700;
+      color: #708090;
+      margin-top: 2px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #0f172a;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 6px;
+      margin-top: 40px;
+      margin-bottom: 15px;
+    }
+    
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
+      font-size: 11.5px;
     }
     th, td {
-      border: 1px solid #e5e7eb;
-      padding: 10px;
+      border: 1px solid #e2e8f0;
+      padding: 10px 12px;
       text-align: left;
-      font-size: 12px;
     }
     th {
-      background: #f3f4f6;
-      font-weight: 700;
+      background: #f1f5f9;
+      font-weight: 800;
       text-transform: uppercase;
-      color: #374151;
+      font-size: 9.5px;
+      color: #334155;
+      letter-spacing: 0.5px;
     }
-    .text-right { text-align: right; }
-    .status-badge {
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 3px;
-      text-transform: uppercase;
+    tr:nth-child(even) {
+      background-color: #f8fafc;
     }
-    .status-active { background: #d1fae5; color: #065f46; }
-    .status-inactive { background: #f3f4f6; color: #374151; }
-    .footer {
-      border-top: 1px solid #e5e7eb;
-      padding-top: 15px;
-      margin-top: 50px;
-      font-size: 10px;
-      color: #9ca3af;
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
       text-align: center;
+    }
+    .nowrap {
+      white-space: nowrap;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .total-row {
+      background: #f1f5f9 !important;
+      font-weight: 850;
+      color: #0f172a;
+      border-top: 2px solid #cbd5e1;
+    }
+    .badge-log-type {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 800;
+    }
+    .type-outlier {
+      background-color: #ecfdf5;
+      color: #047857;
+      border: 1px solid #10b981;
+    }
+    .type-caminho {
+      background-color: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #3b82f6;
+    }
+    .type-risco {
+      background-color: #fff5f5;
+      color: #c53030;
+      border: 1px solid #f56565;
+    }
+    .score-badge {
+      font-weight: 800;
+      color: #4338ca;
+      font-size: 11px;
+    }
+    .meta-criterion {
+      font-size: 8.5px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #475569;
+      line-height: 1.3;
+    }
+    .footer-doc {
+      margin-top: 60px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 20px;
+      text-align: center;
+      font-size: 9px;
+      color: #94a3b8;
       text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+      }
+      .print-actions {
+        display: none !important;
+      }
     }
   </style>
 </head>
 <body>
+
+  <div class="print-actions">
+    <button class="btn-print" onclick="window.print()">
+      🖨️ Imprimir Ficha / Salvar PDF
+    </button>
+  </div>
+
   <div class="header">
     <div class="title-block">
       <span class="role-badge">${roleLabel}</span>
-      <h1>${name}</h1>
-      <p style="color: #6b7280; margin: 4px 0 0 0; font-size: 13px; font-weight: 500;">
-        Equipe: ${team || 'Sem Equipe Atribuída'} &bull; Ingresso: ${formatDateString(admissionDate)} &bull; Status: ${active ? 'Ativo' : 'Inativo'}
+      <h1>${currentMemberName}</h1>
+      <p class="header-details">
+        Equipe: ${currentMemberTeam || 'Sem Equipe Atribuída'} &bull; Ingresso: ${formatDateString(currentMemberAdmission)} &bull; Status: 
+        <span class="badge-status ${currentMemberActive ? 'badge-active' : 'badge-inactive'}">
+          ${currentMemberActive ? 'Ativo' : 'Inativo'}
+        </span>
       </p>
     </div>
-    <div style="text-align: right; font-size: 11px; color: #9ca3af; font-family: monospace;">
-      <div>Emissão: ${new Date().toLocaleDateString('pt-BR')}</div>
-      <div>VMB PRO CLOUD</div>
+    <div class="vmb-brand">
+      <h2>VMB PRO ELITE</h2>
+      <p>FICHA OPERACIONAL INTEGRAL</p>
+      <p>EMITIDO EM: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
     </div>
   </div>
 
-  <div class="section-title">📊 Resumo Operacional (Referência ${currentMonth})</div>
-  <div class="meta-grid">
-`;
+  <div class="profile-summary-grid">
+    <!-- Bento 1: Member Portrait / Executive Bio -->
+    <div class="bento-card">
+      <div style="flex: 1;">
+        <span class="bento-card-title">Perfil do Integrante</span>
+        <div style="display: flex; gap: 18px;">
+          <div class="member-avatar">
+            ${currentMemberPhoto ? `<img src="${currentMemberPhoto}" alt="${currentMemberName}">` : `<div class="avatar-placeholder">${currentMemberName?.substring(0, 2).toUpperCase()}</div>`}
+          </div>
+          <div class="member-details">
+            <p class="desc-row"><strong>Nome:</strong> ${currentMemberName}</p>
+            <p class="desc-row"><strong>Cargo:</strong> ${roleLabel}</p>
+            <p class="desc-row"><strong>Tempo de Casa:</strong> ${tenureString}</p>
+            <p class="desc-row"><strong>Sede/Equipe:</strong> ${currentMemberTeam || 'Multi-Team Elite'}</p>
+          </div>
+        </div>
+        ${currentMemberBio ? `<p class="bio-text">" ${currentMemberBio} "</p>` : `<p class="bio-text" style="color:#a8a29e">Nenhuma introdução executiva cadastrada no histórico.</p>`}
+      </div>
+    </div>
 
-    if (isSdr) {
-      const pacingAgendados = sdrMetaAgendados > 0 ? ((sdrAgendados / sdrMetaAgendados) * 100).toFixed(0) : '0';
-      const pacingEfetivados = sdrMetaEfetivados > 0 ? ((sdrEfetivados / sdrMetaEfetivados) * 100).toFixed(0) : '0';
-      html += `
-      <div class="meta-card">
-        <h3>Ligações Efetuadas</h3>
-        <p>${sdrCalls} Contatos</p>
+    <!-- Bento 2: Commercial Match Partner / Vínculos -->
+    <div class="bento-card">
+      <div style="flex: 1;">
+        <span class="bento-card-title">Vínculos de Rodízio & Parceria Ativa</span>
+        <div style="display: flex; gap: 18px;">
+          <div class="member-avatar">
+            ${partnerPhoto ? `<img src="${partnerPhoto}" alt="${partnerName}">` : `<div class="avatar-placeholder">${partnerName === 'Nenhum vínculo ativo registrado' ? 'N/A' : partnerName?.substring(0, 2).toUpperCase()}</div>`}
+          </div>
+          <div class="member-details">
+            <p class="desc-row"><strong>Parceiro Vinculado:</strong> ${partnerName}</p>
+            <p class="desc-row"><strong>Cargo do Parceiro:</strong> ${partnerRole || 'Sem vínculo ativo'}</p>
+            <p class="desc-row"><strong>Vigência do Vínculo:</strong> ${partnerPeriod || 'Não vigente'}</p>
+            <p class="desc-row"><strong>Status de Distribuição:</strong> <span class="badge-status ${partnerPhoto ? 'badge-active' : 'badge-inactive'}">${partnerPhoto ? 'Ativo' : 'Disponível'}</span></p>
+          </div>
+        </div>
+        <p class="bio-text" style="font-size:11px; margin-top:10px;">Vínculos operacionais garantem a atribuição exclusiva e sincronização de leads para agilidade no atendimento e reuniões.</p>
       </div>
-      <div class="meta-card">
-        <h3>Agendamentos</h3>
-        <p>${sdrAgendados} / ${sdrMetaAgendados} (${pacingAgendados}%)</p>
-      </div>
-      <div class="meta-card">
-        <h3>Efetivações</h3>
-        <p>${sdrEfetivados} / ${sdrMetaEfetivados} (${pacingEfetivados}%)</p>
-      </div>
-      `;
-    } else {
-      const currentVolume = assessor?.realizadoNet || assessor?.captacaoMes || 0;
-      html += `
-      <div class="meta-card">
-        <h3>Captação Líquida (NET)</h3>
-        <p>${formatBRL(currentVolume)}</p>
-      </div>
-      <div class="meta-card">
-        <h3>Contas Abertas</h3>
-        <p>${assessor?.realizadoContasAbertas || 0} / ${assessor?.metaContasAbertas || 0}</p>
-      </div>
-      <div class="meta-card">
-        <h3>Cross-Sells Realizados</h3>
-        <p>${assessor?.realizadoCrossSell || 0} / ${assessor?.metaCrossSell || 0}</p>
-      </div>
-      `;
-    }
-
-    html += `
+    </div>
   </div>
-  
-  <div class="section-title">📈 Evolução de Metas e Performance (Histórico)</div>
-  <table style="width: 100%;">
+
+  <!-- SECTION 0.1: Desempenho do Cenário Atual -->
+  <div class="section-title">📊 Desempenho e Metas do Cenário Atual (${currentMonth.replace('2026-', 'Mês ')})</div>
+  <div class="metrics-panel">
+    <div class="metrics-box">
+      <div class="metrics-box-title">
+        <span>Progresso de Metas Realizadas</span>
+        <span class="badge-status" style="background:#fde68a; color:#78350f;">Acompanhamento Integral</span>
+      </div>
+      
+      <!-- Agendamentos -->
+      <div class="meter-container">
+        <div class="meter-label-row">
+          <span>Agendamentos</span>
+          <span class="font-mono text-blue">${valAgendados} / ${metaAgendados}</span>
+        </div>
+        <div class="meter-bar-outer">
+          <div class="meter-bar-inner-blue" style="width: ${Math.min(pacingAgendados, 100)}%;"></div>
+        </div>
+        <div class="meter-sub-info text-blue">Atingimento: ${pacingAgendados.toFixed(0)}% da meta</div>
+      </div>
+
+      <!-- Efetivações -->
+      <div class="meter-container">
+        <div class="meter-label-row">
+          <span>Efetivações</span>
+          <span class="font-mono text-green">${valEfetivados} / ${metaEfetivados}</span>
+        </div>
+        <div class="meter-bar-outer">
+          <div class="meter-bar-inner-green" style="width: ${Math.min(pacingEfetivados, 100)}%;"></div>
+        </div>
+        <div class="meter-sub-info text-green">Atingimento: ${pacingEfetivados.toFixed(0)}% da meta</div>
+      </div>
+
+      <!-- Contas Abertas -->
+      <div class="meter-container">
+        <div class="meter-label-row">
+          <span>Contas Abertas</span>
+          <span class="font-mono text-orange">${valContas} / ${metaContas}</span>
+        </div>
+        <div class="meter-bar-outer">
+          <div class="meter-bar-inner-orange" style="width: ${Math.min(pacingContas, 100)}%;"></div>
+        </div>
+        <div class="meter-sub-info text-orange">Atingimento: ${pacingContas.toFixed(0)}% da meta</div>
+      </div>
+    </div>
+
+    <!-- Right Side Cards: Connection rates and conversion ratios -->
+    <div style="display: grid; grid-template-rows: repeat(3, 1fr); gap: 10px;">
+      <div class="stats-card-mini">
+        <span class="stats-card-mini-title">Ligações Efetuadas</span>
+        <span class="stats-card-mini-value">${valLigações}</span>
+        <span class="stats-card-mini-subtitle">${ligacoesPorAgendamento > 0 ? `${ligacoesPorAgendamento} ligações por agendamento` : 'Sem registros de ligações'}</span>
+      </div>
+      <div class="stats-card-mini">
+        <span class="stats-card-mini-title">Eficácia / Conversão</span>
+        <span class="stats-card-mini-value">${taxaConversao}%</span>
+        <span class="stats-card-mini-subtitle">Reuniões Efetivadas / Agendamentos</span>
+      </div>
+      <div class="stats-card-mini" style="background: #f8fafc; border-color: #cbd5e1;">
+        <span class="stats-card-mini-title">Classificação Geral</span>
+        <span class="stats-card-mini-value" style="font-size: 16px; color:#1e1b4b; text-transform: uppercase;">
+          ${isSdr ? (pacingAgendados >= 100 ? 'Rank A' : pacingAgendados >= 60 ? 'Rank B' : 'Rank C') : 'Premium'}
+        </span>
+        <span class="stats-card-mini-subtitle">Nível de entrega e consistência</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 0.2: Histórico Geral de Performance -->
+  <div class="section-title">📈 Histórico de Produtividade, Metas e Evolução Mensal</div>
+  <table>
     <thead>
       <tr>
-        <th>Mês</th>
-        <th>Ligações</th>
-        <th>Agendamentos</th>
-        <th>Efetivações / Reuniões</th>
-        <th>Contas Abertas</th>
-        ${!isSdr ? '<th>Vol. Captação (BRL)</th><th>Cross-Sells</th>' : ''}
+        <th style="width: 15%;">Mês / Referência</th>
+        <th style="width: 13%;" class="text-center">Ligações</th>
+        <th style="width: 22%;" class="text-center">Reuniões Agendadas</th>
+        <th style="width: 22%;" class="text-center">Reuniões Efetivadas</th>
+        <th style="width: 18%;" class="text-center">Contas Abertas</th>
+        <th style="width: 10%;" class="text-center">Efetividade %</th>
       </tr>
     </thead>
     <tbody>
-  `;
-
-    const chartData = isSdr ? sdrChartData : assessorChartData;
-    chartData.forEach(row => {
-      html += `
-        <tr>
-          <td style="font-weight: 750;">${row.month || ''}</td>
-          <td>${row['Ligações'] || 0}</td>
-          <td>${row['Agendamentos'] || 0}</td>
-          <td>${row['Efetivações'] || 0}</td>
-          <td>${row['Contas Abertas'] || 0}</td>
-          ${!isSdr ? `<td>${formatBRL((row as any)['NET (Captação)'] || 0)}</td><td>${(row as any)['Cross-Sells'] || 0}</td>` : ''}
-        </tr>
-      `;
-    });
-
-    html += `
+      ${historyTableRowsHtml}
     </tbody>
   </table>
 
-  <div class="section-title">🏆 Clientes & Contratos Fechados</div>
-  <table style="width: 100%;">
+  <!-- SECTION 0.3: Histórico de Rankings de Performance -->
+  <div class="section-title">🏆 Histórico de Rankings de Performance (Pontuação & Evolução)</div>
+  <table>
     <thead>
       <tr>
-        <th>Cliente</th>
-        <th>Categoria de Produto</th>
-        <th>SDR Responsável</th>
-        <th>Assessor Responsável</th>
-        <th class="text-right">Volume Total</th>
-        <th>Status</th>
+        <th style="width: 30%;">Data da Atualização</th>
+        <th style="width: 40%;" class="text-center font-bold">Pontuação de Performance (0 a 100)</th>
+        <th style="width: 30%;" class="text-center">Ranking Obtido</th>
       </tr>
     </thead>
     <tbody>
-  `;
+      ${rankingHistoryRowsHtml}
+    </tbody>
+  </table>
 
-    const deals = isSdr ? sdrNegocios : assessorNegocios;
-    if (deals.length > 0) {
-      deals.forEach(deal => {
+  <!-- SECTION 1: Histórico de Feedbacks / Alinhamentos 1-on-1 -->
+  <div class="section-title">📅 Histórico Geral de Alinhamento Estratégico 1-on-1</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 10%;">Data</th>
+        <th style="width: 15%;">Líder</th>
+        <th style="width: 32%;">Notas de Ajustes e Feedback</th>
+        <th style="width: 32%;">Planos de Intervenção Estratégico</th>
+        <th style="width: 11%;" class="text-center">Avaliação</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+    if (listOneOnOnes.length > 0) {
+      listOneOnOnes.forEach(log => {
+        const badgeClass = log.status === 'OUTLIER' ? 'type-outlier' : log.status === 'EM_RISCO' ? 'type-risco' : 'type-caminho';
         html += `
           <tr>
-            <td style="font-weight: 700;">${deal.clientName}</td>
-            <td style="font-family: monospace;">${deal.produtoCategoria.replace(/_/g, ' ')}</td>
-            <td>${deal.sdrName || '—'}</td>
-            <td>${deal.assessorName || '—'}</td>
-            <td class="text-right" style="font-weight: 700;">${formatBRL(deal.volumeFinanceiro)}</td>
-            <td>
-              <span class="status-badge" style="background: ${deal.status === 'GANHO' ? '#dcfce7' : '#f3f4f6'}; color: ${deal.status === 'GANHO' ? '#15803d' : '#374151'}">
-                ${deal.status}
+            <td class="font-mono" style="font-weight: 600;">${formatDateString(log.timestamp?.substring(0, 10))}</td>
+            <td style="font-weight: 600; color: #1e293b;">${log.leader}</td>
+            <td>"${log.notes || 'Sem observações operacionais.'}"</td>
+            <td style="font-weight: 500; color: #0f172a;"><strong>"${log.actionPlan || 'Nenhum plano estratégico formal'}"</strong></td>
+            <td class="text-center">
+              <span class="badge-log-type ${badgeClass}">
+                ${log.status || 'NO_CAMINHO'}
               </span>
             </td>
           </tr>
@@ -659,7 +980,105 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
     } else {
       html += `
         <tr>
-          <td colspan="6" style="text-align: center; color: #9ca3af; font-style: italic;">Nenhum negócio registrado até o momento.</td>
+          <td colspan="5" style="text-align: center; color: #94a3b8; font-style: italic; padding: 20px;">Nenhum alinhamento de 1-on-1 registrado para este profissional.</td>
+        </tr>
+      `;
+    }
+
+    html += `
+    </tbody>
+  </table>`;
+
+    // SECTION 2: Histórico de Auditoria Operacional (somente SDR)
+    if (isSdr) {
+      html += `
+      <div class="section-title">🛡️ Histórico de Auditoria Operacional de Ligações (SDR)</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 10%;">Data</th>
+            <th style="width: 15%;">Líder Auditor</th>
+            <th style="width: 100px;" class="text-center">Score Geral</th>
+            <th style="width: 35%;">Critérios Notas Individuais</th>
+            <th>Notas e Recomendações Críticas</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      if (listAudits.length > 0) {
+        listAudits.forEach(aud => {
+          html += `
+            <tr>
+              <td class="font-mono" style="font-weight: 600;">${formatDateString(aud.timestamp?.substring(0, 10))}</td>
+              <td style="font-weight: 600; color: #1e293b;">${aud.leader}</td>
+              <td class="text-center score-badge">${aud.totalScore || 0} Ptos</td>
+              <td>
+                <div class="meta-criterion">Abordagem: ${aud.score?.abordagem}/10 &bull; Conexão: ${aud.score?.conexao}/10</div>
+                <div class="meta-criterion">Especialidade: ${aud.score?.especialidade}/10 &bull; Proposta: ${aud.score?.proposta}/10</div>
+                <div class="meta-criterion">Tomada Decisão: ${aud.score?.tomadaDecisao}/10 &bull; Objeções: ${aud.score?.objecoes}/10</div>
+              </td>
+              <td>"${aud.notes || 'Nenhuma ressalva crítica adicionada.'}"</td>
+            </tr>
+          `;
+        });
+      } else {
+        html += `
+          <tr>
+            <td colspan="5" style="text-align: center; color: #94a3b8; font-style: italic; padding: 20px;">Nenhuma auditoria de ligação registrada durante o período corrente.</td>
+          </tr>
+        `;
+      }
+      html += `</tbody></table>`;
+    }
+
+    // SECTION 3: Histórico de Clientes e Volume Financeiro Gerado (GANHO ou outros)
+    html += `
+    <div class="section-title">🏆 Histórico de Clientes Integrados & Performance Comercial</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Lote / Razão Social Cliente</th>
+          <th>Produto de Entrada</th>
+          <th class="text-center">Fase / Status</th>
+          <th class="text-right">Volume Financeiro Alocado</th>
+          <th class="text-right">Receita Anualizada Estimada</th>
+          <th>Classificação do Investidor</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+    if (listNegocios.length > 0) {
+      listNegocios.forEach(neg => {
+        const valueVol = formatBRLValue(neg.volumeFinanceiro);
+        const valueRec = formatBRLValue(neg.receitaEstimada);
+        const stClass = neg.status === 'GANHO' ? 'badge-active' : neg.status === 'PERDIDO' ? 'badge-inactive' : 'badge-status bg-amber-100 text-amber-800';
+        html += `
+          <tr>
+            <td style="font-weight: 700; color: #0f172a;">${neg.clientName}</td>
+            <td style="font-weight: 500; color: #4338ca; font-family: monospace; font-size:10px;">${(neg.produtoCategoria || 'INVESTIMENTOS_XP').replace('_', ' ')}</td>
+            <td class="text-center">
+              <span class="badge-status ${stClass}">${neg.status}</span>
+            </td>
+            <td class="text-right font-mono" style="font-weight: 600;">${valueVol}</td>
+            <td class="text-right font-mono" style="color: #0d9488; font-weight: 600;">${valueRec}</td>
+            <td style="color:#475569; font-size:10.5px;">${neg.classificacao || 'Classe Geral (Alta Renda)'}</td>
+          </tr>
+        `;
+      });
+
+      // Sum Row
+      html += `
+        <tr class="total-row">
+          <td colspan="3">VALORES DE SUCESSO COBRADOS (SOMENTE CLIENTES GANHOS)</td>
+          <td class="text-right font-mono">${formatBRLValue(totalVolume)}</td>
+          <td class="text-right font-mono" style="color: #0f766e;">${formatBRLValue(totalReceita)}</td>
+          <td>${listNegocios.filter(n => n.status === 'GANHO').length} Integrados de ${listNegocios.length} Leads</td>
+        </tr>
+      `;
+    } else {
+      html += `
+        <tr>
+          <td colspan="6" style="text-align: center; color: #94a3b8; font-style: italic; padding: 20px;">Nenhum cliente ou operação fechada registrada para este profissional.</td>
         </tr>
       `;
     }
@@ -667,98 +1086,19 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
     html += `
       </tbody>
     </table>
-    `;
 
-    if (isSdr) {
-      html += `
-      <div class="section-title">📋 Sessões One-on-One de Alinhamento</div>
-      <table style="width: 100%;">
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Avaliador/Gestor</th>
-            <th>Notas da Reunião</th>
-            <th>Plano de Ação Traçado</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-      `;
-
-      if (sdrOneOnOnes.length > 0) {
-        sdrOneOnOnes.forEach(one => {
-          html += `
-            <tr>
-              <td style="font-family: monospace;">${formatDateString(one.timestamp.substring(0, 10))}</td>
-              <td style="font-weight: 600;">${one.leader}</td>
-              <td style="font-style: italic;">"${one.notes}"</td>
-              <td style="font-weight: 700;">${one.actionPlan}</td>
-              <td><span class="status-badge" style="background: #fef3c7; color: #92400e;">${one.status}</span></td>
-            </tr>
-          `;
-        });
-      } else {
-        html += `
-          <tr>
-            <td colspan="5" style="text-align: center; color: #9ca3af; font-style: italic;">Nenhuma reunião de One-on-One registrada.</td>
-          </tr>
-        `;
-      }
-
-      html += `
-        </tbody>
-      </table>
-
-      <div class="section-title">🛡️ Histórico de Auditorias Operacionais</div>
-      <table style="width: 100%;">
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Auditor</th>
-            <th>Geral</th>
-            <th>Notas / Recomendações</th>
-          </tr>
-        </thead>
-        <tbody>
-      `;
-
-      if (sdrAuditLogs.length > 0) {
-        sdrAuditLogs.forEach(aud => {
-          html += `
-            <tr>
-              <td style="font-family: monospace;">${formatDateString(aud.timestamp.substring(0, 10))}</td>
-              <td style="font-weight: 600;">${aud.leader}</td>
-              <td style="font-weight: 800; color: #4f46e5;">${aud.totalScore || 0} Ptos</td>
-              <td>"${aud.notes}"</td>
-            </tr>
-          `;
-        });
-      } else {
-        html += `
-          <tr>
-            <td colspan="4" style="text-align: center; color: #9ca3af; font-style: italic;">Nenhuma auditoria registrada neste mês.</td>
-          </tr>
-        `;
-      }
-
-      html += `
-        </tbody>
-      </table>
-      `;
-    }
-
-    html += `
-    <div class="footer">
-      Documento emitido eletronicamente pelo conselho sênior &bull; vmb pro elite cloud
+    <div class="footer-doc">
+      SISTEMA ELETRÔNICO DE CONTROLE SÊNIOR &bull; CONSELHO REGULATÓRIO VMB PRO
     </div>
-  </body>
-  </html>`;
+
+</body>
+</html>`;
 
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Ficha_Individual_${name.replace(/\s+/g, '_')}_${roleLabel}.html`;
+    a.download = `Relatorio_Ficha_${currentMemberName?.replace(/\s+/g, '_')}_${roleLabel}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -766,30 +1106,56 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/75 backdrop-blur-[6px] z-50 flex items-center justify-center p-2 sm:p-6 animate-fade-in">
-      <div className="w-full max-w-4xl h-[90vh] sm:h-[86vh] bg-neutral-50 rounded-2xl shadow-2xl border border-neutral-250 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in">
+      <div className="w-full max-w-7xl h-[94vh] bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/40 shadow-2xl flex flex-col overflow-hidden text-[#111827]">
         
         {/* Header Bar */}
-        <div className="px-6 py-4 bg-white border-b border-neutral-100 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="p-1 px-2.5 bg-neutral-100 border border-neutral-200 rounded text-[9.5px] font-black uppercase tracking-wider text-neutral-500">
+        <div className="px-6 py-4 bg-white/60 border-b border-neutral-200/40 backdrop-blur-md flex items-center justify-between shrink-0 gap-3">
+          <div className="flex items-center gap-3">
+            <span className="p-1 px-2.5 bg-neutral-200/50 border border-neutral-300 rounded-lg text-[9.5px] font-black uppercase tracking-wider text-neutral-600 font-mono">
               Ficha Individual
             </span>
-            <span className={`p-1 px-2 text-[9.5px] font-black uppercase tracking-wider rounded ${
-              entityType === 'sdr' 
-                ? 'bg-purple-50 text-purple-700 border border-purple-200' 
-                : entityType === 'consultor' 
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            <span className={`p-1 px-2.5 text-[9.5px] font-black uppercase tracking-wider rounded-lg border ${
+              activeType === 'sdr' 
+                ? 'bg-purple-100/70 text-purple-800 border-purple-200' 
+                : activeType === 'consultor' 
+                ? 'bg-blue-100/70 text-blue-800 border-blue-200'
+                : 'bg-amber-100/70 text-amber-800 border-amber-200'
             }`}>
-              {entityType === 'sdr' ? 'SDR' : entityType === 'consultor' ? 'Consultor' : 'Assessor'}
+              {activeType === 'sdr' ? 'SDR' : activeType === 'consultor' ? 'Consultor' : 'Assessor'}
             </span>
           </div>
+
+          {/* Sibling Navigation Controls */}
+          <div className="flex items-center gap-1.5 bg-neutral-500/10 p-1 rounded-xl border border-white/25">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={siblingList.length <= 1}
+              className="px-3 py-1 bg-white/80 hover:bg-white text-neutral-700 hover:text-black rounded-lg disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer font-bold flex items-center gap-1 text-[11px] uppercase font-mono border border-neutral-300/40"
+              title="Anterior"
+            >
+              <span className="text-xs font-sans">←</span>
+            </button>
+            <span className="text-[10px] font-mono font-extrabold px-2 text-neutral-500 min-w-[50px] text-center">
+              {currentIdx + 1} de {siblingList.length}
+            </span>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={siblingList.length <= 1}
+              className="px-3 py-1 bg-white/80 hover:bg-white text-neutral-700 hover:text-black rounded-lg disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer font-bold flex items-center gap-1 text-[11px] uppercase font-mono border border-neutral-300/40"
+              title="Próximo"
+            >
+              <span className="text-xs font-sans">→</span>
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleDownloadFicha}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border-2 border-neutral-950 hover:bg-neutral-800 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-3xs"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-neutral-900 border border-neutral-950 hover:bg-neutral-850 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-3xs"
             >
               <Download className="w-3.5 h-3.5 text-white" />
               Baixar Ficha
@@ -797,7 +1163,7 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
             <button 
               type="button"
               onClick={onClose} 
-              className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-500 hover:text-black transition cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-neutral-200/50 text-neutral-500 hover:text-black transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -805,1416 +1171,13 @@ export function IndividualProfileModal({ entityType, entityId, onClose }: Indivi
         </div>
 
         {/* Content Body Scrollable Area */}
-        <div className="flex-1 overflow-y-auto min-h-0 bg-neutral-50">
-          
-          {/* Main Professional Identity Block */}
-          <div className="p-6 bg-white border-b border-neutral-150 flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
-            
-            {/* Visual Avatar Container with Custom Photo & base64 Action hooks */}
-            <div className="relative group shrink-0 animate-fade-in">
-              <div 
-                className="w-24 h-24 rounded-2xl bg-neutral-100 border-2 border-neutral-300 overflow-hidden shadow-md flex items-center justify-center relative cursor-pointer"
-                onClick={() => setIsPhotoZoomed(true)}
-                title="Visualizar foto ampliada"
-              >
-                {photo ? (
-                  <img src={photo} alt={name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-neutral-400">
-                    <User className="w-10 h-10 stroke-[1.5]" />
-                    <span className="text-[10px] font-black uppercase tracking-wider mt-1 text-center font-mono">
-                      {name.substring(0, 2)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Overlaid upload or zoom trigger */}
-                {canEditOrDeletePhoto ? (
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
-                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-black uppercase tracking-wider cursor-pointer font-mono"
-                  >
-                    <Camera className="w-5 h-5 mb-1 text-white" />
-                    Mudar Foto
-                  </button>
-                ) : (
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-black uppercase tracking-wider cursor-pointer font-mono">
-                    <Eye className="w-5 h-5 mb-1 text-white" />
-                    Ampliar Foto
-                  </div>
-                )}
-              </div>
-
-              {/* Photo Options actions bar */}
-              <div className="flex flex-col items-center mt-2.5 gap-2 w-full">
-                <div className="flex justify-center flex-wrap items-center gap-2 text-center w-full">
-                  <button 
-                    type="button"
-                    onClick={() => setIsPhotoZoomed(true)}
-                    className="text-[9.5px] font-black uppercase text-[#d97706] hover:text-[#b45309] hover:underline cursor-pointer flex items-center gap-1 leading-none bg-[#fef3c7] px-2 py-1 rounded border border-[#fde68a]"
-                    title="Ampliar foto em tamanho maior"
-                  >
-                    <ZoomIn className="w-3 .5 h-3.5" /> Ampliar
-                  </button>
-                  {canEditOrDeletePhoto && (
-                    <>
-                      <button 
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-[9.5px] font-black uppercase text-neutral-500 hover:text-black hover:underline cursor-pointer flex items-center gap-1 leading-none pl-1"
-                      >
-                        <Upload className="w-3.5 h-3.5" /> Enviar
-                      </button>
-                      {photo && (
-                        <button 
-                          type="button"
-                          onClick={handleRemovePhoto}
-                          className="text-[9.5px] font-black uppercase text-red-500 hover:text-red-700 hover:underline cursor-pointer flex items-center gap-1 leading-none border-l border-neutral-300 pl-2"
-                        >
-                          Excluir
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Input file handler hidden hook */}
-              {canEditOrDeletePhoto && (
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handlePhotoUpload} 
-                  accept="image/*" 
-                  className="hidden" 
-                />
-              )}
-            </div>
-
-            {/* General Identity Details Block */}
-            <div className="flex-1 space-y-3">
-              <div>
-                <div className="flex items-center gap-2.5 justify-center md:justify-start">
-                  <h2 className="text-xl md:text-2xl font-extrabold text-neutral-900 tracking-tight leading-none">
-                    {name}
-                  </h2>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                    active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
-                  }`}>
-                    {active ? 'Ativo' : 'Inativo'}
-                  </span>
-                </div>
-                
-                <p className="text-xs text-neutral-500 font-mono tracking-wide uppercase font-black mt-1.5">
-                  {team || 'Sem Equipe Atribuída'} &bull; Desde {formatDateString(admissionDate)}
-                </p>
-              </div>
-
-              {/* Badges profiling tags */}
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start items-center">
-                {professionalProfile && (
-                  <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded bg-neutral-100 border border-neutral-200 text-neutral-600">
-                    Perfil: {professionalProfile === 'gestao' ? '🛡️ Gestão/Líder' : professionalProfile === 'analitico' ? '📊 Analítico' : professionalProfile === 'operacional' ? '⚙️ Operacional' : '⚡ Comercial'}
-                  </span>
-                )}
-                {sdr && (
-                  <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded bg-purple-50 border border-purple-150 text-purple-700">
-                    SDR Team Leader Align
-                  </span>
-                )}
-                {assessor && (
-                  <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded bg-amber-50 border border-amber-150 text-amber-700">
-                    {assessor.agendaLink ? '📅 Agenda Conectada' : '⚠️ Sem Link de Agenda'}
-                  </span>
-                )}
-              </div>
-
-              {/* URL photo quick form helper (Only if allowed to edit) */}
-              {canEditOrDeletePhoto && (
-                <form onSubmit={handleApplyPhotoUrl} className="flex gap-2 max-w-sm mt-3 pt-2 border-t border-neutral-100/80 mx-auto md:mx-0">
-                  <input 
-                    type="url" 
-                    placeholder="Ou insira um Link de foto/avatar..."
-                    value={photoUrlInput}
-                    onChange={e => setPhotoUrlInput(e.target.value)}
-                    className="flex-1 px-2.5 py-1 text-[10.5px] border border-neutral-300 rounded bg-neutral-50 text-neutral-800 placeholder-neutral-450 focus:outline-none focus:ring-1 focus:ring-black"
-                  />
-                  <button 
-                    type="submit" 
-                    className="px-2.5 py-1 bg-black text-white text-[9.5px] font-black uppercase rounded hover:bg-neutral-800 shrink-0 cursor-pointer"
-                  >
-                    Ok
-                  </button>
-                </form>
-              )}
-              {errorMsg && <p className="text-[10px] text-red-500 font-semibold">{errorMsg}</p>}
-            </div>
-
-          </div>
-
-          {/* Sub Tab Navigation bar */}
-          <div className="px-6 bg-white border-b border-neutral-200 shrink-0 flex gap-4 overflow-x-auto scrollbar-none">
-            <button 
-              type="button"
-              onClick={() => setActiveSubTab('resumo')}
-              className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
-                activeSubTab === 'resumo'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-neutral-400 hover:text-neutral-700'
-              }`}
-            >
-              📊 Resumo & Números Atuais
-            </button>
-
-            <button 
-              type="button"
-              onClick={() => setActiveSubTab('evolucao_graficos')}
-              className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
-                activeSubTab === 'evolucao_graficos'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-neutral-400 hover:text-neutral-700'
-              }`}
-            >
-              📈 Evolução & Gráficos
-            </button>
-            
-            {sdr && (
-              <button 
-                type="button"
-                onClick={() => setActiveSubTab('historico_metas')}
-                className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
-                  activeSubTab === 'historico_metas'
-                    ? 'border-black text-black'
-                    : 'border-transparent text-neutral-400 hover:text-neutral-700'
-                }`}
-              >
-                📅 Metas Mensais
-              </button>
-            )}
-
-            <button 
-              type="button"
-              onClick={() => setActiveSubTab('negocios')}
-              className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
-                activeSubTab === 'negocios'
-                  ? 'border-black text-black'
-                  : 'border-transparent text-neutral-400 hover:text-neutral-700'
-              }`}
-            >
-              🏆 Clientes & Contratos ({sdr ? sdrNegocios.length : assessorNegocios.length})
-            </button>
-
-            {sdr && (
-              <button 
-                type="button"
-                onClick={() => setActiveSubTab('auditorias')}
-                className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
-                  activeSubTab === 'auditorias'
-                    ? 'border-black text-black'
-                    : 'border-transparent text-neutral-400 hover:text-neutral-700'
-                }`}
-              >
-                📋 Auditorias & 1On1s ({sdrAuditLogs.length + sdrOneOnOnes.length})
-              </button>
-            )}
-
-            {assessor && (
-              <button 
-                type="button"
-                onClick={() => setActiveSubTab('editar_metas')}
-                className={`py-3.5 border-b-2 font-mono text-xs uppercase font-black tracking-wide shrink-0 transition-all ${
-                  activeSubTab === 'editar_metas'
-                    ? 'border-black text-black'
-                    : 'border-transparent text-neutral-400 hover:text-neutral-700'
-                }`}
-              >
-                ⚙️ {canEdit ? 'Editar Ficha & Metas' : 'Visualizar Ficha & Metas'}
-              </button>
-            )}
-          </div>
-
-          {/* Details sections representation container */}
-          <div className="p-6">
-            
-            {/* SUB TAB 1: CURRENT MONTH METRICS & VISUAL CARDS */}
-            {activeSubTab === 'resumo' && (
-              <div className="space-y-6">
-                
-                {/* SDR MONTH METRICS DETAILED CARDS */}
-                {sdr && (
-                  <div>
-                    <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono mb-3">
-                      Performance Operacional - Referência {currentMonth}
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      
-                      {/* Agendamentos */}
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200">
-                        <div className="flex justify-between items-center text-neutral-400 mb-1">
-                          <span className="text-[10px] font-black uppercase font-mono tracking-wider">Agendamentos</span>
-                          <Calendar className="w-4 h-4 text-neutral-400" />
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black text-neutral-900">{sdrAgendados}</span>
-                          <span className="text-xs text-neutral-450">/ {sdrMetaAgendados} meta</span>
-                        </div>
-                        <div className="mt-3">
-                          <div className="flex justify-between text-[10px] font-bold text-neutral-500 mb-1">
-                            <span>Atingimento</span>
-                            <span>{sdrPacingAgendados.toFixed(0)}%</span>
-                          </div>
-                          <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-purple-600 h-full rounded-full transition-all" 
-                              style={{ width: `${Math.min(sdrPacingAgendados, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Efetivações */}
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200">
-                        <div className="flex justify-between items-center text-neutral-400 mb-1">
-                          <span className="text-[10px] font-black uppercase font-mono tracking-wider">Efetivações</span>
-                          <CheckCircle2 className="w-4 h-4 text-neutral-400" />
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black text-neutral-900">{sdrEfetivados}</span>
-                          <span className="text-xs text-neutral-450">/ {sdrMetaEfetivados} meta</span>
-                        </div>
-                        <div className="mt-3">
-                          <div className="flex justify-between text-[10px] font-bold text-neutral-500 mb-1">
-                            <span>Atingimento</span>
-                            <span>{sdrPacingEfetivados.toFixed(0)}%</span>
-                          </div>
-                          <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-emerald-600 h-full rounded-full transition-all" 
-                              style={{ width: `${Math.min(sdrPacingEfetivados, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Contas Abertas */}
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200">
-                        <div className="flex justify-between items-center text-neutral-400 mb-1">
-                          <span className="text-[10px] font-black uppercase font-mono tracking-wider">Contas Abertas</span>
-                          <Award className="w-4 h-4 text-neutral-400" />
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black text-neutral-900">{sdrContas}</span>
-                          <span className="text-xs text-neutral-450">/ {sdrMetaContas} meta</span>
-                        </div>
-                        <div className="mt-3">
-                          <div className="flex justify-between text-[10px] font-bold text-neutral-500 mb-1">
-                            <span>Atingimento</span>
-                            <span>{sdrPacingContas.toFixed(0)}%</span>
-                          </div>
-                          <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-blue-600 h-full rounded-full transition-all" 
-                              style={{ width: `${Math.min(sdrPacingContas, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* SDR Additional current month info box */}
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200 flex justify-between items-center">
-                        <div>
-                          <p className="text-[10px] font-mono font-black uppercase text-neutral-450 tracking-wider">Ligações Efetuadas</p>
-                          <p className="text-lg font-black text-neutral-900 mt-1">{sdrCalls} contatos</p>
-                        </div>
-                        <Phone className="w-5 h-5 text-neutral-300" />
-                      </div>
-
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200 flex justify-between items-center">
-                        <div>
-                          <p className="text-[10px] font-mono font-black uppercase text-neutral-450 tracking-wider">Conversão de Reunião</p>
-                          <p className="text-lg font-black text-neutral-900 mt-1">{sdrEfetivacaoRateReal.toFixed(1)}%</p>
-                        </div>
-                        <TrendingUp className="w-5 h-5 text-neutral-300" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ASSESSOR/CONSULTOR CURRENT MONTH TARGET METRICS */}
-                {assessor && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono mb-3">
-                        Metas Globais vs Realizado Atual (Mês Corrente)
-                      </h3>
-                      
-                      {(() => {
-                        const displayMetrics = assessor.customMonitorMetrics || [
-                          { key: 'ligacoes', name: 'Ligações', target: assessor.metaLigacoes || 0, real: assessor.realizadoLigacoes || 0 },
-                          { key: 'realizadas', name: 'Reuniões Realizadas', target: assessor.metaReunioesRealizadas || 0, real: assessor.realizadoReunioesRealizadas || 0 },
-                          { key: 'net', name: 'Captação Líquida (NET)', target: assessor.metaNet || 0, real: assessor.realizadoNet || 0 },
-                        ];
-
-                        const secondaryMetrics = assessor.customMonitorMetrics 
-                          ? assessor.customMonitorMetrics.filter(m => !['ligacoes', 'realizadas', 'net'].includes(m.key)) 
-                          : [
-                            { key: 'agendadas', name: 'Reun. Agendadas', target: assessor.metaReunioesAgendadas || 0, real: assessor.realizadoReunioesAgendadas || 0 },
-                            { key: 'contas_abertas', name: 'Contas Novas', target: assessor.metaContasAbertas || 0, real: assessor.realizadoContasAbertas || 0 },
-                            { key: 'captacao', name: 'Captação Inbound', target: 0, real: assessor.captacaoMes || 0, isLegacyCap: true },
-                            { key: 'cross_sell', name: 'Qtd. Cross-Sell', target: assessor.metaCrossSell || 0, real: assessor.realizadoCrossSell || 0 },
-                          ];
-
-                        return (
-                          <>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                              {displayMetrics.slice(0, 3).map(m => {
-                                const isNet = m.key === 'net' || m.name.toLowerCase().includes('net') || m.name.toLowerCase().includes('captação') || m.name.toLowerCase().includes('capto') || m.name.toLowerCase().includes('capta');
-                                return (
-                                  <div key={m.key} className="bg-white p-4 rounded-xl border border-neutral-200">
-                                    <p className="text-[10.5px] font-mono font-black uppercase text-neutral-450">{m.name}</p>
-                                    {isNet ? (
-                                      <>
-                                        <div className="flex items-baseline gap-1.5 mt-1.5">
-                                          <span className="text-lg font-black text-neutral-900">{formatBRL(m.real || 0)}</span>
-                                        </div>
-                                        <span className="text-[10.5px] text-neutral-450">Meta: {formatBRL(m.target || 0)}</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <div className="flex items-baseline gap-1.5 mt-1.5">
-                                          <span className="text-xl font-bold">{m.real || 0}</span>
-                                          <span className="text-xs text-neutral-400">/ {m.target || 0}</span>
-                                        </div>
-                                        <div className="w-full bg-neutral-100 h-1.5 rounded-full mt-3 overflow-hidden">
-                                          <div 
-                                            className="bg-neutral-800 h-full rounded-full"
-                                            style={{ width: `${Math.min(m.target && m.target > 0 ? ((m.real || 0) / m.target) * 100 : 0, 100)}%` }}
-                                          />
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Remaining metrics dynamically rendered in secondary layout */}
-                            {secondaryMetrics.length > 0 && (
-                              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                {secondaryMetrics.map(m => {
-                                  const isNet = m.key === 'net' || m.name.toLowerCase().includes('net') || m.name.toLowerCase().includes('captação') || m.name.toLowerCase().includes('capto') || m.name.toLowerCase().includes('capta');
-                                  return (
-                                    <div key={m.key} className="bg-neutral-100 p-3 rounded-lg border border-neutral-200 text-center">
-                                      <span className="text-[9.5px] font-mono uppercase text-neutral-500 block truncate" title={m.name}>{m.name}</span>
-                                      {isNet || (m as any).isLegacyCap ? (
-                                        <span className="text-xs font-bold text-neutral-800 block mt-0.5">{formatBRL(m.real || 0)}</span>
-                                      ) : (
-                                        <span className="text-xs font-bold text-neutral-800 block mt-0.5">{m.real || 0} / {m.target || 0}</span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Detailed Product Cross-Sell Breakdown */}
-                    <div>
-                      <h4 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono mb-3">
-                        Breakdown de Cross-Sell por Vertical de Produto
-                      </h4>
-                      <div className="bg-white p-5 rounded-xl border border-neutral-200 overflow-hidden">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                          
-                          {/* Segmento 1 */}
-                          <div className="space-y-3">
-                            <div>
-                              <div className="flex justify-between text-xs font-semibold text-neutral-700">
-                                <span>🛡️ Seguros de Vida</span>
-                                <span>{assessor.crossSellSeguroRealizado || 0} / {assessor.crossSellSeguroMeta || 0}</span>
-                              </div>
-                              <div className="w-full bg-neutral-100 h-1 rounded-full mt-1.5 overflow-hidden">
-                                <div className="bg-blue-600 h-full" style={{ width: `${Math.min(assessor.crossSellSeguroMeta ? ((assessor.crossSellSeguroRealizado || 0) / assessor.crossSellSeguroMeta) * 100 : 0, 100)}%` }} />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="flex justify-between text-xs font-semibold text-neutral-700">
-                                <span>🏘️ Consórcios</span>
-                                <span>{assessor.crossSellConsorcioRealizado || 0} / {assessor.crossSellConsorcioMeta || 0}</span>
-                              </div>
-                              <div className="w-full bg-neutral-100 h-1 rounded-full mt-1.5 overflow-hidden">
-                                <div className="bg-amber-600 h-full" style={{ width: `${Math.min(assessor.crossSellConsorcioMeta ? ((assessor.crossSellConsorcioRealizado || 0) / assessor.crossSellConsorcioMeta) * 100 : 0, 100)}%` }} />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Segmento 2 */}
-                          <div className="space-y-3">
-                            <div>
-                              <div className="flex justify-between text-xs font-semibold text-neutral-700">
-                                <span>📊 Câmbio</span>
-                                <span>{assessor.crossSellCambioRealizado || 0} / {assessor.crossSellCambioMeta || 0}</span>
-                              </div>
-                              <div className="w-full bg-neutral-100 h-1 rounded-full mt-1.5 overflow-hidden">
-                                <div className="bg-emerald-600 h-full" style={{ width: `${Math.min(assessor.crossSellCambioMeta ? ((assessor.crossSellCambioRealizado || 0) / assessor.crossSellCambioMeta) * 100 : 0, 100)}%` }} />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="flex justify-between text-xs font-semibold text-neutral-700">
-                                <span>🏢 Contabilidade</span>
-                                <span>{assessor.crossSellContabilidadeRealizado || 0} / {assessor.crossSellContabilidadeMeta || 0}</span>
-                              </div>
-                              <div className="w-full bg-neutral-100 h-1 rounded-full mt-1.5 overflow-hidden">
-                                <div className="bg-indigo-600 h-full" style={{ width: `${Math.min(assessor.crossSellContabilidadeMeta ? ((assessor.crossSellContabilidadeRealizado || 0) / assessor.crossSellContabilidadeMeta) * 100 : 0, 100)}%` }} />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Segmento 3 */}
-                          <div className="space-y-3">
-                            <div>
-                              <div className="flex justify-between text-xs font-semibold text-neutral-700">
-                                <span>❤️ Planos de Saúde</span>
-                                <span>{assessor.crossSellPlanoSaudeRealizado || 0} / {assessor.crossSellPlanoSaudeMeta || 0}</span>
-                              </div>
-                              <div className="w-full bg-neutral-100 h-1 rounded-full mt-1.5 overflow-hidden">
-                                <div className="bg-red-500 h-full" style={{ width: `${Math.min(assessor.crossSellPlanoSaudeMeta ? ((assessor.crossSellPlanoSaudeRealizado || 0) / assessor.crossSellPlanoSaudeMeta) * 150 : 0, 100)}%` }} />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="flex justify-between text-xs font-semibold text-neutral-700">
-                                <span>📁 Outros Produtos</span>
-                                <span>{assessor.crossSellOutrosRealizado || 0} / {assessor.crossSellOutrosMeta || 0}</span>
-                              </div>
-                              <div className="w-full bg-neutral-105 h-1 rounded-full mt-1.5 overflow-hidden">
-                                <div className="bg-neutral-500 h-full" style={{ width: `${Math.min(assessor.crossSellOutrosMeta ? ((assessor.crossSellOutrosRealizado || 0) / assessor.crossSellOutrosMeta) * 100 : 0, 100)}%` }} />
-                              </div>
-                            </div>
-                          </div>
-
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SHARED ROTATION MATCH HISTORY SUBSECTION */}
-                <div>
-                  <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono mb-3">
-                    Relacionamentos Correntes no Rodízio / Célula
-                  </h3>
-                  <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden divide-y divide-neutral-100">
-                    {sdr && (
-                      sdrMatches.length > 0 ? (
-                        sdrMatches.map((m, idx) => (
-                          <div key={idx} className="p-3.5 flex items-center justify-between text-xs font-semibold text-neutral-700">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                              Parceiro Assessor: <strong className="text-black font-black">{m.assessorName}</strong>
-                            </span>
-                            <span className="text-neutral-400 text-[10px] font-mono uppercase font-bold">
-                              {m.startDate && m.endDate ? `${formatDateString(m.startDate)} até ${formatDateString(m.endDate)}` : 'Vigência Mensal'}
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-4 text-center text-neutral-400 text-xs font-semibold">
-                          Nenhum assessor específico mapeado ativamente neste rodízio. O SDR está em rotação livre.
-                        </div>
-                      )
-                    )}
-
-                    {assessor && (
-                      assessorMatches.length > 0 ? (
-                        assessorMatches.map((m, idx) => (
-                          <div key={idx} className="p-3.5 flex items-center justify-between text-xs font-semibold text-neutral-700">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-teal-400" />
-                              SDR Atribuído no Turno: <strong className="text-black font-black">{m.sdrName}</strong>
-                            </span>
-                            <span className="text-neutral-400 text-[10px] font-mono uppercase font-bold">
-                              Conversão SDR: {m.sdrConversionRate || 0}%
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-4 text-center text-neutral-400 text-xs font-semibold">
-                          Nenhum SDR exclusivo ou pareado neste mês.
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-            {/* SUB TAB 2: METRICS MONTH-BY-MONTH HISTORY */}
-            {activeSubTab === 'historico_metas' && sdr && (
-              <div className="space-y-4">
-                <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono">
-                  Histórico de Metas e Entregas Consolidado por Mês
-                </h3>
-                
-                {sdr.monthlyRecords && Object.keys(sdr.monthlyRecords).length > 0 ? (
-                  <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden divide-y divide-neutral-100">
-                    {Object.entries(sdr.monthlyRecords).map(([month, rec]) => {
-                      const bookings = rec.agendamentosCount || 0;
-                      const goal = rec.metaAgendamentos || 20;
-                      const conversion = goal > 0 ? (bookings / goal) * 100 : 0;
-                      
-                      return (
-                        <div key={month} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                          <div>
-                            <span className="text-xs uppercase font-black tracking-wider text-black bg-neutral-100 px-2 py-0.5 rounded font-mono">
-                              {month}
-                            </span>
-                            <div className="flex gap-4 mt-2 text-[11px] font-semibold text-neutral-600">
-                              <span>📅 Agendamentos: <strong className="text-neutral-800">{bookings} / {goal}</strong></span>
-                              <span>🏆 Efetivações: <strong className="text-neutral-800">{rec.efetivacoesCount || 0}</strong></span>
-                              <span>📞 Ligações: <strong className="text-neutral-800">{rec.callsCount || 0}</strong></span>
-                            </div>
-                          </div>
-                          
-                          <div className="shrink-0 text-right">
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                              conversion >= 100 
-                                ? 'bg-emerald-50 text-emerald-800' 
-                                : conversion >= 50 
-                                ? 'bg-orange-50 text-orange-850' 
-                                : 'bg-red-50 text-red-800'
-                            }`}>
-                              Atingimento: {conversion.toFixed(0)}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="bg-white p-6 rounded-xl border border-neutral-200 text-center text-neutral-400 text-xs font-semibold">
-                    Nenhum registro de meses passados gravado no histórico deste SDR.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* SUB TAB 3: CLOSED WON DEALS (NEGOCIOS) LIST */}
-            {activeSubTab === 'negocios' && (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono">
-                    Histórico de Negócios e Contas Fechadas Ganhos
-                  </h3>
-                  <span className="text-[10.5px] font-mono text-neutral-500 font-semibold uppercase">
-                    Volume Total: {formatBRL((sdr ? sdrNegocios : assessorNegocios).filter(n => n.status === 'GANHO').reduce((acc, curr) => acc + (curr.volumeFinanceiro || 0), 0))}
-                  </span>
-                </div>
-
-                {(sdr ? sdrNegocios : assessorNegocios).length > 0 ? (
-                  <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden divide-y divide-neutral-100">
-                    {(sdr ? sdrNegocios : assessorNegocios).map((neg) => (
-                      <div key={neg.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-extrabold text-xs text-neutral-900">{neg.clientName}</h4>
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                              neg.status === 'GANHO' ? 'bg-emerald-100 text-emerald-800' : neg.status === 'PERDIDO' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {neg.status}
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-x-4 text-[10.5px] font-semibold text-neutral-500">
-                            <span>Tipo: <strong className="text-neutral-700">{neg.produtoCategoria.replace(/_/g, ' ')}</strong></span>
-                            {sdr && neg.assessorName && <span>Assessor: <strong className="text-neutral-700">{neg.assessorName}</strong></span>}
-                            {assessor && neg.sdrName && <span>SDR: <strong className="text-neutral-700">{neg.sdrName}</strong></span>}
-                            <span>Data: <strong className="text-neutral-700 font-mono">{formatDateString(neg.dataFechamento)}</strong></span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p className="text-xs font-black text-neutral-900">{formatBRL(neg.volumeFinanceiro)}</p>
-                          <p className="text-[10px] font-semibold text-neutral-400">Receita: {formatBRL(neg.receitaEstimada)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-white p-6 rounded-xl border border-neutral-200 text-center text-neutral-400 text-xs font-semibold">
-                    Nenhum negócio comercial concluído e cadastrado para este profissional.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* SUB TAB 4: AUDIT EVALUATION SCORE LOGS & ONES */}
-            {activeSubTab === 'auditorias' && sdr && (
-              <div className="space-y-6">
-                
-                {/* 1On1 Session checklist and Action Plans */}
-                <div>
-                  <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono mb-3">
-                    Histórico de Reuniões 1on1 & Planos de Ação Mapeados
-                  </h3>
-                  
-                  {sdrOneOnOnes.length > 0 ? (
-                    <div className="space-y-3.5">
-                      {sdrOneOnOnes.map((o) => (
-                        <div key={o.id} className="bg-white p-4 rounded-xl border border-neutral-200 space-y-3 shadow-sm">
-                          <div className="flex justify-between items-start gap-4">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono ${
-                                  o.status === 'OUTLIER' 
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-250' 
-                                    : o.status === 'EM_RISCO' 
-                                    ? 'bg-red-50 text-red-700 border border-red-250' 
-                                    : 'bg-yellow-50 text-yellow-750 border border-yellow-250'
-                                }`}>
-                                  Status: {o.status.replace(/_/g, ' ')}
-                                </span>
-                                <span className="text-[10.5px] font-bold text-neutral-400">
-                                  Líder: {o.leader}
-                                </span>
-                              </div>
-                              <p className="text-xs font-black text-neutral-800 mt-2">
-                                Plano de Ação Mapeado:
-                              </p>
-                              <p className="text-[11px] font-medium text-neutral-600 mt-1 bg-neutral-50 p-2.5 rounded border border-neutral-100">
-                                {o.actionPlan}
-                              </p>
-                            </div>
-                            
-                            <div className="shrink-0 text-right font-mono text-[9px] uppercase font-black text-neutral-400">
-                              <span>Realizado: {formatDateString(o.timestamp.split('T')[0])}</span>
-                              {o.nextMeeting && <span className="block text-neutral-700 mt-1 font-sans">Próximo: {formatDateString(o.nextMeeting)}</span>}
-                            </div>
-                          </div>
-
-                          {o.notes && (
-                            <div className="text-[10.5px] text-neutral-500">
-                              <span className="font-bold text-neutral-700">Notas de Sessão:</span> {o.notes}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-white p-6 rounded-xl border border-neutral-200 text-center text-neutral-400 text-xs font-semibold">
-                      Nenhuma reunião de desenvolvimento individual (1on1) registrada para este SDR.
-                    </div>
-                  )}
-                </div>
-
-                {/* Audit Performance evaluation details */}
-                <div>
-                  <h3 className="text-xs uppercase font-black text-neutral-450 tracking-wider font-mono mb-3">
-                    Histórico de Avaliações de Ligações e Auditorias de Pitch
-                  </h3>
-
-                  {sdrAuditLogs.length > 0 ? (
-                    <div className="space-y-3.5">
-                      {sdrAuditLogs.map((log) => (
-                        <div key={log.id} className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm space-y-3">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <span className="p-1 px-2.5 bg-neutral-100 rounded text-xs font-mono font-black text-neutral-800">
-                                Nota Média: {((log.totalScore || 0) / 6).toFixed(1)} / 10
-                              </span>
-                              <span className="text-[10px] text-neutral-405 font-bold">
-                                Avaliado por {log.leader}
-                              </span>
-                            </div>
-                            <span className="text-[10px] font-mono text-neutral-400 font-bold">
-                              {formatDateString(log.timestamp.split('T')[0])}
-                            </span>
-                          </div>
-
-                          {/* Scores alignment radar grid */}
-                          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center text-[10px] font-mono font-bold text-neutral-500 uppercase mt-2">
-                            <div className="bg-neutral-50 p-1.5 rounded border border-neutral-150">
-                              <span className="block text-[8px] text-neutral-400 font-sans">Abordagem</span>
-                              <span className="text-neutral-800 font-black text-xs mt-0.5 block">{log.score.abordagem}</span>
-                            </div>
-                            <div className="bg-neutral-50 p-1.5 rounded border border-neutral-150">
-                              <span className="block text-[8px] text-neutral-400 font-sans">Conexão</span>
-                              <span className="text-neutral-800 font-black text-xs mt-0.5 block">{log.score.conexao}</span>
-                            </div>
-                            <div className="bg-neutral-50 p-1.5 rounded border border-neutral-150">
-                              <span className="block text-[8px] text-neutral-400 font-sans">Especialid.</span>
-                              <span className="text-neutral-800 font-black text-xs mt-0.5 block">{log.score.especialidade}</span>
-                            </div>
-                            <div className="bg-neutral-50 p-1.5 rounded border border-neutral-150">
-                              <span className="block text-[8px] text-neutral-400 font-sans">Proposta</span>
-                              <span className="text-neutral-800 font-black text-xs mt-0.5 block">{log.score.proposta}</span>
-                            </div>
-                            <div className="bg-neutral-50 p-1.5 rounded border border-neutral-150">
-                              <span className="block text-[8px] text-neutral-400 font-sans">Decisão</span>
-                              <span className="text-neutral-800 font-black text-xs mt-0.5 block">{log.score.tomadaDecisao}</span>
-                            </div>
-                            <div className="bg-neutral-50 p-1.5 rounded border border-neutral-150">
-                              <span className="block text-[8px] text-neutral-400 font-sans">Objeções</span>
-                              <span className="text-neutral-800 font-black text-xs mt-0.5 block">{log.score.objecoes}</span>
-                            </div>
-                          </div>
-
-                          {log.notes && (
-                            <div className="text-[11px] text-neutral-600 bg-neutral-50 p-2.5 rounded border border-neutral-100 mt-2.5">
-                              <span className="font-extrabold text-neutral-700 block">Observações do Feedback:</span>
-                              {log.notes}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-white p-6 rounded-xl border border-neutral-200 text-center text-neutral-400 text-xs font-semibold">
-                      Nenhuma auditoria ou simulado de ligação registrado para este SDR.
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            )}
-
-            {/* SUB TAB 5: EVOLUTION & PERFORMANCE CHARTS */}
-            {activeSubTab === 'evolucao_graficos' && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-3">
-                  <div>
-                    <h3 className="text-sm font-black text-neutral-800 font-mono uppercase">
-                      📈 Evolução Histórica de Resultados
-                    </h3>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      Visualização de performance consolidada ao longo dos meses para {name} ({team || 'Sem Equipe'})
-                    </p>
-                  </div>
-                  <span className="p-1 px-2.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono font-black text-neutral-500 uppercase self-start sm:self-center">
-                    Eixo Temporal: Março - Junho
-                  </span>
-                </div>
-
-                {sdr && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* SDR Chart 1: Volume de Chamadas */}
-                    <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3">
-                        <PhoneCall className="w-4 h-4 text-neutral-500" />
-                        <h4 className="text-[11px] font-black uppercase text-neutral-700 tracking-wider font-mono">
-                          Volume Operacional (Ligações)
-                        </h4>
-                      </div>
-                      <div className="h-64 mt-1">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={sdrChartData} margin={{ top: 10, right: 15, left: -25, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6c757d' }} />
-                            <YAxis tick={{ fontSize: 10, fill: '#6c757d' }} />
-                            <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #e5e5e5' }} />
-                            <Area type="monotone" dataKey="Ligações" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCalls)" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    {/* SDR Chart 2: Funil de Vendas e Contas */}
-                    <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Activity className="w-4 h-4 text-neutral-500" />
-                        <h4 className="text-[11px] font-black uppercase text-neutral-700 tracking-wider font-mono">
-                          Funil de Conversão & Aberturas
-                        </h4>
-                      </div>
-                      <div className="h-64 mt-1">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={sdrChartData} margin={{ top: 10, right: 15, left: -25, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6c757d' }} />
-                            <YAxis tick={{ fontSize: 10, fill: '#6c757d' }} />
-                            <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #e5e5e5' }} />
-                            <Legend wrapperStyle={{ fontSize: '10px' }} />
-                            <Line type="monotone" dataKey="Agendamentos" stroke="#3b82f6" strokeWidth={2.5} activeDot={{ r: 6 }} />
-                            <Line type="monotone" dataKey="Efetivações" stroke="#22c55e" strokeWidth={2.5} />
-                            <Line type="monotone" dataKey="Contas Abertas" stroke="#f59e0b" strokeWidth={2.5} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {assessor && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Assessor Chart 1: Atividade Telefone e Reuniões */}
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
-                        <div className="flex items-center gap-2 mb-3">
-                          <PhoneCall className="w-4 h-4 text-neutral-500" />
-                          <h4 className="text-[11px] font-black uppercase text-neutral-700 tracking-wider font-mono">
-                            Atividade Comercial (Chamadas e Reuniões)
-                          </h4>
-                        </div>
-                        <div className="h-60 mt-1">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={assessorChartData} margin={{ top: 10, right: 15, left: -25, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6c757d' }} />
-                              <YAxis tick={{ fontSize: 10, fill: '#6c757d' }} />
-                              <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #e5e5e5' }} />
-                              <Legend wrapperStyle={{ fontSize: '10px' }} />
-                              <Line type="monotone" dataKey="Ligações" stroke="#a855f7" strokeWidth={2} />
-                              <Line type="monotone" dataKey="Agendamentos" stroke="#3b82f6" strokeWidth={2.5} />
-                              <Line type="monotone" dataKey="Efetivações" stroke="#10b981" strokeWidth={2.5} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      {/* Assessor Chart 2: Contas e Cross-Sells */}
-                      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Activity className="w-4 h-4 text-neutral-500" />
-                          <h4 className="text-[11px] font-black uppercase text-neutral-700 tracking-wider font-mono">
-                            Novas Contas & Cross-Sells Fechados
-                          </h4>
-                        </div>
-                        <div className="h-60 mt-1">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={assessorChartData} margin={{ top: 10, right: 15, left: -25, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6c757d' }} />
-                              <YAxis tick={{ fontSize: 10, fill: '#6c757d' }} />
-                              <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #e5e5e5' }} />
-                              <Legend wrapperStyle={{ fontSize: '10px' }} />
-                              <Line type="monotone" dataKey="Contas Abertas" stroke="#f59e0b" strokeWidth={2.5} />
-                              <Line type="monotone" dataKey="Cross-Sells" stroke="#000000" strokeWidth={2.5} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Assessor Chart 3: Financial Net / Captação (BRL) */}
-                    <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-emerald-600" />
-                          <h4 className="text-[11px] font-black uppercase text-neutral-700 tracking-wider font-mono">
-                            Margem de Crescimento - Captação NET Comercial (R$)
-                          </h4>
-                        </div>
-                        <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded">
-                          Meta Ativa
-                        </span>
-                      </div>
-                      <div className="h-64 mt-1">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={assessorChartData} margin={{ top: 10, right: 15, left: 10, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#6c757d' }} />
-                            <YAxis 
-                              tick={{ fontSize: 9, fill: '#6c757d' }} 
-                              tickFormatter={(val) => {
-                                if (val >= 1000000) return `R$ ${(val / 1000000).toFixed(1)}M`;
-                                if (val >= 1000) return `R$ ${(val / 1000).toFixed(0)}k`;
-                                return `R$ ${val}`;
-                              }} 
-                            />
-                            <Tooltip 
-                              formatter={(value) => [formatBRL(Number(value)), 'Captação Net']}
-                              contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #e5e5e5' }} 
-                            />
-                            <Area type="monotone" dataKey="NET (Captação)" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorNet)" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* SUB TAB 6: EDIT AND VIEW PROFILE & METAS FORM PANEL */}
-            {activeSubTab === 'editar_metas' && assessor && (
-              <form onSubmit={handleSaveAssessor} className="space-y-6">
-                {!canEdit && (
-                  <div className="bg-amber-50 border border-amber-250 p-4 rounded-xl flex items-start gap-2.5">
-                    <Lock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-xs font-black text-amber-800 uppercase tracking-wide">Modo de Apenas Leitura</h4>
-                      <p className="text-[11px] text-amber-700/90 mt-1 leading-relaxed">
-                        Este profissional pertence à mesa / time <strong className="font-extrabold">{assessor.team || 'Alpha'}</strong>. Como você não faz parte deste time específico, as metas e informações estão bloqueadas para gravação, permitindo apenas a sua visualização detalhada.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Section 1: Basic Information */}
-                <div className="bg-neutral-50/55 p-5 border border-neutral-200 rounded-xl space-y-4">
-                  <h3 className="text-xs font-black text-neutral-850 uppercase tracking-widest flex items-center gap-1.5 border-b pb-2">
-                    <User className="w-4 h-4 text-neutral-600" />
-                    1. Dados Cadastrais e Profissionais
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                        Nome do Profissional
-                      </label>
-                      <input
-                        type="text"
-                        disabled={!canEdit}
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none focus:ring-1 focus:ring-black"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                        Mesa / Canal
-                      </label>
-                      <select
-                        disabled={!canEdit}
-                        value={editTeam}
-                        onChange={e => setEditTeam(e.target.value)}
-                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none cursor-pointer"
-                      >
-                        <option value="Mesa Inv. Private">Mesa Inv. Private</option>
-                        <option value="Mesa Investimento Wealth">Mesa Investimento Wealth</option>
-                        <option value="Célula Speed Outbound">Célula Speed Outbound</option>
-                        <option value="Célula Speed Inbound">Célula Speed Inbound</option>
-                        <option value="Célula Corporate & FX">Célula Corporate & FX</option>
-                        <option value="Célula Expansão & B2B">Célula Expansão & B2B</option>
-                        <option value="Institucional">Institucional</option>
-                        <option value="Parceiros B2B">Parceiros B2B</option>
-                        <option value="">Sem Equipe</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                        Cargo / Tipo de Função
-                      </label>
-                      <select
-                        disabled={!canEdit}
-                        value={editRoleType}
-                        onChange={e => setEditRoleType(e.target.value as 'assessor' | 'consultor')}
-                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none cursor-pointer"
-                      >
-                        <option value="assessor">Assessor de Investimentos</option>
-                        <option value="consultor">Consultor de Negócios</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                        Data de Admissão
-                      </label>
-                      <input
-                        type="date"
-                        disabled={!canEdit}
-                        value={editAdmissionDate}
-                        onChange={e => setEditAdmissionDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                        Link da Agenda (Calendário)
-                      </label>
-                      <input
-                        type="url"
-                        disabled={!canEdit}
-                        value={editAgendaLink}
-                        onChange={e => setEditAgendaLink(e.target.value)}
-                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-mono font-bold text-neutral-900 focus:outline-none"
-                        placeholder="Ex: https://calendly.com/user"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">
-                        Perfil do Assessor
-                      </label>
-                      <input
-                        type="text"
-                        disabled={!canEdit}
-                        value={editProfessionalProfile}
-                        onChange={e => setEditProfessionalProfile(e.target.value)}
-                        className="w-full px-3 py-2 bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-900 focus:outline-none"
-                        placeholder="Ex: Hunter, Farmer, Closer"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 2: Core Goals & actual accomplishments */}
-                <div className="bg-neutral-50/55 p-5 border border-neutral-200 rounded-xl space-y-4">
-                  <h3 className="text-xs font-black text-neutral-850 uppercase tracking-widest flex items-center gap-1.5 border-b pb-2">
-                    <Activity className="w-4 h-4 text-neutral-600" />
-                    2. Metas Operacionais de Funil e Realizados do Mês Ativo
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {/* Linha 1: Ligações */}
-                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
-                      <span className="block text-[10px] font-black text-neutral-500 uppercase">📞 Ligações Telefônicas</span>
-                      <div className="flex gap-2">
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editMetaLigacoes}
-                            onChange={e => setEditMetaLigacoes(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editRealizadoLigacoes}
-                            onChange={e => setEditRealizadoLigacoes(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Linha 2: Reuniões Agendadas */}
-                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
-                      <span className="block text-[10px] font-black text-neutral-500 uppercase">📅 Reuniões Agendadas</span>
-                      <div className="flex gap-2">
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editMetaReunioesAgendadas}
-                            onChange={e => setEditMetaReunioesAgendadas(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editRealizadoReunioesAgendadas}
-                            onChange={e => setEditRealizadoReunioesAgendadas(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Linha 3: Reuniões Realizadas */}
-                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
-                      <span className="block text-[10px] font-black text-neutral-500 uppercase">🤝 Reuniões Realizadas</span>
-                      <div className="flex gap-2">
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editMetaReunioesRealizadas}
-                            onChange={e => setEditMetaReunioesRealizadas(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editRealizadoReunioesRealizadas}
-                            onChange={e => setEditRealizadoReunioesRealizadas(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Linha 4: Contas Abertas */}
-                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
-                      <span className="block text-[10px] font-black text-neutral-500 uppercase">✨ Contas Abertas</span>
-                      <div className="flex gap-2">
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editMetaContasAbertas}
-                            onChange={e => setEditMetaContasAbertas(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editRealizadoContasAbertas}
-                            onChange={e => setEditRealizadoContasAbertas(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Linha 5: Net Captação */}
-                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
-                      <span className="block text-[10px] font-black text-neutral-500 uppercase">💸 NET Captação Líquida</span>
-                      <div className="flex gap-2">
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta (R$)</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editMetaNet}
-                            onChange={e => setEditMetaNet(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado (R$)</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editRealizadoNet}
-                            onChange={e => setEditRealizadoNet(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Linha 6: Qtd Cross Sell */}
-                    <div className="bg-white border rounded-xl p-3.5 space-y-2">
-                      <span className="block text-[10px] font-black text-neutral-500 uppercase">🛡️ Qtd. Cross-Sell Geral</span>
-                      <div className="flex gap-2">
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Meta</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editMetaCrossSell}
-                            onChange={e => setEditMetaCrossSell(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                        <div className="w-1/2">
-                          <span className="text-[8px] font-extrabold text-neutral-400 block uppercase">Realizado</span>
-                          <input
-                            type="number"
-                            disabled={!canEdit}
-                            value={editRealizadoCrossSell}
-                            onChange={e => setEditRealizadoCrossSell(Number(e.target.value))}
-                            className="w-full p-2 border disabled:bg-neutral-50 rounded font-black text-center text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 3: Cross Sell Product Details */}
-                <div className="bg-neutral-50/55 p-5 border border-neutral-200 rounded-xl space-y-4">
-                  <h3 className="text-xs font-black text-neutral-850 uppercase tracking-widest flex items-center gap-1.5 border-b pb-2">
-                    <DollarSign className="w-4 h-4 text-neutral-600" />
-                    3. Metas e Realizados de Produtos Específicos (Cross-Selling)
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                    {/* Seguro */}
-                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
-                      <span className="block text-[9px] font-black text-neutral-600 uppercase">🛡️ Seguro</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellSeguroMeta}
-                          onChange={e => setEditCrossSellSeguroMeta(Number(e.target.value))}
-                          placeholder="Meta"
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellSeguroRealizado}
-                          onChange={e => setEditCrossSellSeguroRealizado(Number(e.target.value))}
-                          placeholder="Real."
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Consórcio */}
-                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
-                      <span className="block text-[9px] font-black text-neutral-600 uppercase">🏢 Consórcio</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellConsorcioMeta}
-                          onChange={e => setEditCrossSellConsorcioMeta(Number(e.target.value))}
-                          placeholder="Meta"
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellConsorcioRealizado}
-                          onChange={e => setEditCrossSellConsorcioRealizado(Number(e.target.value))}
-                          placeholder="Real."
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Contabilidade */}
-                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
-                      <span className="block text-[9px] font-black text-neutral-600 uppercase">📑 Contabilid.</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellContabilidadeMeta}
-                          onChange={e => setEditCrossSellContabilidadeMeta(Number(e.target.value))}
-                          placeholder="Meta"
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellContabilidadeRealizado}
-                          onChange={e => setEditCrossSellContabilidadeRealizado(Number(e.target.value))}
-                          placeholder="Real."
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Plano de Saúde */}
-                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
-                      <span className="block text-[9px] font-black text-neutral-600 uppercase">🩺 P. Saúde</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellPlanoSaudeMeta}
-                          onChange={e => setEditCrossSellPlanoSaudeMeta(Number(e.target.value))}
-                          placeholder="Meta"
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellPlanoSaudeRealizado}
-                          onChange={e => setEditCrossSellPlanoSaudeRealizado(Number(e.target.value))}
-                          placeholder="Real."
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Câmbio */}
-                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
-                      <span className="block text-[9px] font-black text-neutral-600 uppercase">💱 Câmbio</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellCambioMeta}
-                          onChange={e => setEditCrossSellCambioMeta(Number(e.target.value))}
-                          placeholder="Meta"
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellCambioRealizado}
-                          onChange={e => setEditCrossSellCambioRealizado(Number(e.target.value))}
-                          placeholder="Real."
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Outros */}
-                    <div className="bg-white border rounded-lg p-2.5 space-y-1.5 text-center">
-                      <span className="block text-[9px] font-black text-neutral-600 uppercase">📦 Outros</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellOutrosMeta}
-                          onChange={e => setEditCrossSellOutrosMeta(Number(e.target.value))}
-                          placeholder="Meta"
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                        <input
-                          type="number"
-                          disabled={!canEdit}
-                          value={editCrossSellOutrosRealizado}
-                          onChange={e => setEditCrossSellOutrosRealizado(Number(e.target.value))}
-                          placeholder="Real."
-                          className="w-1/2 text-center border p-1 rounded font-semibold text-[11px]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {canEdit && (
-                  <div className="flex justify-end gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSubTab('resumo')}
-                      className="px-4 py-2 border rounded-lg hover:bg-neutral-100 text-xs font-bold text-neutral-600 cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2 bg-black hover:bg-neutral-900 text-white text-xs font-black uppercase tracking-wider rounded-lg shadow-sm cursor-pointer"
-                    >
-                      Salvar Alterações
-                    </button>
-                  </div>
-                )}
-              </form>
-            )}
-
-          </div>
-
+        <div className="flex-1 overflow-y-auto min-h-0 bg-neutral-50 px-6 py-6 pb-12">
+          <RedesignedProfileCard 
+            entityId={entityId}
+            entityType={entityType}
+            onPrev={handlePrev}
+            onNext={handleNext}
+          />
         </div>
 
         {/* Footer controls */}

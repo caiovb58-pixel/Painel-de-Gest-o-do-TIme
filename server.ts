@@ -342,7 +342,7 @@ O profissional foi classificado como **${profileReadable}** com base na análise
 // 🗄️ FIREBASE FIRESTORE & LOCAL SERVER CACHE PERSISTENCE SYSTEM
 // ========================================================
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
+import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, getDoc } from "firebase/firestore";
 
 let firebaseConfig: any = null;
 let firestoreDb: any = null;
@@ -426,9 +426,9 @@ async function verifyDatabase() {
   if (!firestoreDb) return;
   try {
     console.log("[Firebase Firestore] Verifying cloud database data collections...");
-    const sdrCol = await getDocs(collection(firestoreDb, "sdrs"));
+    const configCol = await getDocs(collection(firestoreDb, "system_config"));
     
-    if (sdrCol.empty) {
+    if (configCol.empty) {
       console.log("[Firebase Firestore] Cloud Collections are empty. Seeding with local backup file for seamless data migration...");
       const localCache = readLocalPersistFile();
       if (localCache) {
@@ -441,47 +441,29 @@ async function verifyDatabase() {
           leaders = [], 
           teamGoals = null, 
           disabledRotationTeams = [],
-          negocios = []
+          negocios = [],
+          rotationParticipants = []
         } = localCache;
         
-        // Seed SDRs
-        for (const s of sdrs) {
-          if (s && s.id) {
-            await setDoc(doc(firestoreDb, "sdrs", s.id), { data: s, updated_at: new Date().toISOString() });
-          }
-        }
-        // Seed Assessores
-        for (const a of assessores) {
-          if (a && a.id) {
-            await setDoc(doc(firestoreDb, "assessores", a.id), { data: a, updated_at: new Date().toISOString() });
-          }
-        }
-        // Seed Logs
-        for (const log of oneOnOneLogs) {
-          if (log && log.id) {
-            await setDoc(doc(firestoreDb, "one_on_one_logs", log.id), { data: log, updated_at: new Date().toISOString() });
-          }
-        }
-        // Seed Negocios
-        for (const n of negocios) {
-          if (n && n.id) {
-            await setDoc(doc(firestoreDb, "negocios_fechados", n.id), { data: n, updated_at: new Date().toISOString() });
-          }
-        }
-        // Seed configurations
+        // Seed as consolidated docs inside system_config to use minimum possible writes (only 10 writes total!)
+        await setDoc(doc(firestoreDb, "system_config", "sdrs"), { data: sdrs, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "assessores"), { data: assessores, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "one_on_one_logs"), { data: oneOnOneLogs, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "negocios"), { data: negocios, updated_at: new Date().toISOString() });
         await setDoc(doc(firestoreDb, "system_config", "matches"), { data: matches, updated_at: new Date().toISOString() });
         await setDoc(doc(firestoreDb, "system_config", "campaigns"), { data: campaigns, updated_at: new Date().toISOString() });
         await setDoc(doc(firestoreDb, "system_config", "leaders"), { data: leaders, updated_at: new Date().toISOString() });
         await setDoc(doc(firestoreDb, "system_config", "teamGoals"), { data: teamGoals, updated_at: new Date().toISOString() });
         await setDoc(doc(firestoreDb, "system_config", "disabledRotationTeams"), { data: disabledRotationTeams, updated_at: new Date().toISOString() });
+        await setDoc(doc(firestoreDb, "system_config", "rotationParticipants"), { data: rotationParticipants, updated_at: new Date().toISOString() });
         
-        console.log("[Firebase Firestore] Cloud database initialized and seeded successfully from local backup cache.");
+        console.log("[Firebase Firestore] Cloud database initialized and seeded successfully in consolidated format from local backup cache.");
         addSyncLog("INIT", "success", "Banco de dados Firestore conectado e semeado com sucesso a partir do cache local.");
       } else {
         addSyncLog("INIT", "success", "Banco de dados Firestore conectado (vazio, pronto para operar).");
       }
     } else {
-      console.log("[Firebase Firestore] Found existing cloud collections. Ready.");
+      console.log("[Firebase Firestore] Found existing cloud collections/configs. Ready.");
       addSyncLog("INIT", "success", "Banco de dados Firestore conectado operacionalmente.");
     }
   } catch (err: any) {
@@ -505,27 +487,69 @@ app.get("/api/db/load", async (req, res) => {
     try {
       console.log("[Firebase Firestore] Appending cloud recovery retrieval...");
       
-      const sdrsCol = await getDocs(collection(firestoreDb, "sdrs"));
-      const sdrs = sdrsCol.docs.map(doc => doc.data().data).filter(Boolean);
-
-      const assessoresCol = await getDocs(collection(firestoreDb, "assessores"));
-      const assessores = assessoresCol.docs.map(doc => doc.data().data).filter(Boolean);
-
-      const logCol = await getDocs(collection(firestoreDb, "one_on_one_logs"));
-      const oneOnOneLogs = logCol.docs.map(doc => doc.data().data).filter(Boolean);
-
-      const negociosCol = await getDocs(collection(firestoreDb, "negocios_fechados"));
-      const negocios = negociosCol.docs.map(doc => doc.data().data).filter(Boolean);
-
       const configCol = await getDocs(collection(firestoreDb, "system_config"));
       const configs: Record<string, any> = {};
       configCol.docs.forEach(doc => {
         configs[doc.id] = doc.data().data;
       });
 
-      const loadedLeaders = configs.leaders && configs.leaders.length > 0 ? configs.leaders : defaultLeadersFallback;
+      let sdrs: any[] = [];
+      let assessores: any[] = [];
+      let oneOnOneLogs: any[] = [];
+      let negocios: any[] = [];
 
-      console.log(`[Firebase Firestore] Loaded status: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} 1-1s, ${negocios.length} Negocios.`);
+      // Prefer consolidated config fields first to prevent individual sub-collection lookups
+      if (configs.sdrs !== undefined) {
+        sdrs = configs.sdrs || [];
+      } else {
+        try {
+          const sdrsCol = await getDocs(collection(firestoreDb, "sdrs"));
+          sdrs = sdrsCol.docs.map(doc => doc.data().data).filter(Boolean);
+        } catch (e: any) {
+          console.warn("[Firebase Firestore] Could not load legacy sdrs:", e.message);
+        }
+      }
+
+      if (configs.assessores !== undefined) {
+        assessores = configs.assessores || [];
+      } else {
+        try {
+          const assessoresCol = await getDocs(collection(firestoreDb, "assessores"));
+          assessores = assessoresCol.docs.map(doc => doc.data().data).filter(Boolean);
+        } catch (e: any) {
+          console.warn("[Firebase Firestore] Could not load legacy assessores:", e.message);
+        }
+      }
+
+      if (configs.one_on_one_logs !== undefined) {
+        oneOnOneLogs = configs.one_on_one_logs || [];
+      } else if (configs.oneOnOneLogs !== undefined) {
+        oneOnOneLogs = configs.oneOnOneLogs || [];
+      } else {
+        try {
+          const logCol = await getDocs(collection(firestoreDb, "one_on_one_logs"));
+          oneOnOneLogs = logCol.docs.map(doc => doc.data().data).filter(Boolean);
+        } catch (e: any) {
+          console.warn("[Firebase Firestore] Could not load legacy one_on_one_logs:", e.message);
+        }
+      }
+
+      if (configs.negocios !== undefined) {
+        negocios = configs.negocios || [];
+      } else {
+        try {
+          const negociosCol = await getDocs(collection(firestoreDb, "negocios_fechados"));
+          negocios = negociosCol.docs.map(doc => doc.data().data).filter(Boolean);
+        } catch (e: any) {
+          console.warn("[Firebase Firestore] Could not load legacy negocios:", e.message);
+        }
+      }
+
+      const loadedLeaders = configs.leaders && configs.leaders.length > 0 ? configs.leaders : defaultLeadersFallback;
+      const rotationParticipants = configs.rotationParticipants || [];
+      const systemAuditLogs = configs.system_audit_logs || configs.systemAuditLogs || [];
+
+      console.log(`[Firebase Firestore] Loaded status: ${sdrs.length} SDRs, ${assessores.length} Assessores, ${oneOnOneLogs.length} 1-1s, ${negocios.length} Negocios, ${rotationParticipants.length} RotationParticipants, ${systemAuditLogs.length} SystemAuditLogs.`);
       addSyncLog("LOAD", "success", `Sincronização concluída com sucesso da Nuvem Firebase.`);
       
       // Keep local file updated as a mirror/contingency, so it acts as instantaneous read-accelerator
@@ -538,7 +562,9 @@ app.get("/api/db/load", async (req, res) => {
         campaigns: configs.campaigns || [],
         leaders: loadedLeaders,
         teamGoals: configs.teamGoals || null,
-        disabledRotationTeams: configs.disabledRotationTeams || []
+        disabledRotationTeams: configs.disabledRotationTeams || [],
+        rotationParticipants,
+        systemAuditLogs
       });
 
       return res.json({
@@ -551,7 +577,9 @@ app.get("/api/db/load", async (req, res) => {
         campaigns: configs.campaigns || [],
         leaders: loadedLeaders,
         teamGoals: configs.teamGoals || null,
-        disabledRotationTeams: configs.disabledRotationTeams || []
+        disabledRotationTeams: configs.disabledRotationTeams || [],
+        rotationParticipants,
+        systemAuditLogs
       });
     } catch (dbErr: any) {
       isFirestoreConnected = false;
@@ -601,7 +629,9 @@ app.post("/api/db/save", async (req, res) => {
     leaders = [], 
     teamGoals = null, 
     disabledRotationTeams = [],
-    negocios = []
+    negocios = [],
+    rotationParticipants = [],
+    systemAuditLogs = []
   } = req.body;
 
   // Sync to local fallback file first
@@ -614,7 +644,9 @@ app.post("/api/db/save", async (req, res) => {
     leaders,
     teamGoals,
     disabledRotationTeams,
-    negocios
+    negocios,
+    rotationParticipants,
+    systemAuditLogs
   });
 
   let savedToDb = false;
@@ -622,63 +654,13 @@ app.post("/api/db/save", async (req, res) => {
 
   if (firestoreDb) {
     try {
-      console.log("[Firebase Firestore] Executing write updates...");
+      console.log("[Firebase Firestore] Executing write updates using consolidated config documents...");
 
-      // Update/Clean SDRs on Firestore
-      const freshSdrIds = new Set(sdrs.map((s: any) => s.id));
-      const currentSdrs = await getDocs(collection(firestoreDb, "sdrs"));
-      for (const d of currentSdrs.docs) {
-        if (!freshSdrIds.has(d.id)) {
-          await deleteDoc(doc(firestoreDb, "sdrs", d.id));
-        }
-      }
-      for (const s of sdrs) {
-        if (s && s.id) {
-          await setDoc(doc(firestoreDb, "sdrs", s.id), { data: s, updated_at: new Date().toISOString() });
-        }
-      }
-
-      // Update/Clean Assessores on Firestore
-      const freshAssrIds = new Set(assessores.map((a: any) => a.id));
-      const currentAssrs = await getDocs(collection(firestoreDb, "assessores"));
-      for (const d of currentAssrs.docs) {
-        if (!freshAssrIds.has(d.id)) {
-          await deleteDoc(doc(firestoreDb, "assessores", d.id));
-        }
-      }
-      for (const a of assessores) {
-        if (a && a.id) {
-          await setDoc(doc(firestoreDb, "assessores", a.id), { data: a, updated_at: new Date().toISOString() });
-        }
-      }
-
-      // Update/Clean Logs on Firestore
-      const freshLogIds = new Set(oneOnOneLogs.map((l: any) => l.id));
-      const currentLogs = await getDocs(collection(firestoreDb, "one_on_one_logs"));
-      for (const d of currentLogs.docs) {
-        if (!freshLogIds.has(d.id)) {
-          await deleteDoc(doc(firestoreDb, "one_on_one_logs", d.id));
-        }
-      }
-      for (const log of oneOnOneLogs) {
-        if (log && log.id) {
-          await setDoc(doc(firestoreDb, "one_on_one_logs", log.id), { data: log, updated_at: new Date().toISOString() });
-        }
-      }
-
-      // Update/Clean Negocios on Firestore
-      const freshNegIds = new Set(negocios.map((n: any) => n.id));
-      const currentNegs = await getDocs(collection(firestoreDb, "negocios_fechados"));
-      for (const d of currentNegs.docs) {
-        if (!freshNegIds.has(d.id)) {
-          await deleteDoc(doc(firestoreDb, "negocios_fechados", d.id));
-        }
-      }
-      for (const n of negocios) {
-        if (n && n.id) {
-          await setDoc(doc(firestoreDb, "negocios_fechados", n.id), { data: n, updated_at: new Date().toISOString() });
-        }
-      }
+      // Set each collection as a single consolidated document inside "system_config" which takes exactly 1 write
+      await setDoc(doc(firestoreDb, "system_config", "sdrs"), { data: sdrs, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "assessores"), { data: assessores, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "one_on_one_logs"), { data: oneOnOneLogs, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "negocios"), { data: negocios, updated_at: new Date().toISOString() });
 
       // Update Configurations
       await setDoc(doc(firestoreDb, "system_config", "matches"), { data: matches, updated_at: new Date().toISOString() });
@@ -686,9 +668,11 @@ app.post("/api/db/save", async (req, res) => {
       await setDoc(doc(firestoreDb, "system_config", "leaders"), { data: leaders, updated_at: new Date().toISOString() });
       await setDoc(doc(firestoreDb, "system_config", "teamGoals"), { data: teamGoals, updated_at: new Date().toISOString() });
       await setDoc(doc(firestoreDb, "system_config", "disabledRotationTeams"), { data: disabledRotationTeams, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "rotationParticipants"), { data: rotationParticipants, updated_at: new Date().toISOString() });
+      await setDoc(doc(firestoreDb, "system_config", "system_audit_logs"), { data: systemAuditLogs, updated_at: new Date().toISOString() });
 
       savedToDb = true;
-      addSyncLog("SAVE", "success", `Sincronização com nuvem concluída (${sdrs.length} SDRs, ${assessores.length} Assessores persistidos na nuvem de forma imediata).`);
+      addSyncLog("SAVE", "success", "Sincronização com nuvem concluída em formato consolidado.");
       console.log("[Firebase Firestore] All state changes committed successfully.");
     } catch (err: any) {
       isFirestoreConnected = false;

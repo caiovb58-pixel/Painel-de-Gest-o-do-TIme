@@ -10,7 +10,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 55,
     active: true,
     admissionDate: '2023-05-12',
-    team: 'Equipe do Caio',
+    team: 'PF',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {
@@ -34,7 +34,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 50,
     active: true,
     admissionDate: '2024-02-18',
-    team: 'Equipe do Caio',
+    team: 'PJ',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {
@@ -58,7 +58,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 50,
     active: true,
     admissionDate: '2024-03-10',
-    team: 'Equipe Alpha',
+    team: 'PF',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {
@@ -82,7 +82,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 50,
     active: true,
     admissionDate: '2024-06-15',
-    team: 'Equipe Beta',
+    team: 'PJ',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {
@@ -106,7 +106,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 60,
     active: true,
     admissionDate: '2023-11-01',
-    team: 'Equipe Alpha',
+    team: 'Advisor',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {
@@ -130,7 +130,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 50,
     active: true,
     admissionDate: '2025-01-20',
-    team: 'Equipe Delta',
+    team: 'Advisor',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {
@@ -154,7 +154,7 @@ export const INITIAL_SDRS: SDR[] = [
     metaEfetivacaoRate: 40,
     active: false,
     admissionDate: '2025-02-15',
-    team: 'Equipe Beta',
+    team: 'PJ',
     callsCount: 0,
     monthlyRecords: {
       '2026-05': {

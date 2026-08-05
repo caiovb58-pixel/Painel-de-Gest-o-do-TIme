@@ -7,7 +7,8 @@ import {
   Plus, Trash2, Shield, User, ToggleLeft, ToggleRight, X, Search,
   Target, TrendingUp, Edit2, Check, AlertTriangle, HelpCircle, 
   Save, Filter, Award, CheckCircle2, Award as Crown, RefreshCw, Calendar, Sparkles, AlertCircle, PhoneCall, Building2,
-  Cpu, Send, Compass, UserMinus, ShieldAlert, Award as Trophy, Activity, Gift, Clock, History, FileText
+  Cpu, Send, Compass, UserMinus, ShieldAlert, Award as Trophy, Activity, Gift, Clock, History, FileText,
+  ArrowLeft, ArrowRight, Move
 } from 'lucide-react';
 
 interface SDRSectionProps {
@@ -68,8 +69,10 @@ export default function SDRSection({
   const currentMonth = useAppStore(state => state.currentMonth);
   const disabledRotationTeams = useAppStore(state => state.disabledRotationTeams) || [];
   const toggleRotationForTeam = useAppStore(state => state.toggleRotationForTeam);
+  const leaders = useAppStore(state => state.leaders) || [];
   // Sub-tabs inside the SDR Section to centralize registration and targets
   const [subTab, setSubTab] = useState<'list' | 'goals' | 'teams' | 'campaigns' | 'one_on_one'>('list');
+  const [podiumMetric, setPodiumMetric] = useState<'attainment' | 'volume' | 'conversion'>('attainment');
   const [customAIPrompt, setCustomAIPrompt] = useState<string>('');
   const [aiReport, setAiReport] = useState<string>('');
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -98,11 +101,15 @@ export default function SDRSection({
   });
 
   const filteredProfessionals = useMemo(() => {
+    if (currentUser?.role === 'leader') {
+      const leaderTeamName = currentUser.teamName || '';
+      return allProfessionals.filter(p => p.team === leaderTeamName);
+    }
     if (oneOnOneTeamFilter === 'all') {
       return allProfessionals;
     }
     return allProfessionals.filter(p => p.team === oneOnOneTeamFilter);
-  }, [allProfessionals, oneOnOneTeamFilter]);
+  }, [allProfessionals, oneOnOneTeamFilter, currentUser]);
 
   const [sessionSdrId, setSessionSdrId] = useState<string>('');
   const [sessionLeaderName, setSessionLeaderName] = useState<string>('Líder do Time');
@@ -117,7 +124,19 @@ export default function SDRSection({
   const [sessionError, setSessionError] = useState<string>('');
   const [sessionSuccess, setSessionSuccess] = useState<string>('');
   const [diagnosedByAI, setDiagnosedByAI] = useState<string>('');
-  const [sessionFormTab, setSessionFormTab] = useState<'notes' | 'ai_summary'>('notes');
+  const [sessionFormTab, setSessionFormTab] = useState<'notes' | 'questionnaire' | 'ai_summary'>('notes');
+  const [sessionAnswers, setSessionAnswers] = useState<Record<string, string>>({
+    rotina_vida: '',
+    nivel_suporte: '',
+    desafio_func: '',
+    qualidade_leads: '',
+    metas_imediatas: '',
+    acoes_melhoria: ''
+  });
+
+  const updateAnswer = (key: string, value: string) => {
+    setSessionAnswers(prev => ({ ...prev, [key]: value }));
+  };
 
   // Local state for editing metrics directly in 1:1 scorecard card
   const [isEditingScorecard, setIsEditingScorecard] = useState<boolean>(false);
@@ -203,6 +222,13 @@ export default function SDRSection({
 
   // Team filtered One-on-One logs & schedules list for multi-team managers
   const displayedOneOnOneLogs = useMemo(() => {
+    if (currentUser?.role === 'leader') {
+      const leaderTeamName = currentUser.teamName || '';
+      return oneOnOneLogs.filter(log => {
+        const p = allProfessionals.find(prof => prof.id === log.sdrId);
+        return p && p.team === leaderTeamName;
+      });
+    }
     if (oneOnOneTeamFilter === 'all') {
       return oneOnOneLogs;
     }
@@ -210,9 +236,16 @@ export default function SDRSection({
       const p = allProfessionals.find(prof => prof.id === log.sdrId);
       return p && p.team === oneOnOneTeamFilter;
     });
-  }, [oneOnOneLogs, allProfessionals, oneOnOneTeamFilter]);
+  }, [oneOnOneLogs, allProfessionals, oneOnOneTeamFilter, currentUser]);
 
   const displayedOneOnOneSchedules = useMemo(() => {
+    if (currentUser?.role === 'leader') {
+      const leaderTeamName = currentUser.teamName || '';
+      return oneOnOneSchedules.filter(sched => {
+        const p = allProfessionals.find(prof => prof.id === sched.sdrId);
+        return p && p.team === leaderTeamName;
+      });
+    }
     if (oneOnOneTeamFilter === 'all') {
       return oneOnOneSchedules;
     }
@@ -220,7 +253,7 @@ export default function SDRSection({
       const p = allProfessionals.find(prof => prof.id === sched.sdrId);
       return p && p.team === oneOnOneTeamFilter;
     });
-  }, [oneOnOneSchedules, allProfessionals, oneOnOneTeamFilter]);
+  }, [oneOnOneSchedules, allProfessionals, oneOnOneTeamFilter, currentUser]);
 
   // Synchronize local edit states with selected professional
   useEffect(() => {
@@ -371,7 +404,8 @@ export default function SDRSection({
         actionPlan: sessionActionPlan.trim(),
         nextMeeting: sessionNextMeeting || new Date().toISOString().split('T')[0],
         notes: combinedNotes,
-        aiFeedback: sessionAiFeedback || undefined
+        aiFeedback: sessionAiFeedback || undefined,
+        answers: sessionAnswers
       });
     }
 
@@ -507,7 +541,12 @@ export default function SDRSection({
 
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
-  const [team, setTeam] = useState(teams[0] || '');
+  const [team, setTeam] = useState(() => {
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      return currentUser.teamName;
+    }
+    return teams[0] || '';
+  });
   const [professionalProfile, setProfessionalProfile] = useState<string>('comercial');
   const [agendamentosCount, setAgendamentosCount] = useState<number>(0);
   const [efetivacoesCount, setEfetivacoesCount] = useState<number>(0);
@@ -535,7 +574,12 @@ export default function SDRSection({
   const [newCampaignEnd, setNewCampaignEnd] = useState('');
 
   // Team Filter for the list
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>(() => {
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      return currentUser.teamName;
+    }
+    return 'Equipe do Caio';
+  });
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'all' | 'PJ' | 'PF' | 'VMB' | 'ADVISOR'>('all');
   const [sdrSearchQuery, setSdrSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'tempo' | 'ranking' | 'efetivacao' | 'agendamento' | 'ligacao' | 'none'>('none');
@@ -560,12 +604,14 @@ export default function SDRSection({
   const [promotingAgendaLink, setPromotingAgendaLink] = useState('');
   const [promotingRotation, setPromotingRotation] = useState(true);
   const [promotingRoleType, setPromotingRoleType] = useState<'assessor' | 'consultor'>('assessor');
+  const [promotingLeaderId, setPromotingLeaderId] = useState('');
 
   // Editing existing promotion states
   const [editingPromotionSdrId, setEditingPromotionSdrId] = useState<string | null>(null);
   const [editingPromotionDate, setEditingPromotionDate] = useState('');
   const [editingPromotionTeam, setEditingPromotionTeam] = useState('');
   const [editingPromotionRoleType, setEditingPromotionRoleType] = useState<'assessor' | 'consultor'>('assessor');
+  const [editingPromotionLeaderId, setEditingPromotionLeaderId] = useState('');
 
   // Local editing states for Team Goals
   const [isEditingTeamGoals, setIsEditingTeamGoals] = useState(false);
@@ -575,8 +621,102 @@ export default function SDRSection({
   const [localCustomMetrics, setLocalCustomMetrics] = useState<any[]>([]);
   const [teamsGoalFeedback, setTeamsGoalFeedback] = useState<Record<string, string>>({});
 
+  // Local state for Performance Goals weights and targets editing
+  const [localPerformanceGoals, setLocalPerformanceGoals] = useState(() => {
+    return teamGoals.performanceGoals || [
+      { id: 'ligacoes', name: 'Ligações', target: 300, weight: 20 },
+      { id: 'reunioes', name: 'Reuniões', target: 20, weight: 35 },
+      { id: 'comparecimento', name: 'Comparecimento', target: 15, weight: 25 },
+      { id: 'indicacoes', name: 'Indicações', target: 10, weight: 20 }
+    ];
+  });
+  const [perfGoalsFeedback, setPerfGoalsFeedback] = useState('');
+
+  // Sync with store values if updated externally
+  useEffect(() => {
+    if (teamGoals.performanceGoals) {
+      setLocalPerformanceGoals(teamGoals.performanceGoals);
+    }
+  }, [teamGoals.performanceGoals]);
+
   // Deletion helper
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Reordering states for 5 fixed main goals
+  const [goalsOrder, setGoalsOrder] = useState<string[]>(() => {
+    const saved = localStorage.getItem('goals_display_order_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 5) {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return ['net_captacao', 'contas_abertas', 'ativacao', 'cross_sell', 'indicacao'];
+  });
+
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+
+  const handleDragStart = (e: any, index: number) => {
+    setDraggedIdx(index);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+    }
+  };
+
+  const handleDragOver = (e: any, index: number) => {
+    if (e.preventDefault) {
+      e.preventDefault();
+    }
+    if (draggedIdx === null || draggedIdx === index) return;
+    
+    const newOrder = [...goalsOrder];
+    const draggedId = newOrder[draggedIdx];
+    newOrder.splice(draggedIdx, 1);
+    newOrder.splice(index, 0, draggedId);
+    
+    setGoalsOrder(newOrder);
+    setDraggedIdx(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    localStorage.setItem('goals_display_order_v1', JSON.stringify(goalsOrder));
+  };
+
+  const moveGoal = (index: number, direction: 'left' | 'right') => {
+    const newOrder = [...goalsOrder];
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+    
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
+    
+    setGoalsOrder(newOrder);
+    localStorage.setItem('goals_display_order_v1', JSON.stringify(newOrder));
+  };
+
+  const getGoalRealized = (id: string): number => {
+    if (id === 'net_captacao') {
+      return (assessores || []).filter(a => a.active).reduce((sum, a) => sum + (a.realizadoNet || a.captacaoMes || 0), 0);
+    }
+    if (id === 'contas_abertas') {
+      return (assessores || []).filter(a => a.active).reduce((sum, a) => sum + (a.realizadoContasAbertas || 0), 0) +
+             (sdrs || []).filter(s => s.active).reduce((sum, s) => sum + (s.contasAbertasCount || 0), 0);
+    }
+    if (id === 'ativacao') {
+      return (assessores || []).filter(a => a.active).reduce((sum, a) => sum + (a.realizadoClientes || 0), 0);
+    }
+    if (id === 'cross_sell') {
+      return (assessores || []).filter(a => a.active).reduce((sum, a) => sum + (a.realizadoCrossSell || a.crossSellCount || 0), 0);
+    }
+    if (id === 'indicacao') {
+      return (assessores || []).filter(a => a.active).reduce((sum, a) => sum + (a.realizadoIndicacoes || 0), 0);
+    }
+    return 0;
+  };
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'Não informada';
@@ -641,7 +781,11 @@ export default function SDRSection({
     setMetaEfetivacoes(10);
     setMetaContasAbertas(5);
     setAdmissionDate('');
-    setTeam(teams[0] || '');
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      setTeam(currentUser.teamName);
+    } else {
+      setTeam(teams[0] || '');
+    }
     setAgendaLink('');
     setParticipatesInRotation(true);
     setRegistrationRole('sdr');
@@ -738,6 +882,8 @@ export default function SDRSection({
 
   // Filter list by category, team and search query
   const tempSDRs = sdrs.filter(s => {
+    if (s.promotedToAssessor) return false;
+    
     // Check custom category classification (PJ, PF, VMB, ADVISOR)
     if (selectedCategoryFilter !== 'all') {
       const teamUpper = (s.team || '').toUpperCase();
@@ -752,7 +898,7 @@ export default function SDRSection({
       if (selectedCategoryFilter === 'ADVISOR' && !isADVISOR) return false;
     }
 
-    const matchesTeamFilter = selectedTeamFilter === 'all' || s.team === selectedTeamFilter;
+    const matchesTeamFilter = s.team === selectedTeamFilter;
     if (!matchesTeamFilter) return false;
 
     if (sdrSearchQuery.trim() !== '') {
@@ -815,6 +961,33 @@ export default function SDRSection({
     return belowBooking || belowRate;
   });
 
+  const rankedSDRs = useMemo(() => {
+    return [...activeSDRs].map(sdr => {
+      const agendamentos = sdr.agendamentosCount || 0;
+      const metaAgendamentos = sdr.metaAgendamentos || 20;
+      const attainment = metaAgendamentos > 0 ? Math.round((agendamentos / metaAgendamentos) * 100) : 0;
+      const conversion = agendamentos > 0 ? Math.round(((sdr.efetivacoesCount || 0) / agendamentos) * 100) : 0;
+      const volume = agendamentos;
+      return {
+        ...sdr,
+        attainment,
+        conversion,
+        volume,
+      };
+    }).sort((a, b) => {
+      if (podiumMetric === 'attainment') {
+        if (b.attainment !== a.attainment) return b.attainment - a.attainment;
+        return b.volume - a.volume;
+      } else if (podiumMetric === 'volume') {
+        if (b.volume !== a.volume) return b.volume - a.volume;
+        return b.attainment - a.attainment;
+      } else { // 'conversion'
+        if (b.conversion !== a.conversion) return b.conversion - a.conversion;
+        return b.volume - a.volume;
+      }
+    });
+  }, [activeSDRs, podiumMetric]);
+
   return (
     <div className="space-y-6">
       
@@ -862,7 +1035,7 @@ export default function SDRSection({
             })() : null}
           </div>
           
-          <div className="flex items-center gap-2 w-full lg:w-auto">
+          <div className="flex items-center gap-2 w-full lg:w-auto ml-auto">
             {/* Embedded sub-tab switchers */}
             <div className="bg-neutral-100 p-1 rounded-lg flex gap-1 text-xs font-semibold">
               <button
@@ -875,7 +1048,7 @@ export default function SDRSection({
                 }`}
                 style={{ color: subTab === 'list' ? '#000000' : '#262626' }}
               >
-                Membros Ativos ({sdrs.filter(s => s.active).length + assessores.filter(a => a.active).length})
+                Projeções de Run-Rate ({sdrs.filter(s => s.active).length} SDRs)
               </button>
               <button
                 type="button"
@@ -926,24 +1099,12 @@ export default function SDRSection({
                 Sessões 1:1 🗣️
               </button>
             </div>
- 
-            <button
-              onClick={() => setIsAdding(!isAdding)}
-              className={`px-3.5 py-2.5 rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer ml-auto ${
-                isAdding 
-                  ? 'bg-neutral-100 border border-neutral-300 hover:bg-neutral-200 text-neutral-700' 
-                  : 'bg-black hover:bg-neutral-900 text-white shadow-xs'
-              }`}
-            >
-              {isAdding ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-              {isAdding ? 'Cancelar' : 'Cadastrar Membro'}
-            </button>
           </div>
         </div>
       </div>
  
       {/* Creation form */}
-      {isAdding && (
+      {false && (
         <form onSubmit={handleSubmit} className="p-6 bg-white border border-neutral-200/90 rounded-xl shadow-xs space-y-5 animate-fade-in">
           <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-2">
             <User className="w-4 h-4 text-neutral-500" />
@@ -1374,32 +1535,41 @@ export default function SDRSection({
                 <Filter className="w-3.5 h-3.5 text-neutral-400" />
                 <span className="text-xs font-extrabold text-neutral-500 uppercase tracking-wider">Filtrar Canal:</span>
                 <div className="flex gap-1 flex-wrap">
-                  {['all', ...teams.filter(t => {
-                    if (selectedCategoryFilter === 'all') return true;
-                    const teamUpper = t.toUpperCase();
-                    const isPJ = teamUpper.includes('PJ');
-                    const isVMB = teamUpper.includes('VMB') || t === 'Equipe do Caio';
-                    const isADVISOR = teamUpper.includes('ADVISOR') || teamUpper.includes('ASSESSOR') || teamUpper.includes('TIER') || teamUpper.includes('ADVISORY');
-                    const isPF = !isPJ && !isVMB && !isADVISOR && t !== 'Equipe do Caio';
-                    
-                    if (selectedCategoryFilter === 'PJ') return isPJ;
-                    if (selectedCategoryFilter === 'VMB') return isVMB;
-                    if (selectedCategoryFilter === 'PF') return isPF;
-                    if (selectedCategoryFilter === 'ADVISOR') return isADVISOR;
-                    return true;
-                  }), ''].map(teamOpt => (
+                  {(currentUser?.role === 'leader' && currentUser.teamName) ? (
                     <button
-                      key={teamOpt}
-                      onClick={() => setSelectedTeamFilter(teamOpt)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
-                        selectedTeamFilter === teamOpt 
-                          ? 'bg-neutral-900 text-white shadow-3xs' 
-                          : 'bg-neutral-100 hover:bg-neutral-250 text-neutral-650'
-                      }`}
+                      type="button"
+                      className="px-3 py-1 rounded-full text-[11px] font-bold bg-neutral-900 text-white shadow-3xs"
                     >
-                      {teamOpt === 'all' ? 'Ver Todos' : (teamOpt === '' ? 'Sem Equipe' : teamOpt)}
+                      {currentUser.teamName}
                     </button>
-                  ))}
+                  ) : (
+                    [...teams.filter(t => {
+                      if (selectedCategoryFilter === 'all') return true;
+                      const teamUpper = t.toUpperCase();
+                      const isPJ = teamUpper.includes('PJ');
+                      const isVMB = teamUpper.includes('VMB') || t === 'Equipe do Caio';
+                      const isADVISOR = teamUpper.includes('ADVISOR') || teamUpper.includes('ASSESSOR') || teamUpper.includes('TIER') || teamUpper.includes('ADVISORY');
+                      const isPF = !isPJ && !isVMB && !isADVISOR && t !== 'Equipe do Caio';
+                      
+                      if (selectedCategoryFilter === 'PJ') return isPJ;
+                      if (selectedCategoryFilter === 'VMB') return isVMB;
+                      if (selectedCategoryFilter === 'PF') return isPF;
+                      if (selectedCategoryFilter === 'ADVISOR') return isADVISOR;
+                      return true;
+                    })].map(teamOpt => (
+                      <button
+                        key={teamOpt}
+                        onClick={() => setSelectedTeamFilter(teamOpt)}
+                        className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                          selectedTeamFilter === teamOpt 
+                            ? 'bg-neutral-900 text-white shadow-3xs' 
+                            : 'bg-neutral-100 hover:bg-neutral-250 text-neutral-650'
+                        }`}
+                      >
+                        {teamOpt === '' ? 'Sem Equipe' : teamOpt}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -1486,10 +1656,42 @@ export default function SDRSection({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredSDRs.map(sdr => {
-                const isEditing = editingId === sdr.id;
-                const isDeleting = deletingId === sdr.id;
+            <div className="bg-white border border-neutral-200 rounded-3xl shadow-xs overflow-hidden text-left w-full mt-4">
+              <div className="p-5 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-neutral-50/15">
+                <div>
+                  <h3 className="text-xs font-black uppercase text-neutral-800 tracking-wider flex items-center gap-1.5">
+                    🎯 Matriz Analítica de Pacing & Projeções de Run-Rate
+                  </h3>
+                  <p className="text-[10px] text-neutral-400 font-medium">Previsões matemáticas baseadas no ritmo de agendamentos reais em relação ao progresso do período</p>
+                </div>
+                {(() => {
+                  const { elapsedDays, totalDays } = DateService.getElapsedDays(currentMonth);
+                  const progressRatio = totalDays > 0 ? elapsedDays / totalDays : 0;
+                  return (
+                    <div className="bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-3xs text-xs font-mono text-neutral-700 font-bold shrink-0">
+                      Progresso do Mês: <span className="text-neutral-900 font-black">{Math.round(progressRatio * 100)}%</span> ({elapsedDays}/{totalDays} dias)
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse font-sans text-xs">
+                  <thead>
+                    <tr className="bg-neutral-50 border-b border-neutral-200/80 text-neutral-500 font-bold text-[9px] uppercase tracking-wider">
+                      <th className="px-5 py-3">SDR / Categoria</th>
+                      <th className="px-5 py-3">Mesa / Equipe</th>
+                      <th className="px-5 py-3">Agendamentos Reais</th>
+                      <th className="px-5 py-3">Meta Acordada</th>
+                      <th className="px-5 py-3">Atingimento Pacing</th>
+                      <th className="px-5 py-3">Projeção de Run-Rate</th>
+                      <th className="px-5 py-3 text-center">Climatização de Tendência</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 text-neutral-700">
+                    {filteredSDRs.map(sdr => {
+                      const isEditing = editingId === sdr.id;
+                      const isDeleting = deletingId === sdr.id;
                 
                 const conversionRate = sdr.agendamentosCount > 0
                   ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100)
@@ -1511,17 +1713,82 @@ export default function SDRSection({
                   rankBadge = { rank: 'C', text: 'Rank C', bgClass: 'bg-red-50 text-red-750 border-red-200 font-bold', tip: 'Abaixo do esperado para o andamento do mês' };
                 }
 
+                const sdrTarget = sdr.metaAgendamentos || 20;
+                const runRateForecast = elapsedDays > 0 ? Math.round((sdrCompleted / elapsedDays) * totalDays) : 0;
+                const achievementPctByMonthEnd = sdrTarget > 0 ? Math.round((runRateForecast / sdrTarget) * 100) : 0;
+
+                {/* Trend calculations */}
+                let trendStatus = "RISCO DE NÃO BATER A META";
+                let trendColor = "bg-rose-50 text-rose-700 border-rose-200";
+                
+                if (runRateForecast >= sdrTarget) {
+                  trendStatus = "ACIMA DAS METAS";
+                  trendColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                } else if (runRateForecast >= sdrTarget * 0.85) {
+                  trendStatus = "NO RITMO ESPERADO";
+                  trendColor = "bg-blue-50 text-blue-700 border-blue-150";
+                } else if (runRateForecast >= sdrTarget * 0.65) {
+                  trendStatus = "SINAL AMARELO";
+                  trendColor = "bg-amber-50 text-amber-700 border-amber-200";
+                }
+
                 return (
-                  <div
-                    key={sdr.id}
-                    className={`bg-white border rounded-xl p-5 flex flex-col justify-between transition-all relative ${
-                      sdr.active 
-                        ? 'border-neutral-200 hover:border-neutral-400 shadow-xs' 
-                        : 'border-neutral-250 bg-neutral-50 opacity-60'
-                    }`}
-                  >
-                    <div>
-                      {/* Form validation while editing */}
+                  <tr key={sdr.id} className="hover:bg-neutral-50/40 transition">
+                    <td className="px-5 py-3.5 border-b border-neutral-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-neutral-100 border border-neutral-350 text-neutral-900 font-extrabold flex items-center justify-center uppercase text-[10px] shrink-0">
+                          {sdr.name.charAt(0)}
+                        </div>
+                        <div className="truncate">
+                          <strong className="text-xs font-black text-neutral-900 block truncate">{sdr.name}</strong>
+                          <span className="text-[9px] text-neutral-450 font-mono uppercase tracking-wider block font-bold">
+                            {sdr.professionalProfile || 'Comercial'}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 border-b border-neutral-100 font-semibold text-neutral-600">
+                      {sdr.team || 'Principal'}
+                    </td>
+                    <td className="px-5 py-3.5 border-b border-neutral-100 font-mono font-black text-neutral-900">
+                      {sdrCompleted}
+                    </td>
+                    <td className="px-5 py-3.5 border-b border-neutral-100 font-mono font-bold text-neutral-450">
+                      {sdrTarget}
+                    </td>
+                    <td className="px-5 py-3.5 border-b border-neutral-100">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`font-bold font-mono ${sdrCompleted >= sdrExpected ? 'text-emerald-600' : 'text-neutral-500'}`}>
+                          {sdrCompleted}/{sdrExpected}
+                        </span>
+                        <span className="text-[10px] text-neutral-400 font-medium">
+                          ({sdrTarget > 0 ? Math.round((sdrCompleted / sdrTarget) * 100) : 0}%)
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 border-b border-neutral-100">
+                      <div className="flex items-center gap-1 font-mono">
+                        <strong className={`text-xs font-extrabold ${runRateForecast >= sdrTarget ? 'text-emerald-600' : 'text-neutral-800'}`}>
+                          {runRateForecast}
+                        </strong>
+                        <span className="text-[10px] text-neutral-400">
+                          ({achievementPctByMonthEnd}%)
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 border-b border-neutral-100 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-wider ${trendColor}`}>
+                        {trendStatus}
+                      </span>
+                    </td>
+                  </tr>
+                );
+
+                let dummyValue = false;
+                if (dummyValue) {
+                  return null;
+                  return (
+                    <div className="hidden">
                       {isEditing ? (
                         <div className="space-y-3 mb-4 text-xs">
                           <div className="grid grid-cols-2 gap-2">
@@ -1552,16 +1819,22 @@ export default function SDRSection({
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[9px] font-bold text-neutral-500 uppercase mb-0.5">Equipe</label>
-                              <select
-                                value={editTeam}
-                                onChange={e => setEditTeam(e.target.value)}
-                                className="w-full bg-neutral-50 border border-neutral-300 rounded px-2 py-1 text-[11px] focus:outline-none"
-                              >
-                                {teams.map(t => (
-                                  <option key={t} value={t}>{t}</option>
-                                ))}
-                                <option value="">Sem Equipe</option>
-                              </select>
+                              {currentUser?.role === 'leader' ? (
+                                <span className="block w-full bg-neutral-100 border border-neutral-300 rounded px-2 py-1 text-[11px] font-mono font-bold text-neutral-600">
+                                  {editTeam || 'Nenhuma'}
+                                </span>
+                              ) : (
+                                <select
+                                  value={editTeam}
+                                  onChange={e => setEditTeam(e.target.value)}
+                                  className="w-full bg-neutral-50 border border-neutral-300 rounded px-2 py-1 text-[11px] focus:outline-none"
+                                >
+                                  {teams.map(t => (
+                                    <option key={t} value={t}>{t}</option>
+                                  ))}
+                                  <option value="">Sem Equipe</option>
+                                </select>
+                              )}
                             </div>
                             <div>
                               <label className="block text-[9px] font-bold text-neutral-500 uppercase mb-0.5">Data de Adm.</label>
@@ -1817,9 +2090,8 @@ export default function SDRSection({
                           </div>
                         </div>
                       )}
-                    </div>
-                     {/* Operational metrics sliders with increment buttons */}
-                    {!isEditing && (
+                       {/* Operational metrics sliders with increment buttons */}
+                      {!isEditing && (
                       <div className="bg-neutral-50 p-3.5 rounded-lg border border-neutral-200/50 mt-2 space-y-3">
                         {sdr.promotedToAssessor && (
                           <div className="bg-amber-50 text-amber-950 px-2 py-1.5 rounded border border-amber-200 flex items-center gap-1 text-[10px] font-bold uppercase mb-2">
@@ -2040,8 +2312,12 @@ export default function SDRSection({
                       </div>
                     )}
                   </div>
-                );
+                  );
+                }
               })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -2092,6 +2368,29 @@ export default function SDRSection({
                           </div>
 
                           <div className="space-y-1">
+                            <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Líder Responsável</label>
+                            <select
+                              value={editingPromotionLeaderId}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setEditingPromotionLeaderId(val);
+                                const selectedLeader = leaders.find(l => l.id === val);
+                                if (selectedLeader) {
+                                  setEditingPromotionTeam(selectedLeader.teamName || 'Equipe Alpha');
+                                }
+                              }}
+                              className="w-full px-2 py-1.5 bg-white border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                            >
+                              <option value="">Nenhum</option>
+                              {leaders.map(l => (
+                                <option key={l.id} value={l.id}>
+                                  {l.name} ({l.teamName})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
                             <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Equipe Vinculada</label>
                             <select
                               value={editingPromotionTeam}
@@ -2101,6 +2400,11 @@ export default function SDRSection({
                               <option value="Equipe Alpha">Equipe Alpha</option>
                               <option value="Equipe Beta">Equipe Beta</option>
                               <option value="Equipe Delta">Equipe Delta</option>
+                              <option value="Equipe PF">Equipe PF</option>
+                              <option value="Equipe PJ">Equipe PJ</option>
+                              {teams && teams.filter(t => t !== "Equipe Alpha" && t !== "Equipe Beta" && t !== "Equipe Delta").map(t => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
                             </select>
                           </div>
 
@@ -2122,9 +2426,12 @@ export default function SDRSection({
                                   });
                                 }
                                 if (onUpdateAssessor && companion) {
+                                  const selectedLeader = leaders.find(l => l.id === editingPromotionLeaderId);
                                   onUpdateAssessor(companion.id, {
                                     team: editingPromotionTeam,
-                                    roleType: editingPromotionRoleType
+                                    roleType: editingPromotionRoleType,
+                                    leaderId: editingPromotionLeaderId || undefined,
+                                    leaderName: selectedLeader ? selectedLeader.name : undefined
                                   });
                                 }
                                 setEditingPromotionSdrId(null);
@@ -2145,6 +2452,7 @@ export default function SDRSection({
                             <div className="text-[10px] text-neutral-500 space-y-0.5">
                               <p>Cargo: <strong className="text-neutral-700 capitalize">{companion?.roleType || 'assessor'}</strong></p>
                               <p>Data: <strong className="text-neutral-700 font-semibold">{s.promotedDate ? formatDate(s.promotedDate) : 'Não editada'}</strong></p>
+                              <p>Líder Responsável: <strong className="text-neutral-700 font-semibold">{companion?.leaderName || 'Nenhum'}</strong></p>
                             </div>
                           </div>
                           
@@ -2156,6 +2464,7 @@ export default function SDRSection({
                                 setEditingPromotionDate(s.promotedDate || new Date().toISOString().substring(0, 10));
                                 setEditingPromotionTeam(companion?.team || s.team || 'Equipe Alpha');
                                 setEditingPromotionRoleType(companion?.roleType || 'assessor');
+                                setEditingPromotionLeaderId(companion?.leaderId || '');
                               }}
                               className="flex-1 py-1.5 bg-white hover:bg-neutral-100 border border-neutral-300 rounded text-[10px] font-bold uppercase text-neutral-700 flex items-center justify-center gap-1 transition-all"
                             >
@@ -2188,209 +2497,363 @@ export default function SDRSection({
       {subTab === 'goals' && (
         <div className="space-y-6 animate-fade-in">
           
-          {/* Top critical warning panel representing: "Atenção aos pontos do mês" */}
-          <div className="bg-amber-50 border border-amber-250 p-5 rounded-xl">
-            <h3 className="text-sm font-bold text-amber-900 flex items-center gap-2 mb-2 font-display">
-              <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
-              Pontos de Atenção Crítica no Mês Corrente
-            </h3>
-            <p className="text-xs text-amber-700 leading-relaxed max-w-4xl">
-              Estes SDRs abaixo possuem metas desalinhadas ou estão operando abaixo das taxas mínimas de conversão. 
-              Ao rodar o acasalamento do rodízio, o sistema poderá equilibrar os fluxos distribuindo assessores com melhores taxas de fechamento para compensá-los.
-            </p>
-
-            {/* Critical list overview */}
-            <div className="mt-4 space-y-2">
-              {criticalSDRs.length === 0 ? (
-                <div className="bg-white border border-amber-100/50 p-3 rounded-lg text-xs text-neutral-500">
-                  ✓ Excelente desempenho de equipe! Todos os SDRs ativos superaram ou igualaram as metas corporativas.
+          {/* Top critical warning panel representing: "Atenção aos pontos do mês" - Replaced with beautiful Podium */}
+          <div className="bg-white border border-neutral-200 p-6 rounded-xl shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <Trophy className="w-5 h-5 text-amber-500 fill-amber-100 animate-pulse" />
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900 font-display">
+                    Pódio de Desempenho do Time
+                  </h3>
+                  <p className="text-xs text-neutral-500 leading-relaxed mt-0.5">
+                    Ranking dos membros do time em relação ao atingimento das metas e desempenho no período.
+                  </p>
                 </div>
-              ) : (
-                criticalSDRs.map(sdr => {
-                  const rate = sdr.agendamentosCount > 0 ? Math.round((sdr.efetivacoesCount / sdr.agendamentosCount) * 100) : 0;
-                  const isBelowBooking = sdr.agendamentosCount < (sdr.metaAgendamentos || 20);
-                  const isBelowRate = rate < (sdr.metaEfetivacaoRate || 50);
+              </div>
 
-                  return (
-                    <div key={sdr.id} className="bg-white border border-amber-200 p-3 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-800">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-550 block"></span>
-                        <strong className="font-bold">{sdr.name}</strong>
-                        <span className="text-[10px] text-black font-extrabold font-mono" style={{ color: '#000000' }}>({sdr.team})</span>
+              {/* Metric Switcher Toolbar */}
+              <div className="flex bg-neutral-100 p-1 rounded-lg gap-1 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPodiumMetric('attainment')}
+                  className={`px-3 py-1 rounded transition-all cursor-pointer ${
+                    podiumMetric === 'attainment'
+                      ? 'bg-white text-black shadow-3xs'
+                      : 'text-neutral-550 hover:text-neutral-900'
+                  }`}
+                >
+                  % da Meta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPodiumMetric('volume')}
+                  className={`px-3 py-1 rounded transition-all cursor-pointer ${
+                    podiumMetric === 'volume'
+                      ? 'bg-white text-black shadow-3xs'
+                      : 'text-neutral-550 hover:text-neutral-900'
+                  }`}
+                >
+                  Agendamentos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPodiumMetric('conversion')}
+                  className={`px-3 py-1 rounded transition-all cursor-pointer ${
+                    podiumMetric === 'conversion'
+                      ? 'bg-white text-black shadow-3xs'
+                      : 'text-neutral-550 hover:text-neutral-900'
+                  }`}
+                >
+                  Conversão (%)
+                </button>
+              </div>
+            </div>
+
+            {/* Podium Visual Steps */}
+            {rankedSDRs.length === 0 ? (
+              <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-8 text-center">
+                <Trophy className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-neutral-600">Nenhum SDR ativo no time para exibir no pódio.</p>
+                <p className="text-xs text-neutral-400 mt-1">Ative pelo menos um SDR na lista para acompanhar o ranking.</p>
+              </div>
+            ) : (() => {
+              const gold = rankedSDRs[0];
+              const silver = rankedSDRs[1] || null;
+              const bronze = rankedSDRs[2] || null;
+              const others = rankedSDRs.slice(3);
+
+              return (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-end pt-4">
+                    
+                    {/* SILVER (2nd place) */}
+                    {silver ? (
+                      <div className="order-2 sm:order-1 relative bg-neutral-50/70 border border-neutral-200 rounded-xl p-5 flex flex-col items-center justify-between h-64 shadow-2xs hover:shadow-xs transition-all">
+                        <div className="absolute -top-3.5 px-3 py-0.5 bg-neutral-200 text-neutral-800 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-3xs">
+                          2º Lugar 🥈
+                        </div>
+                        <div className="flex flex-col items-center text-center mt-3">
+                          <div className="w-12 h-12 rounded-full border-2 border-slate-300 flex items-center justify-center font-bold text-base bg-slate-100 text-slate-800 shadow-3xs">
+                            {silver.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <h4 className="font-bold text-neutral-900 text-sm mt-2">{silver.name}</h4>
+                          <span className="text-[10px] font-mono text-neutral-500 font-bold">({silver.team || 'Sem Equipe'})</span>
+                        </div>
+
+                        <div className="flex flex-col items-center text-center w-full">
+                          {podiumMetric === 'attainment' && (
+                            <>
+                              <div className="text-2xl font-black text-neutral-700 leading-none">{silver.attainment}%</div>
+                              <span className="text-[9px] font-medium text-neutral-400 mt-1">Atingimento da Meta</span>
+                            </>
+                          )}
+                          {podiumMetric === 'volume' && (
+                            <>
+                              <div className="text-2xl font-black text-neutral-700 leading-none">{silver.volume}</div>
+                              <span className="text-[9px] font-medium text-neutral-400 mt-1">Agendamentos</span>
+                            </>
+                          )}
+                          {podiumMetric === 'conversion' && (
+                            <>
+                              <div className="text-2xl font-black text-neutral-700 leading-none">{silver.conversion}%</div>
+                              <span className="text-[9px] font-medium text-neutral-400 mt-1">Conversão</span>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="w-full pt-3 border-t border-neutral-200 flex justify-between text-[10px] font-mono font-bold text-neutral-500">
+                          <span>Agend: {silver.agendamentosCount}/{silver.metaAgendamentos || 20}</span>
+                          <span>Conv: {silver.conversion}%</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 font-mono font-bold text-[11px]">
-                        {isBelowBooking && (
-                          <span className="text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
-                            Vol. Agend.: {sdr.agendamentosCount} / meta {sdr.metaAgendamentos || 20}
-                          </span>
-                        )}
-                        {isBelowRate && (
-                          <span className="text-amber-700 bg-amber-100/60 px-2 py-0.5 rounded border border-amber-200/60">
-                            Taxa Conv.: {rate}% / meta {sdr.metaEfetivacaoRate || 50}%
-                          </span>
-                        )}
+                    ) : (
+                      <div className="order-2 sm:order-1 hidden sm:flex h-64 bg-neutral-50/10 border border-dashed border-neutral-200/50 rounded-xl items-center justify-center text-xs text-neutral-350">
+                        Pódio Vazio
+                      </div>
+                    )}
+
+                    {/* GOLD (1st place) */}
+                    {gold ? (
+                      <div className="order-1 sm:order-2 relative bg-gradient-to-b from-amber-50/20 to-transparent border-2 border-amber-400/80 rounded-xl p-5 flex flex-col items-center justify-between h-72 shadow-xs hover:shadow-sm transition-all">
+                        <div className="absolute -top-4 px-3 py-1 bg-amber-400 text-amber-950 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs border border-amber-300">
+                          <Crown className="w-3.5 h-3.5 text-amber-950 fill-amber-950" /> 1º Lugar 🥇
+                        </div>
+                        <div className="flex flex-col items-center text-center mt-4">
+                          <div className="w-14 h-14 rounded-full border-2 border-amber-400 flex items-center justify-center font-bold text-lg bg-amber-100 text-amber-900 shadow-sm relative">
+                            {gold.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            <div className="absolute -top-1 -right-1 bg-amber-400 text-white p-0.5 rounded-full">
+                              <Sparkles className="w-3 h-3 text-amber-950" />
+                            </div>
+                          </div>
+                          <h4 className="font-bold text-neutral-900 text-base mt-2">{gold.name}</h4>
+                          <span className="text-[10px] font-mono text-amber-800 font-bold">({gold.team || 'Sem Equipe'})</span>
+                        </div>
+
+                        <div className="flex flex-col items-center text-center w-full">
+                          {podiumMetric === 'attainment' && (
+                            <>
+                              <div className="text-3xl font-black text-amber-600 leading-none">{gold.attainment}%</div>
+                              <span className="text-[9px] font-extrabold text-amber-700 uppercase tracking-wider mt-1">Atingimento da Meta 🔥</span>
+                            </>
+                          )}
+                          {podiumMetric === 'volume' && (
+                            <>
+                              <div className="text-3xl font-black text-amber-600 leading-none">{gold.volume}</div>
+                              <span className="text-[9px] font-extrabold text-amber-700 uppercase tracking-wider mt-1">Agendamentos 🔥</span>
+                            </>
+                          )}
+                          {podiumMetric === 'conversion' && (
+                            <>
+                              <div className="text-3xl font-black text-amber-600 leading-none">{gold.conversion}%</div>
+                              <span className="text-[9px] font-extrabold text-amber-700 uppercase tracking-wider mt-1">Taxa de Conversão 🔥</span>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="w-full pt-3 border-t border-amber-200/50 flex justify-between text-[10px] font-mono font-bold text-neutral-600">
+                          <span>Agend: {gold.agendamentosCount}/{gold.metaAgendamentos || 20}</span>
+                          <span>Conv: {gold.conversion}%</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="order-1 sm:order-2 h-72 bg-neutral-50/10 border border-dashed border-neutral-200/50 rounded-xl flex items-center justify-center text-xs text-neutral-350">
+                        Sem dados
+                      </div>
+                    )}
+
+                    {/* BRONZE (3rd place) */}
+                    {bronze ? (
+                      <div className="order-3 sm:order-3 relative bg-neutral-50/70 border border-neutral-200 rounded-xl p-5 flex flex-col items-center justify-between h-56 shadow-2xs hover:shadow-xs transition-all">
+                        <div className="absolute -top-3.5 px-3 py-0.5 bg-amber-100 text-amber-900 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-3xs">
+                          3º Lugar 🥉
+                        </div>
+                        <div className="flex flex-col items-center text-center mt-3">
+                          <div className="w-12 h-12 rounded-full border-2 border-amber-600/20 flex items-center justify-center font-bold text-base bg-amber-50/50 text-amber-900 shadow-3xs">
+                            {bronze.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <h4 className="font-bold text-neutral-900 text-sm mt-2">{bronze.name}</h4>
+                          <span className="text-[10px] font-mono text-neutral-500 font-bold">({bronze.team || 'Sem Equipe'})</span>
+                        </div>
+
+                        <div className="flex flex-col items-center text-center w-full">
+                          {podiumMetric === 'attainment' && (
+                            <>
+                              <div className="text-2xl font-black text-amber-900/80 leading-none">{bronze.attainment}%</div>
+                              <span className="text-[9px] font-medium text-neutral-400 mt-1">Atingimento da Meta</span>
+                            </>
+                          )}
+                          {podiumMetric === 'volume' && (
+                            <>
+                              <div className="text-2xl font-black text-amber-900/80 leading-none">{bronze.volume}</div>
+                              <span className="text-[9px] font-medium text-neutral-400 mt-1">Agendamentos</span>
+                            </>
+                          )}
+                          {podiumMetric === 'conversion' && (
+                            <>
+                              <div className="text-2xl font-black text-amber-900/80 leading-none">{bronze.conversion}%</div>
+                              <span className="text-[9px] font-medium text-neutral-400 mt-1">Conversão</span>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="w-full pt-3 border-t border-neutral-200 flex justify-between text-[10px] font-mono font-bold text-neutral-500">
+                          <span>Agend: {bronze.agendamentosCount}/{bronze.metaAgendamentos || 20}</span>
+                          <span>Conv: {bronze.conversion}%</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="order-3 sm:order-3 hidden sm:flex h-56 bg-neutral-50/10 border border-dashed border-neutral-200/50 rounded-xl items-center justify-center text-xs text-neutral-350">
+                        Pódio Vazio
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* Rest of the team if there are more than 3 active SDRs */}
+                  {others.length > 0 && (
+                    <div className="mt-6 border-t border-neutral-100 pt-5">
+                      <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-3">Outras Posições no Time</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {others.map((sdr, idx) => {
+                          const rank = idx + 4;
+                          let statText = '';
+                          if (podiumMetric === 'attainment') {
+                            statText = `${sdr.attainment}% da meta`;
+                          } else if (podiumMetric === 'volume') {
+                            statText = `${sdr.volume} agendamentos`;
+                          } else {
+                            statText = `${sdr.conversion}% de conversão`;
+                          }
+                          return (
+                            <div key={sdr.id} className="flex items-center justify-between bg-neutral-50 p-3 rounded-lg border border-neutral-200/50 text-xs hover:bg-neutral-100/50 transition-all">
+                              <div className="flex items-center gap-2.5">
+                                <span className="w-5 h-5 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-mono font-extrabold text-[10px]">
+                                  {rank}
+                                </span>
+                                <span className="font-bold text-neutral-850">{sdr.name}</span>
+                                <span className="text-[10px] text-neutral-450 font-mono">({sdr.team || 'Sem Equipe'})</span>
+                              </div>
+                              <div className="font-mono font-bold text-neutral-750 text-[11px]">
+                                {statText}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* NEW: Team Goals Card with full editing capabilities (Fully customizable metrics list) */}
-          <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+          {/* REORGANIZABLE OPERATION GOALS (Drag & Drop / Reorderable) */}
+          <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-xs space-y-4 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3.5 gap-3">
               <div className="flex items-center gap-2">
                 <Target className="w-5 h-5 text-neutral-800" />
                 <div>
-                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-display">Monitor & Gestão de Targets do Período</h4>
-                  <p className="text-[11px] text-neutral-450 mt-0.5">Adicione, edite ou exclua qualquer meta e acompanhe as realizações cumulativas do time.</p>
+                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-display flex items-center gap-1.5">
+                    Metas Principais da Operação
+                    <span className="px-1.5 py-0.5 bg-neutral-100 text-[9px] font-bold text-neutral-500 rounded uppercase tracking-wider">
+                      Arraste ou use as setas
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-450 mt-0.5">
+                    Os targets são fixos e não editáveis. Reorganize as caixas livremente. Os resultados são consolidados em tempo real com base no time ativo.
+                  </p>
                 </div>
               </div>
-              {!isEditingTeamGoals ? (
-                onUpdateTeamGoals && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLocalCustomMetrics([...currentCustomMetrics]);
-                      setIsEditingTeamGoals(true);
-                    }}
-                    className="px-3 py-1 bg-black text-white hover:bg-[#111] rounded-lg text-[11px] font-bold tracking-tight flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Edit2 className="w-3 h-3" /> Editar Metas do Time
-                  </button>
-                )
-              ) : (
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingTeamGoals(false)}
-                    className="px-2.5 py-1 bg-neutral-100 text-neutral-600 hover:bg-neutral-200 rounded-lg text-[11px] font-semibold transition-all cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onUpdateTeamGoals) {
-                        // Keep legacy properties in sync for compatibility
-                        let updatedAgend = teamGoals.agendamentos;
-                        let updatedEfet = teamGoals.efetivacoes;
-                        let updatedContas = teamGoals.contasAbertas;
-
-                        localCustomMetrics.forEach(m => {
-                          const nameNorm = m.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                          if (nameNorm.includes("agendamento") || nameNorm.includes("reuniao") || nameNorm.includes("agendados")) {
-                            updatedAgend = m.target;
-                          } else if (nameNorm.includes("efetivacao") || nameNorm.includes("reuniao concluida") || nameNorm.includes("efetivados")) {
-                            updatedEfet = m.target;
-                          } else if (nameNorm.includes("contas abertas") || nameNorm.includes("abertura") || nameNorm.includes("conta")) {
-                            updatedContas = m.target;
-                          }
-                        });
-
-                        onUpdateTeamGoals({
-                          agendamentos: updatedAgend,
-                          efetivacoes: updatedEfet,
-                          contasAbertas: updatedContas,
-                          customMetrics: localCustomMetrics,
-                        });
-                      }
-                      setIsEditingTeamGoals(false);
-                    }}
-                    className="px-3 py-1 bg-black text-white hover:bg-neutral-900 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
-                  >
-                    Salvar Metas
-                  </button>
-                </div>
-              )}
             </div>
 
-            {isEditingTeamGoals ? (
-              <div className="space-y-3 max-w-xl bg-neutral-50 p-4 rounded-xl border border-neutral-200 animate-fade-in">
-                <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider">Estipular e Ajustar Métricas</span>
-                <div className="space-y-2">
-                  {localCustomMetrics.map((m, idx) => (
-                    <div key={m.id || idx} className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        value={m.name}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setLocalCustomMetrics(prev => prev.map(x => x.id === m.id ? { ...x, name: val } : x));
-                        }}
-                        placeholder="Ex: Ligações, Cross Sell, etc."
-                        className="flex-1 bg-white border border-neutral-350 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-black focus:outline-none"
-                      />
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-neutral-450">Meta:</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={m.target}
-                          onChange={e => {
-                            const val = Math.max(0, parseInt(e.target.value) || 0);
-                            setLocalCustomMetrics(prev => prev.map(x => x.id === m.id ? { ...x, target: val } : x));
-                          }}
-                          className="w-20 bg-white border border-neutral-350 rounded-lg px-2 py-1.5 text-xs text-center font-bold focus:ring-1 focus:ring-black focus:outline-none"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLocalCustomMetrics(prev => prev.filter(x => x.id !== m.id));
-                        }}
-                        className="p-1 px-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg border border-red-200 transition-all cursor-pointer flex items-center justify-center font-bold"
-                        title="Remover Métrica"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  {localCustomMetrics.length === 0 && (
-                    <p className="text-neutral-500 text-[11px] italic py-2">Nenhuma métrica cadastrada. Adicione uma métrica abaixo!</p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLocalCustomMetrics(prev => [
-                      ...prev,
-                      { id: `m-${Date.now()}`, name: 'Nova Métrica', target: 20 }
-                    ]);
-                  }}
-                  className="w-full py-2 bg-white hover:bg-neutral-100 border border-dashed border-neutral-300 rounded-lg text-xs font-black text-neutral-800 transition-all flex items-center justify-center gap-1.5 cursor-pointer font-sans"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Métrica
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
-                {currentCustomMetrics.map((m, idx) => {
-                  const realized = calculateRealized(m.name);
-                  const rate = m.target > 0 ? Math.round((realized / m.target) * 100) : 0;
-                  return (
-                    <div key={m.id || idx} className="bg-neutral-50 p-4 rounded-xl border border-neutral-150 relative overflow-hidden group hover:bg-neutral-100/60 transition-all">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-neutral-450 block mb-1">
-                        Meta de {m.name}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+              {goalsOrder.map((goalId, idx) => {
+                const goalInfo = (() => {
+                  if (goalId === 'net_captacao') return { name: 'NET Captação', target: 160000, isMoney: true };
+                  if (goalId === 'contas_abertas') return { name: 'Contas Abertas', target: 12, isMoney: false };
+                  if (goalId === 'ativacao') return { name: 'Ativação', target: 12, isMoney: false };
+                  if (goalId === 'cross_sell') return { name: 'Cross Sell', target: 4, isMoney: false };
+                  return { name: 'Indicação', target: 5, isMoney: false };
+                })();
+
+                const realized = getGoalRealized(goalId);
+                const rate = goalInfo.target > 0 ? Math.round((realized / goalInfo.target) * 100) : 0;
+
+                return (
+                  <div
+                    key={goalId}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDragEnd={handleDragEnd}
+                    className={`bg-neutral-50/70 p-4 rounded-xl border relative overflow-hidden transition-all select-none cursor-grab active:cursor-grabbing hover:border-neutral-350 hover:bg-neutral-100/60 ${
+                      draggedIdx === idx ? 'border-dashed border-black/40 opacity-40 bg-neutral-100' : 'border-neutral-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2.5">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-neutral-450">
+                        {goalInfo.name}
                       </span>
-                      <div className="flex justify-between items-baseline">
-                        <div className="text-2xl font-black text-neutral-900 tracking-tight font-display">{m.target}</div>
-                        <span className="text-[10px] font-semibold text-neutral-450">Objetivo</span>
-                      </div>
-                      <div className="text-[10px] text-neutral-500 mt-2 flex items-center justify-between">
-                        <span>Realizado: <strong className="text-neutral-800 font-extrabold">{realized}</strong></span>
-                        <span className={rate >= 100 ? "text-emerald-700 font-black" : rate >= 50 ? "text-amber-700 font-black" : "text-neutral-600 font-bold"}>
-                          {rate}%
+                      <div className="flex items-center gap-1">
+                        {/* Move controls for mobile / accessibility */}
+                        {idx > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); moveGoal(idx, 'left'); }}
+                            className="p-1 hover:bg-neutral-200 text-neutral-500 hover:text-black rounded transition-all cursor-pointer"
+                            title="Mover para esquerda"
+                          >
+                            <ArrowLeft className="w-3 h-3" />
+                          </button>
+                        )}
+                        {idx < goalsOrder.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); moveGoal(idx, 'right'); }}
+                            className="p-1 hover:bg-neutral-200 text-neutral-500 hover:text-black rounded transition-all cursor-pointer"
+                            title="Mover para direita"
+                          >
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        )}
+                        <span className="p-1 text-neutral-400 hover:text-neutral-650 transition-all cursor-grab active:cursor-grabbing" title="Arraste para reorganizar">
+                          <Move className="w-3 h-3" />
                         </span>
                       </div>
-                      {/* elegant micro status line */}
-                      <div className="absolute bottom-0 left-0 h-0.5 bg-neutral-900 group-hover:bg-[#111] transition-all" style={{ width: `${Math.min(100, rate)}%` }} />
                     </div>
-                  );
-                })}
-              </div>
-            )}
+
+                    <div className="flex justify-between items-baseline mb-2">
+                       <div className="text-xl font-black text-neutral-900 tracking-tight font-display">
+                        {goalInfo.isMoney 
+                          ? `R$ ${goalInfo.target.toLocaleString('pt-BR')}`
+                          : goalInfo.target
+                        }
+                      </div>
+                      <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Objetivo</span>
+                    </div>
+
+                    <div className="text-[10.5px] text-neutral-500 flex items-center justify-between border-t border-neutral-200/60 pt-2">
+                      <span>
+                        Realizado:{' '}
+                        <strong className="text-neutral-800 font-extrabold">
+                          {goalInfo.isMoney 
+                            ? `R$ ${realized.toLocaleString('pt-BR')}`
+                            : realized
+                          }
+                        </strong>
+                      </span>
+                      <span className={rate >= 100 ? "text-emerald-700 font-black" : rate >= 50 ? "text-amber-700 font-bold" : "text-neutral-600 font-bold"}>
+                        {rate}%
+                      </span>
+                    </div>
+
+                    {/* progress line indicator */}
+                    <div className="absolute bottom-0 left-0 h-1 bg-black transition-all duration-300" style={{ width: `${Math.min(100, rate)}%` }} />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* PAINEL DE CONFIGURAÇÃO RÁPIDA DE METAS DE AGENDAMENTOS POR EQUIPE */}
@@ -2495,6 +2958,170 @@ export default function SDRSection({
                 })}
               </div>
             )}
+          </div>
+
+          {/* PAINEL DE CONFIGURAÇÃO DE PESO DE METAS (Cálculo do Ranking de Performance) */}
+          <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-xs space-y-4 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-neutral-800" />
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-display">Configuração de Pesos e Metas de Performance (Ranking)</h4>
+                  <p className="text-[11px] text-neutral-450 mt-0.5">Defina as metas da operação e os pesos percentuais de cada indicador para o cálculo ponderado do score de performance dos profissionais comerciais. A soma dos pesos deve totalizar 100%.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-neutral-50 p-4 rounded-xl border border-neutral-150">
+                {localPerformanceGoals.map((g: any, index: number) => (
+                  <div key={g.id} className="bg-white p-4 rounded-lg border border-neutral-200 hover:border-neutral-350 transition-all flex flex-col justify-between gap-3 relative group">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block">Nome da Meta</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = localPerformanceGoals.filter((_, idx) => idx !== index);
+                            setLocalPerformanceGoals(updated);
+                          }}
+                          className="text-neutral-400 hover:text-red-600 p-1 rounded transition-all cursor-pointer hover:bg-red-50"
+                          title="Excluir Meta"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={g.name}
+                          onChange={e => {
+                            const updated = [...localPerformanceGoals];
+                            updated[index] = { ...g, name: e.target.value };
+                            setLocalPerformanceGoals(updated);
+                          }}
+                          className="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs font-bold text-neutral-900 focus:outline-none focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1">Meta (Alvo)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={g.target}
+                            onChange={e => {
+                              const updated = [...localPerformanceGoals];
+                              updated[index] = { ...g, target: Math.max(1, parseInt(e.target.value) || 0) };
+                              setLocalPerformanceGoals(updated);
+                            }}
+                            className="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs font-bold font-mono text-neutral-900 focus:outline-none focus:ring-1 focus:ring-black"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1">Peso (%)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={g.weight}
+                            onChange={e => {
+                              const updated = [...localPerformanceGoals];
+                              updated[index] = { ...g, weight: Math.max(0, parseInt(e.target.value) || 0) };
+                              setLocalPerformanceGoals(updated);
+                            }}
+                            className="w-full bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 text-xs font-bold font-mono text-neutral-900 focus:outline-none focus:ring-1 focus:ring-black"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* BOTÃO PARA ADICIONAR NOVA META */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newId = `meta_${Date.now()}`;
+                    const newGoal = {
+                      id: newId,
+                      name: `Meta Opcional ${localPerformanceGoals.length + 1}`,
+                      target: 10,
+                      weight: 0
+                    };
+                    setLocalPerformanceGoals([...localPerformanceGoals, newGoal]);
+                  }}
+                  className="bg-neutral-50/50 hover:bg-white border-2 border-dashed border-neutral-300 hover:border-neutral-950 rounded-lg p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all min-h-[140px] text-neutral-400 hover:text-neutral-900"
+                >
+                  <Plus className="w-6 h-6 stroke-[2]" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">Adicionar Meta</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+                {(() => {
+                  const totalWeight = localPerformanceGoals.reduce((sum: number, g: any) => sum + (g.weight || 0), 0);
+                  const isBalanced = totalWeight === 100;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-neutral-500">
+                        Soma dos Pesos: <strong className={`font-mono font-black text-xs ${isBalanced ? 'text-emerald-700' : 'text-amber-700'}`}>{totalWeight}%</strong>
+                      </span>
+                      {!isBalanced && (
+                        <span className="text-[9.5px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 animate-pulse">
+                          A soma deve ser exatamente 100% para evitar distorções no ranking!
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (teamGoals.performanceGoals) {
+                        setLocalPerformanceGoals(teamGoals.performanceGoals);
+                      } else {
+                        setLocalPerformanceGoals([
+                          { id: 'ligacoes', name: 'Ligações', target: 300, weight: 20 },
+                          { id: 'reunioes', name: 'Reuniões', target: 20, weight: 35 },
+                          { id: 'comparecimento', name: 'Comparecimento', target: 15, weight: 25 },
+                          { id: 'indicacoes', name: 'Indicações', target: 10, weight: 20 }
+                        ]);
+                      }
+                      setPerfGoalsFeedback('✓ Revertido para o estado salvo!');
+                      setTimeout(() => setPerfGoalsFeedback(''), 3000);
+                    }}
+                    className="px-3.5 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-250 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Resetar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onUpdateTeamGoals) {
+                        onUpdateTeamGoals({
+                          performanceGoals: localPerformanceGoals
+                        });
+                        setPerfGoalsFeedback('✓ Metas e pesos de performance salvos com sucesso!');
+                        setTimeout(() => setPerfGoalsFeedback(''), 4000);
+                      }
+                    }}
+                    className="px-4 py-2 bg-black hover:bg-neutral-900 text-white border border-neutral-950 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    Salvar Configurações
+                  </button>
+                </div>
+              </div>
+
+              {perfGoalsFeedback && (
+                <p className={`text-[10px] text-center font-bold px-3 py-1.5 rounded ${perfGoalsFeedback.includes('✓') ? 'text-emerald-700 bg-emerald-50 border border-emerald-150' : 'text-neutral-700 bg-neutral-100'}`}>
+                  {perfGoalsFeedback}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Combined Team Summary stats */}
@@ -2729,6 +3356,29 @@ export default function SDRSection({
                   </div>
 
                   <div>
+                    <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Líder Responsável</label>
+                    <select
+                      value={promotingLeaderId}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setPromotingLeaderId(val);
+                        const selectedLeader = leaders.find(l => l.id === val);
+                        if (selectedLeader) {
+                          setEditTeam(selectedLeader.teamName || 'Equipe Alpha');
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold focus:outline-none"
+                    >
+                      <option value="">Selecione o líder responsável...</option>
+                      {leaders.map(l => (
+                        <option key={l.id} value={l.id}>
+                          {l.name} ({l.teamName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Equipe Alvo</label>
                     <select
                       value={editTeam}
@@ -2738,6 +3388,11 @@ export default function SDRSection({
                       <option value="Equipe Alpha">Equipe Alpha</option>
                       <option value="Equipe Beta">Equipe Beta</option>
                       <option value="Equipe Delta">Equipe Delta</option>
+                      <option value="Equipe PF">Equipe PF</option>
+                      <option value="Equipe PJ">Equipe PJ</option>
+                      {teams && teams.filter(t => t !== "Equipe Alpha" && t !== "Equipe Beta" && t !== "Equipe Delta").map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -2784,6 +3439,9 @@ export default function SDRSection({
                     onClick={() => {
                       if (onUpdateSDR && onAddAssessor) {
                         const promotionDateStr = new Date().toISOString().substring(0, 10);
+                        const selectedLeader = leaders.find(l => l.id === promotingLeaderId);
+                        const leaderName = selectedLeader ? selectedLeader.name : '';
+
                         onAddAssessor({
                           name: sdr.name,
                           active: true,
@@ -2793,6 +3451,8 @@ export default function SDRSection({
                           exclusiveSdrId: sdr.id,
                           photo: sdr.photo,
                           roleType: promotingRoleType,
+                          leaderId: promotingLeaderId || undefined,
+                          leaderName: leaderName || undefined,
                         });
 
                         onUpdateSDR(sdr.id, {
@@ -3336,55 +3996,47 @@ export default function SDRSection({
 
             {/* Team selection filter specifically requested for 1:1 area with Red Circle "Meu Time" filter */}
             <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-              {currentUser?.role === 'leader' && (
-                <div className="flex items-center bg-white border-2 border-black p-0.5 rounded-lg shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOneOnOneTeamFilter(currentUser.teamName || 'all');
-                      setSessionSdrId('');
-                    }}
-                    className={`text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-md transition-all cursor-pointer ${
-                      oneOnOneTeamFilter === currentUser.teamName
-                        ? 'bg-black text-white'
-                        : 'text-neutral-500 hover:text-neutral-800'
-                    }`}
-                  >
-                    🎯 Filtrar Meu Time ({currentUser.teamName})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOneOnOneTeamFilter('all');
-                      setSessionSdrId('');
-                    }}
-                    className={`text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-md transition-all cursor-pointer ${
-                      oneOnOneTeamFilter === 'all'
-                        ? 'bg-black text-white'
-                        : 'text-neutral-500 hover:text-neutral-800'
-                    }`}
-                  >
-                    Ver Geral
-                  </button>
+              {currentUser?.role === 'leader' ? (
+                <div className="text-xs font-black uppercase text-neutral-800 bg-neutral-100 py-1.5 px-3 rounded-lg border border-neutral-350">
+                  🎯 Equipe: {currentUser.teamName || 'Sem equipe associada'}
                 </div>
-              )}
+              ) : (
+                <>
+                  <div className="flex items-center bg-white border-2 border-black p-0.5 rounded-lg shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOneOnOneTeamFilter('all');
+                        setSessionSdrId('');
+                      }}
+                      className={`text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-md transition-all cursor-pointer ${
+                        oneOnOneTeamFilter === 'all'
+                          ? 'bg-black text-white'
+                          : 'text-neutral-500 hover:text-neutral-800'
+                      }`}
+                    >
+                      Ver Geral
+                    </button>
+                  </div>
 
-              <div className="flex items-center gap-2 bg-neutral-100 border border-neutral-350 py-1.5 px-3 rounded-lg">
-                <span className="text-[10px] font-black uppercase text-neutral-500 whitespace-nowrap">Filtro Equipe:</span>
-                <select
-                  value={oneOnOneTeamFilter}
-                  onChange={(e) => {
-                    setOneOnOneTeamFilter(e.target.value);
-                    setSessionSdrId(''); // Reset selected contributor when filter changes
-                  }}
-                  className="bg-transparent border-none text-xs font-black text-neutral-900 focus:outline-hidden cursor-pointer"
-                >
-                  <option value="all">Todas as Equipes</option>
-                  {teams.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
+                  <div className="flex items-center gap-2 bg-neutral-100 border border-neutral-350 py-1.5 px-3 rounded-lg">
+                    <span className="text-[10px] font-black uppercase text-neutral-500 whitespace-nowrap">Filtro Equipe:</span>
+                    <select
+                      value={oneOnOneTeamFilter}
+                      onChange={(e) => {
+                        setOneOnOneTeamFilter(e.target.value);
+                        setSessionSdrId(''); // Reset selected contributor when filter changes
+                      }}
+                      className="bg-transparent border-none text-xs font-black text-neutral-900 focus:outline-hidden cursor-pointer"
+                    >
+                      <option value="all">Todas as Equipes</option>
+                      {teams.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -3460,6 +4112,17 @@ export default function SDRSection({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setSessionFormTab('questionnaire')}
+                  className={`pb-2 px-3 font-mono text-[10px] uppercase font-black tracking-wider border-b-2 transition-all flex items-center gap-1 ${
+                    sessionFormTab === 'questionnaire'
+                      ? 'border-emerald-600 text-emerald-600 font-extrabold'
+                      : 'border-transparent text-neutral-400 hover:text-neutral-700'
+                  }`}
+                >
+                  📋 Questionário Estruturado
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSessionFormTab('ai_summary')}
                   className={`pb-2 px-3 font-mono text-[10px] uppercase font-black tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
                     sessionFormTab === 'ai_summary'
@@ -3474,7 +4137,7 @@ export default function SDRSection({
                 </button>
               </div>
 
-              {sessionFormTab === 'notes' ? (
+              {sessionFormTab === 'notes' && (
                 <div className="space-y-4 animate-fade-in pt-1">
                   {/* GRUPO 1: RELATOS DO DESENVOLVIMENTO (Primeira Seção) */}
                   <div className="space-y-4">
@@ -3552,7 +4215,102 @@ export default function SDRSection({
                     />
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {sessionFormTab === 'questionnaire' && (
+                <div className="space-y-4 animate-fade-in pt-1">
+                  <div className="flex items-center gap-1.5 pb-1 border-b border-neutral-100">
+                    <span className="text-xs">📋</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-neutral-900">Blocos Mandatórios de Análise 1:1</span>
+                  </div>
+
+                  {/* Bloco 1 */}
+                  <div className="bg-neutral-50/65 p-4 rounded-xl border border-neutral-200/80 space-y-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs">🌱</span>
+                      <h5 className="text-[10.5px] font-black uppercase tracking-wider text-emerald-800">Bloco 1 - Vida, Sentimento e Rotina</h5>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase text-neutral-600">Como está o nível de energia, motivação e humor do colaborador ultimamente?</label>
+                        <textarea
+                          placeholder="Ex: Altamente energético, motivado, porém relatou cansaço no fim do dia."
+                          value={sessionAnswers.rotina_vida || ''}
+                          onChange={(e) => updateAnswer('rotina_vida', e.target.value)}
+                          className="w-full h-16 text-xs px-3 py-2 bg-white border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase text-neutral-600">O colaborador relatou algum obstáculo externo ou de infraestrutura que esteja afetando seus resultados?</label>
+                        <textarea
+                          placeholder="Ex: Teve instabilidade de internet residencial no início da semana, mas já resolvido."
+                          value={sessionAnswers.nivel_suporte || ''}
+                          onChange={(e) => updateAnswer('nivel_suporte', e.target.value)}
+                          className="w-full h-16 text-xs px-3 py-2 bg-white border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bloco 2 */}
+                  <div className="bg-neutral-50/65 p-4 rounded-xl border border-neutral-200/80 space-y-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs">🚀</span>
+                      <h5 className="text-[10.5px] font-black uppercase tracking-wider text-blue-800">Bloco 2 - Processo, Funil & Desafios Técnicos</h5>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase text-neutral-600">Qual das etapas do funil de vendas (prospecção, abordagem, contorno de objeções, fechamento) está mais crítica?</label>
+                        <textarea
+                          placeholder="Ex: Abordagem fria inicial está fluindo bem, mas necessita treinar contorno de objeções de preço."
+                          value={sessionAnswers.desafio_func || ''}
+                          onChange={(e) => updateAnswer('desafio_func', e.target.value)}
+                          className="w-full h-16 text-xs px-3 py-2 bg-white border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase text-neutral-600">Como está a percepção de qualidade dos leads e canais de contato desta quinzena?</label>
+                        <textarea
+                          placeholder="Ex: Leads qualificados por listas do LinkedIn vieram excelentes, mas bases mais frias têm alta rejeição."
+                          value={sessionAnswers.qualidade_leads || ''}
+                          onChange={(e) => updateAnswer('qualidade_leads', e.target.value)}
+                          className="w-full h-16 text-xs px-3 py-2 bg-white border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bloco 3 */}
+                  <div className="bg-neutral-50/65 p-4 rounded-xl border border-neutral-200/80 space-y-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs">🎯</span>
+                      <h5 className="text-[10.5px] font-black uppercase tracking-wider text-purple-800">Bloco 3 - Foco, Metas & Acordo de Alinhamento</h5>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase text-neutral-600">Quais as metas imediatas prioritárias estipuladas e acordadas para as próximas semanas?</label>
+                        <textarea
+                          placeholder="Ex: Atingir média diária estável de 45 ligações ativas com 3 agendamentos válidos na semana."
+                          value={sessionAnswers.metas_imediatas || ''}
+                          onChange={(e) => updateAnswer('metas_imediatas', e.target.value)}
+                          className="w-full h-16 text-xs px-3 py-2 bg-white border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold uppercase text-neutral-600">Quais ações de treinamento / refinamento tático o líder executará para mitigar os desvios?</label>
+                        <textarea
+                          placeholder="Ex: Agendar escuta compartilhada (30 min) na próxima terça-feira com foco em gatilhos mentais."
+                          value={sessionAnswers.acoes_melhoria || ''}
+                          onChange={(e) => updateAnswer('acoes_melhoria', e.target.value)}
+                          className="w-full h-16 text-xs px-3 py-2 bg-white border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-black"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {sessionFormTab === 'ai_summary' && (
                 <div className="space-y-4 animate-fade-in bg-amber-50/40 p-4 rounded-xl border border-amber-200 mt-2">
                   {/* Yellow Circle Area: AI Summary & Diagnosis */}
                   <div className="flex items-center justify-between border-b border-amber-200 pb-2">
@@ -4037,6 +4795,52 @@ export default function SDRSection({
                           <p className="text-neutral-750 leading-relaxed font-semibold font-sans">{log.actionPlan}</p>
                         </div>
                       </div>
+
+                      {/* Detailed Questionnaire Answers if present */}
+                      {log.answers && Object.values(log.answers).some(val => val && val.trim() !== '') && (
+                        <div className="bg-emerald-50/40 border border-emerald-250 rounded-xl p-3.5 space-y-3.5 text-xs">
+                          <div className="flex items-center gap-1.5 border-b border-emerald-200 pb-1.5 font-bold text-emerald-800 uppercase tracking-wider text-[10px]">
+                            <span>📋</span> Respostas do Questionário Estruturado de Feedback
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {(log.answers.rotina_vida || log.answers.nivel_suporte) && (
+                              <div className="space-y-2 p-2.5 bg-white border border-emerald-200/50 rounded-lg">
+                                <span className="text-[9px] font-black uppercase text-emerald-700">🌱 Vida, Sentimento & Rotina</span>
+                                {log.answers.rotina_vida && (
+                                  <p className="text-neutral-700 leading-normal font-sans text-[11px]"><strong className="text-neutral-800">Sentimento/Humor:</strong> {log.answers.rotina_vida}</p>
+                                )}
+                                {log.answers.nivel_suporte && (
+                                  <p className="text-neutral-700 leading-normal font-sans text-[11px]"><strong className="text-neutral-800">Obstáculos Ext.:</strong> {log.answers.nivel_suporte}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {(log.answers.desafio_func || log.answers.qualidade_leads) && (
+                              <div className="space-y-2 p-2.5 bg-white border border-emerald-200/50 rounded-lg">
+                                <span className="text-[9px] font-black uppercase text-blue-700">🚀 Processo, Funil & Desafios</span>
+                                {log.answers.desafio_func && (
+                                  <p className="text-neutral-700 leading-normal font-sans text-[11px]"><strong className="text-neutral-800">Etapa Crítica:</strong> {log.answers.desafio_func}</p>
+                                )}
+                                {log.answers.qualidade_leads && (
+                                  <p className="text-neutral-700 leading-normal font-sans text-[11px]"><strong className="text-neutral-800">Percepção Leads:</strong> {log.answers.qualidade_leads}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {(log.answers.metas_imediatas || log.answers.acoes_melhoria) && (
+                              <div className="space-y-2 p-2.5 bg-white border border-emerald-200/50 rounded-lg">
+                                <span className="text-[9px] font-black uppercase text-purple-700">🎯 Foco, Metas & Acordos</span>
+                                {log.answers.metas_imediatas && (
+                                  <p className="text-neutral-700 leading-normal font-sans text-[11px]"><strong className="text-neutral-800">Metas Acordadas:</strong> {log.answers.metas_imediatas}</p>
+                                )}
+                                {log.answers.acoes_melhoria && (
+                                  <p className="text-neutral-700 leading-normal font-sans text-[11px]"><strong className="text-neutral-800">Ações Líder:</strong> {log.answers.acoes_melhoria}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Display appended AI Feedback */}
                       {log.aiFeedback && (

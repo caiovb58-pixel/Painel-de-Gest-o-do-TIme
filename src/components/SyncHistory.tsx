@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, AlertCircle, Database, HelpCircle, RefreshCw, ChevronDown, ChevronUp, Search, Clock, Info, ArrowUpRight } from 'lucide-react';
 
 interface SyncLog {
@@ -210,101 +209,88 @@ export default function SyncHistory() {
 
       {/* Logs Table / List */}
       <div className="p-4 max-h-[350px] overflow-y-auto space-y-2.5">
-        <AnimatePresence initial={false}>
-          {filteredLogs.length === 0 ? (
-            <div className="py-8 text-center text-neutral-500">
-              <Info className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
-              <p className="text-xs font-semibold uppercase tracking-wider">Nenhum evento registrado</p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">Mude o filtro ou execute uma operação para gravar logs.</p>
-            </div>
-          ) : (
-            filteredLogs.map((log) => {
-              const isError = log.status === 'error';
-              const isExpanded = expandedLogId === log.id;
-              
-              return (
-                <motion.div
-                  key={log.id}
-                  layout
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  onClick={(e) => toggleExpand(log.id, e)}
-                  className={`border rounded-xl p-3 px-3.5 transition-all text-left cursor-pointer select-none leading-relaxed ${
-                    isExpanded 
-                      ? 'shadow-sm border-neutral-900 bg-neutral-50/70' 
-                      : isError 
-                        ? 'border-red-250 bg-red-50/30 hover:bg-red-50 hover:border-red-400' 
-                        : 'border-neutral-250 hover:bg-neutral-50 hover:border-neutral-400'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
-                      <div className={`mt-0.5 shrink-0 p-1 rounded-md ${isError ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {isError ? (
-                          <AlertCircle className="w-4 h-4" />
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4" />
-                        )}
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <div className="flex items-start gap-2 flex-wrap items-center">
-                          <span className={`text-[8px] font-mono font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                            log.type === 'INIT' 
-                              ? 'bg-neutral-800 text-white' 
-                              : log.type === 'LOAD' 
-                                ? 'bg-sky-100 text-sky-800 border border-sky-200' 
-                                : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                          }`}>
-                            {log.type === 'INIT' ? 'Conexão' : log.type === 'LOAD' ? 'Leitura (Load)' : 'Escrita (Save)'}
-                          </span>
-                          <span className="text-[10px] text-neutral-500 font-mono flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatDate(log.timestamp)}
-                          </span>
-                        </div>
-                        <p className="text-xs font-bold text-neutral-900 leading-snug">{log.message}</p>
-                      </div>
+        {filteredLogs.length === 0 ? (
+          <div className="py-8 text-center text-neutral-500">
+            <Info className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+            <p className="text-xs font-semibold uppercase tracking-wider">Nenhum evento registrado</p>
+            <p className="text-[10px] text-neutral-400 mt-0.5">Mude o filtro ou execute uma operação para gravar logs.</p>
+          </div>
+        ) : (
+          filteredLogs.map((log) => {
+            const isError = log.status === 'error';
+            const isExpanded = expandedLogId === log.id;
+            
+            return (
+              <div
+                key={log.id}
+                onClick={(e) => toggleExpand(log.id, e)}
+                className={`border rounded-xl p-3 px-3.5 transition-all text-left cursor-pointer select-none leading-relaxed ${
+                  isExpanded 
+                    ? 'shadow-sm border-neutral-900 bg-neutral-50/70' 
+                    : isError 
+                      ? 'border-red-250 bg-red-50/30 hover:bg-red-50 hover:border-red-400' 
+                      : 'border-neutral-250 hover:bg-neutral-50 hover:border-neutral-400'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className={`mt-0.5 shrink-0 p-1 rounded-md ${isError ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {isError ? (
+                        <AlertCircle className="w-4 h-4" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4" />
+                      )}
                     </div>
-
-                    <div className="text-neutral-500 hover:text-black">
-                      {isExpanded ? <ChevronUp className="w-4.5 h-4.5" /> : <ChevronDown className="w-4.5 h-4.5" />}
+                    
+                    <div className="space-y-1">
+                      <div className="flex items-start gap-2 flex-wrap items-center">
+                        <span className={`text-[8px] font-mono font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                          log.type === 'INIT' 
+                            ? 'bg-neutral-800 text-white' 
+                            : log.type === 'LOAD' 
+                              ? 'bg-sky-100 text-sky-800 border border-sky-200' 
+                              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                        }`}>
+                          {log.type === 'INIT' ? 'Conexão' : log.type === 'LOAD' ? 'Leitura (Load)' : 'Escrita (Save)'}
+                        </span>
+                        <span className="text-[10px] text-neutral-500 font-mono flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatDate(log.timestamp)}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-neutral-900 leading-snug">{log.message}</p>
                     </div>
                   </div>
 
-                  {/* Expanded Section for Detailed Troubleshooting */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.15 }}
-                        className="mt-3 pt-3 border-t border-neutral-250 space-y-2 overflow-hidden text-xs"
-                        onClick={(e) => e.stopPropagation()} /* Prevent toggle on clicking inside */
-                      >
-                        {log.error ? (
-                          <div className="space-y-2">
-                            <div className="bg-neutral-950 text-red-400 font-mono p-3 rounded-lg text-[10.5px] overflow-x-auto border border-neutral-900 select-all font-bold">
-                              {log.error}
-                            </div>
-                            {getTroubleshootingHint(log.error)}
-                          </div>
-                        ) : (
-                          <p className="text-neutral-600 leading-relaxed font-sans">
-                            Esta operação foi concluída perfeitamente pelo módulo de sincronização do aplicativo. Nenhuma anomalia de comunicação ou estouro de cota do banco foi reportada.
-                          </p>
-                        )}
-                      </motion.div>
+                  <div className="text-neutral-500 hover:text-black">
+                    {isExpanded ? <ChevronUp className="w-4.5 h-4.5" /> : <ChevronDown className="w-4.5 h-4.5" />}
+                  </div>
+                </div>
+
+                {/* Expanded Section for Detailed Troubleshooting */}
+                {isExpanded && (
+                  <div
+                    className="mt-3 pt-3 border-t border-neutral-250 space-y-2 overflow-hidden text-xs transition-all"
+                    onClick={(e) => e.stopPropagation()} /* Prevent toggle on clicking inside */
+                  >
+                    {log.error ? (
+                      <div className="space-y-2">
+                        <div className="bg-neutral-950 text-red-400 font-mono p-3 rounded-lg text-[10.5px] overflow-x-auto border border-neutral-900 select-all font-bold">
+                          {log.error}
+                        </div>
+                        {getTroubleshootingHint(log.error)}
+                      </div>
+                    ) : (
+                      <p className="text-neutral-600 leading-relaxed font-sans">
+                        Esta operação foi concluída perfeitamente pelo módulo de sincronização do aplicativo. Nenhuma anomalia de comunicação ou estouro de cota do banco foi reportada.
+                      </p>
                     )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })
-          )}
-        </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Helpful Info Footer */}

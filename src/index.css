@@ -50,23 +50,23 @@
 }
 
 :root {
-  --bg-page: #f4f5f7;
+  --bg-page: #FAF8F5;
   --text-page: #000000;
   --text-secondary: #000000;
-  --border-primary: #cbd5e1;
+  --border-primary: #E5E1D8;
   --bg-card: #ffffff;
-  --bg-hover: #f1f5f9;
-  --border-light: #cbd5e1;
-  --sand-override: #f8fafc;
+  --bg-hover: #F3F1EC;
+  --border-light: #E5E1D8;
+  --sand-override: #FAF8F5;
 
   /* Light mode pure black and white */
   --white-override: #ffffff;
   --black-override: #000000;
 
-  --neutral-50-override: #f8fafc;
-  --neutral-100-override: #f1f5f9;
-  --neutral-200-override: #e2e8f0;
-  --neutral-300-override: #cbd5e1;
+  --neutral-50-override: #FAF8F5;
+  --neutral-100-override: #F3F1EC;
+  --neutral-200-override: #E5E1D8;
+  --neutral-300-override: #CBD2D9;
   --neutral-400-override: #000000;
   --neutral-430-override: #000000;
   --neutral-450-override: #000000;
@@ -165,5 +165,14 @@ body {
 .bg-stone-900 .text-readability-util-muted,
 .bg-black .text-readability-util-muted {
   color: #9ca3af !important;
+}
+
+#thermometer-main-card {
+  background-color: #FAF8F5 !important;
+  color: #000000 !important;
+}
+
+#thermometer-main-card * {
+  color: #000000 !important;
 }
 

@@ -10,19 +10,20 @@ import { MetricsService } from './shared/services/metrics.service';
 
 // Components
 import SDRSection from './components/SDRSection';
-import AssessorSection from './components/AssessorSection';
 import MatchDashboard from './components/MatchDashboard';
-import ReportsSection from './components/ReportsSection';
 import LeadersAdminSection from './components/LeadersAdminSection';
-import MyTeamSection from './components/MyTeamSection';
+import ActiveMembersSection from './components/ActiveMembersSection';
 import SyncHistory from './components/SyncHistory';
+import SystemAuditSection from './components/SystemAuditSection';
+import ReportsSection from './components/ReportsSection';
+import { GoalsPlanEditor } from './components/GoalsPlanEditor';
 import { IndividualProfileModal } from './components/IndividualProfileModal';
 import { signOutLeader } from './lib/firebaseClient';
 
 // Icons
 import { 
   Users, Shield, Sparkles, FileText, RefreshCw, Info, Lock, LogOut, Calendar, Key,
-  Crown, AlertTriangle, X, ArrowUpRight, Database, Sun, Moon, Workflow, TrendingUp, Search, Camera
+  Crown, AlertTriangle, X, ArrowUpRight, Database, Sun, Moon, Workflow, TrendingUp, Search, Camera, Bell, Target
 } from 'lucide-react';
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [showSearchResults, setShowSearchResults] = React.useState<boolean>(false);
   const [selectedProfileEntity, setSelectedProfileEntity] = React.useState<{ type: 'sdr' | 'assessor' | 'consultor', id: string } | null>(null);
+  const [gestaoSubTab, setGestaoSubTab] = React.useState<'integrantes' | 'runrate'>('integrantes');
 
   React.useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -92,10 +94,11 @@ export default function App() {
     currentMonth,
     sdrs,
     assessores,
+    matches,
     startDate,
     endDate,
     leaders,
-    teamGoals,
+    teamGoals: teamGoalsRaw,
     teams,
     oneOnOneLogs,
     campaigns,
@@ -142,6 +145,7 @@ export default function App() {
       currentMonth: state.currentMonth,
       sdrs: state.sdrs,
       assessores: state.assessores,
+      matches: state.matches,
       startDate: state.startDate,
       endDate: state.endDate,
       leaders: state.leaders,
@@ -188,6 +192,19 @@ export default function App() {
     }))
   );
 
+  const teamGoals = React.useMemo(() => {
+    if (currentUser && currentUser.role === 'leader' && currentUser.teamName) {
+      const specific = teamGoalsRaw.teamSpecificGoals?.[currentUser.teamName];
+      if (specific) {
+        return {
+          ...teamGoalsRaw,
+          ...specific,
+        };
+      }
+    }
+    return teamGoalsRaw;
+  }, [teamGoalsRaw, currentUser]);
+
   // 2. Custom hook to handle SDR pool and filtering
   const {
     derivedSdrsForActiveMonth,
@@ -196,6 +213,24 @@ export default function App() {
     activeAssessoresCount,
     filteredMatches,
   } = useSDRMetrics();
+
+  // For Rodízio Exception: Complete pool of SDRs for the active month ignoring team filters
+  const unfilteredDerivedSdrsForActiveMonth = React.useMemo(() => {
+    return (sdrs || []).filter(s => !s.promotedToAssessor).map((sdr): typeof sdr => {
+      const record = sdr.monthlyRecords?.[currentMonth];
+      return {
+        ...sdr,
+        agendamentosCount: record ? (record.agendamentosCount ?? 0) : 0,
+        efetivacoesCount: record ? (record.efetivacoesCount ?? 0) : 0,
+        contasAbertasCount: record ? (record.contasAbertasCount ?? 0) : 0,
+        callsCount: record ? (record.callsCount ?? 0) : 0,
+        metaAgendamentos: record ? (record.metaAgendamentos ?? 20) : (sdr.metaAgendamentos ?? 20),
+        metaEfetivacaoRate: record ? (record.metaEfetivacaoRate ?? 50) : (sdr.metaEfetivacaoRate ?? 50),
+        metaEfetivacoes: record ? (record.metaEfetivacoes ?? 10) : (sdr.metaEfetivacoes ?? 10),
+        metaContasAbertas: record ? (record.metaContasAbertas ?? 5) : (sdr.metaContasAbertas ?? 5),
+      };
+    });
+  }, [sdrs, currentMonth]);
 
   // 3. Custom hook for smart thermometer projections and predictive forecasting
   const {
@@ -268,6 +303,7 @@ export default function App() {
   // Banner state and calculations
   const [isBannerDismissed, setIsBannerDismissed] = React.useState(false);
   const [showSyncLogHistory, setShowSyncLogHistory] = React.useState(false);
+  const [showNotificationDropdown, setShowNotificationDropdown] = React.useState(false);
 
   // Reset dismissal state whenever currentMonth changes
   React.useEffect(() => {
@@ -281,8 +317,11 @@ export default function App() {
   const criticalSDRs = React.useMemo(() => {
     const { elapsedDays, totalDays } = DateService.getElapsedDays(currentMonth);
     let list = derivedSdrsForActiveMonth;
-    if (currentUser && currentUser.role !== 'admin' && currentUser.teamName) {
-      list = derivedSdrsForActiveMonth.filter(s => s.team === currentUser.teamName);
+    if (currentUser && currentUser.role !== 'admin') {
+      const leaderTeam = currentUser.teamName || currentUser.equipe;
+      if (leaderTeam) {
+        list = derivedSdrsForActiveMonth.filter(s => s.team === leaderTeam);
+      }
     }
     return list
       .filter(s => s.active && !s.promotedToAssessor)
@@ -445,11 +484,12 @@ export default function App() {
 
     // 1. Pages/Sections within the Hub
     const allPages = [
-      { id: 'sdrs', label: 'Gestão de Time / SDRs', path: 'Menu → Gestão de Time' },
-      { id: 'assessores', label: 'Cadastro de Assessores', path: 'Menu → Assessores' },
-      { id: 'leaders-admin', label: 'Cadastro de Líderes de Equipe', path: 'Menu → Líderes' },
+      { id: 'membros-ativos', label: 'Gestão de Equipe & Previsões SDR', path: 'Menu → Gestão de Equipe' },
+      { id: 'central-metas', label: 'Central de Metas 🎯', path: 'Menu → Central de Metas' },
+      { id: 'reports', label: 'Relatórios Executivos & Métricas', path: 'Menu → Relatórios' },
       { id: 'matches', label: 'Painel de Rodízio de Leads', path: 'Menu → Painel de Rodízio' },
-      { id: 'reports', label: 'Relatórios, Desempenho e Métricas', path: 'Menu → Relatórios' },
+      { id: 'leaders-admin', label: 'Cadastro de Líderes de Equipe', path: 'Menu → Líderes' },
+      { id: 'system-audit', label: 'Auditoria de Sistema', path: 'Menu → Auditoria' },
     ];
     const filteredPages = allPages.filter(p => 
       p.label.toLowerCase().includes(query) || p.path.toLowerCase().includes(query)
@@ -684,43 +724,43 @@ export default function App() {
 
             {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
               <button
-                onClick={() => { setActiveTab('team-management'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                onClick={() => { setActiveTab('membros-ativos'); if (window.innerWidth < 768) setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
-                  activeTab === 'team-management'
+                  activeTab === 'membros-ativos'
                     ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
                     : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
                 }`}
               >
                 <Users className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-                Gestão de Time
+                Gestão de equipe
               </button>
             )}
 
             {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
               <button
-                onClick={() => { setActiveTab('sdrs'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                onClick={() => { setActiveTab('central-metas'); if (window.innerWidth < 768) setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
-                  activeTab === 'sdrs'
+                  activeTab === 'central-metas'
                     ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
                     : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
                 }`}
               >
-                <TrendingUp className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-                Previsões SDR (Run-Rate)
+                <Target className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Central de Metas 🎯
               </button>
             )}
 
             {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
               <button
-                onClick={() => { setActiveTab('assessores'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                onClick={() => { setActiveTab('reports'); if (window.innerWidth < 768) setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
-                  activeTab === 'assessores'
+                  activeTab === 'reports' || activeTab === 'relatorios'
                     ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
                     : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
                 }`}
               >
-                <Shield className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-                {currentUser.role === 'admin' ? `Metas e Cadastro de Assessoria (${assessores.length})` : `Agendas Assessores & Consultores`}
+                <FileText className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Relatórios
               </button>
             )}
 
@@ -738,29 +778,19 @@ export default function App() {
               </button>
             )}
 
-            <button
-              onClick={() => { setActiveTab('matches'); if (window.innerWidth < 768) setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
-                activeTab === 'matches'
-                  ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
-                  : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-              Painel de Rodízio
-            </button>
-
-            <button
-              onClick={() => { setActiveTab('reports'); if (window.innerWidth < 768) setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
-                activeTab === 'reports'
-                  ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
-                  : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
-              }`}
-            >
-              <FileText className="w-4 h-4 shrink-0 text-[#f59e0b]" />
-              Relatórios e Métricas
-            </button>
+            {(currentUser.role === 'admin' || currentUser.role === 'leader') && (
+              <button
+                onClick={() => { setActiveTab('system-audit'); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer text-left ${
+                  activeTab === 'system-audit'
+                    ? 'bg-page-hover text-page-text border-l-4 border-[#f59e0b]'
+                    : 'text-page-text-muted hover:bg-page-hover/50 hover:text-page-text'
+                }`}
+              >
+                <Shield className="w-4 h-4 shrink-0 text-[#f59e0b]" />
+                Auditoria de Sistema
+              </button>
+            )}
           </nav>
 
           <div className="p-4 border-t border-page-border text-[9px] text-page-text-muted uppercase tracking-widest text-center font-bold">
@@ -888,7 +918,91 @@ export default function App() {
               )}
 
               {/* Profile Bubble */}
-              <div className="flex items-center gap-2 border-l border-neutral-200 dark:border-neutral-800 pl-3">
+              <div className="flex items-center gap-3 border-l border-neutral-200 dark:border-neutral-800 pl-3">
+                {/* Notification Bell next to Admin/User Name */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+                    className="relative p-1.5 hover:bg-neutral-100 rounded-full transition cursor-pointer text-neutral-500 hover:text-neutral-950 flex items-center justify-center"
+                    title="Alertas de Performance"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {criticalSDRs.length > 0 && (
+                      <span className="absolute top-1 right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotificationDropdown && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl z-50 p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+                        <h4 className="text-[11px] font-black uppercase tracking-wider text-neutral-800 font-mono">
+                          Notificações ({criticalSDRs.length})
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setShowNotificationDropdown(false)}
+                          className="text-neutral-400 hover:text-neutral-600 transition cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {criticalSDRs.length === 0 ? (
+                        <p className="text-[10px] font-bold text-neutral-500 text-center py-2 uppercase tracking-wider">
+                          ✓ Tudo em ordem! Nenhum SDR em performance crítica.
+                        </p>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1">
+                          <p className="text-[9px] font-bold text-red-500 uppercase tracking-widest">
+                            ⚠️ SDRs com performance crítica:
+                          </p>
+                          {criticalSDRs.map(({ sdr, perf }) => {
+                            const progressPercent = Math.round(((sdr.agendamentosCount || 0) / (sdr.metaAgendamentos || 20)) * 100);
+                            return (
+                              <div 
+                                key={sdr.id} 
+                                onClick={() => {
+                                  setSelectedProfileEntity({ type: 'sdr', id: sdr.id });
+                                  setShowNotificationDropdown(false);
+                                }}
+                                className="bg-neutral-50 hover:bg-neutral-100 border border-neutral-150 hover:border-neutral-300 rounded-xl p-2.5 space-y-1.5 text-xs text-left cursor-pointer transition-all"
+                                title="Clique para ver ficha completa"
+                              >
+                                <div className="flex justify-between items-center">
+                                  <strong className="font-extrabold text-neutral-800 hover:text-[#f59e0b] transition">{sdr.name}</strong>
+                                  <span className="text-[9px] font-mono bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-black">
+                                    {progressPercent}% da Meta
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-neutral-500 leading-relaxed font-medium">
+                                  Entregou {sdr.agendamentosCount || 0} de {sdr.metaAgendamentos || 20} agendamentos. Projeção: {perf.monthlyProjection}.
+                                </p>
+                                <div className="flex justify-end pt-1 border-t border-neutral-100">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedProfileEntity({ type: 'sdr', id: sdr.id });
+                                      setShowNotificationDropdown(false);
+                                    }}
+                                    className="text-[9px] font-black uppercase tracking-wider text-[#f59e0b] hover:underline cursor-pointer"
+                                  >
+                                    Intervir 1:1 &rarr;
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="hidden sm:flex flex-col text-right">
                   <span className="text-[11px] font-black leading-none text-page-text">{currentUser.name}</span>
                   <span className="text-[8.5px] text-neutral-450 dark:text-neutral-550 font-black uppercase tracking-wider mt-0.5">
@@ -946,72 +1060,6 @@ export default function App() {
         
 
 
-        {/* --- HIGH-CONTRAST DYNAMIC AI GOALS THERMOMETER --- */}
-        {activeTab === 'sdrs' && activeSDRsCount > 0 && (
-          <div>
-            <div>
-              <div 
-                id="thermometer-main-card"
-                className="bg-white border border-page-border p-5 rounded-2xl shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-6 items-center"
-              >
-                
-                {/* Left Column wrapper matching div:nth-of-type(1) under Selector 1 */}
-                <div className="lg:col-span-12 xl:col-span-6 space-y-1">
-                  <h2 className="text-base font-black font-display uppercase tracking-tight text-page-text">
-                    Mês de Referência: {currentMonth.split('-')[1]}/2026
-                  </h2>
-                  <p 
-                    className="text-xs leading-normal font-sans text-[#000000]"
-                    style={{ color: '#000000' }}
-                  >
-                    O time realizou <strong className="text-page-text">{thermStats.totalRealized} agendamentos</strong> frente à meta conjunta de <strong className="text-page-text">{thermStats.totalTarget}</strong>. Hoje (Dia {thermStats.currentDaysElapsed} de {thermStats.totalDaysInMonth}), espera-se linearmente estar em {thermStats.expectedProgress}% da meta.
-                  </p>
-                </div>
-
-                {/* Right Column wrapper matching div:nth-of-type(2) under Selector 1 */}
-                <div 
-                  className="lg:col-span-12 xl:col-span-6 space-y-2 p-5 rounded-xl border border-page-border bg-page-hover/50"
-                >
-                  <div className="flex justify-between items-end">
-                    <div className="space-y-0.5">
-                      <span className="text-[8px] font-bold uppercase block text-page-text-muted">AVANÇO REAL COMERCIAL</span>
-                      <span className="font-mono font-black text-xs text-page-text">{thermStats.realizedProgress}% Concluído</span>
-                    </div>
-                    <div className="text-right space-y-0.5">
-                      <span className="text-[8px] font-bold uppercase block text-page-text-muted">ALVO TEÓRICO LINEAR</span>
-                      <span className="font-mono text-xs font-bold text-page-text-muted">{thermStats.expectedProgress}%</span>
-                    </div>
-                  </div>
-
-                  {/* Double progression bars */}
-                  <div className="relative w-full h-4 rounded-full overflow-hidden border bg-neutral-100 border-neutral-200">
-                    {/* Realized bar */}
-                    <div 
-                      className="h-full rounded-full transition-all duration-500 bg-emerald-500" 
-                      style={{ width: `${Math.min(100, thermStats.realizedProgress)}%` }}
-                    ></div>
-
-                    {/* Dotted cursor target mark representing EXPECTED day of month */}
-                    <div 
-                      className="absolute top-0 bottom-0 w-1 bg-amber-500 border-r border-dashed border-white"
-                      style={{ left: `${Math.min(99, thermStats.expectedProgress)}%` }}
-                      title="Alvo cronograma linear"
-                    ></div>
-                  </div>
-
-                  <div className="flex justify-between items-center text-[10px] font-mono font-bold leading-none text-page-text-muted">
-                    <span>Mês {currentMonth}</span>
-                    <span className={thermStats.progressGap >= 0 ? 'text-emerald-600' : 'text-red-500'}>
-                      Ritmo: {thermStats.progressGap > 0 ? '+' : ''}{thermStats.progressGap}% {thermStats.progressGap >= 0 ? 'Adiantado' : 'Atrasado'}
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Dynamic warning if active tables are missing */}
         {(activeSDRsCount === 0 || activeAssessoresCount === 0) && activeTab === 'matches' && (
           <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3 text-neutral-850 text-xs shadow-3xs">
@@ -1059,8 +1107,6 @@ export default function App() {
                 endDate={endDate}
                 onUpdateStartDate={updateStartDate}
                 onUpdateEndDate={updateEndDate}
-                onUpdateMatchDates={updateMatchDates}
-                onUpdateMatchAssessor={updateMatchAssessor}
                 onAddManualMatch={addManualMatch}
                 onDeleteMatch={deleteMatch}
                 onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
@@ -1068,42 +1114,112 @@ export default function App() {
             )
           )}
 
-          {activeTab === 'team-management' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
-            <MyTeamSection />
-          )}
-
-          {activeTab === 'sdrs' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
+          {(activeTab === 'membros-ativos' || activeTab === 'sdrs') && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
             <div className="space-y-6">
-              <SDRSection 
-                sdrs={derivedSdrsForActiveMonth}
-                assessores={filteredAssessores}
-                currentUser={currentUser}
-                onAddSDR={addSDR}
-                onDeleteSDR={deleteSDR}
-                onToggleActiveSDR={toggleActiveSDR}
-                onUpdateSDRMetrics={updateSDRMetrics}
-                onUpdateSDR={updateSDR}
-                onUpdateAssessor={updateAssessor}
-                onAddAssessor={addAssessor}
-                teamGoals={teamGoals}
-                onUpdateTeamGoals={updateTeamGoals}
-                teams={teams}
-                onAddTeam={addTeam}
-                onDeleteTeam={deleteTeam}
-                onRenameTeam={renameTeam}
-                onRevertPromotion={revertPromotion}
-                oneOnOneLogs={oneOnOneLogs}
-                onAddOneOnOneLog={addOneOnOneLog}
-                onDeleteOneOnOneLog={deleteOneOnOneLog}
-                onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
-                campaigns={campaigns}
-                onAddCampaign={addCampaign}
-                onDeleteCampaign={deleteCampaign}
-                onUpdateCampaignStatus={updateCampaignStatus}
-              />
+              {/* Sub-tab Navigation inside Gestão de Equipe */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-page-border p-3 rounded-2xl shadow-xs">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGestaoSubTab('integrantes')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition cursor-pointer ${
+                      gestaoSubTab === 'integrantes' && activeTab !== 'sdrs'
+                        ? 'bg-neutral-900 text-amber-400 shadow-sm'
+                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    Integrantes da Equipe
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGestaoSubTab('runrate')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition cursor-pointer ${
+                      gestaoSubTab === 'runrate' || activeTab === 'sdrs'
+                        ? 'bg-neutral-900 text-amber-400 shadow-sm'
+                        : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    }`}
+                  >
+                    <TrendingUp className="w-4 h-4 text-amber-400" />
+                    Previsões SDR (Run-Rate)
+                  </button>
+                </div>
+              </div>
 
-              {/* --- NEW PREDICTIVE FORECASTING SALES RUN-RATE PANEL --- */}
-              {activeSDRsCount > 0 && (
+              {gestaoSubTab === 'integrantes' && activeTab !== 'sdrs' && (
+                <ActiveMembersSection onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })} />
+              )}
+
+              {(gestaoSubTab === 'runrate' || activeTab === 'sdrs') && (
+                <div className="space-y-6">
+                  {/* High-Contrast Dynamic AI Goals Thermometer */}
+                  {activeSDRsCount > 0 && (
+                    <div 
+                      id="thermometer-main-card"
+                      className="bg-[#FAF8F5] border border-neutral-300 p-5 rounded-2xl shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-6 items-center text-black"
+                    >
+                      <div className="lg:col-span-12 xl:col-span-6 space-y-1">
+                        <h2 className="text-base font-black font-display uppercase tracking-tight text-black">
+                          Mês de Referência: {currentMonth.split('-')[1]}/2026
+                        </h2>
+                        <p className="text-xs leading-normal font-sans text-black">
+                          O time realizou <strong className="text-black font-black">{thermStats.totalRealized} agendamentos</strong> frente à meta conjunta de <strong className="text-black font-black">{thermStats.totalTarget}</strong>. Hoje (Dia {thermStats.currentDaysElapsed} de {thermStats.totalDaysInMonth}), espera-se linearmente estar em {thermStats.expectedProgress}% da meta.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 max-w-md">
+                          <div className="p-2 border border-neutral-300 bg-white/60 rounded-xl space-y-0.5 shadow-3xs">
+                            <span className="text-[8px] font-black uppercase text-black tracking-wider">🏦 Contas Abertas Coletivas</span>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <strong className="text-xs font-black text-black">{thermStats.totalContasRealized} / {thermStats.totalContasTarget}</strong>
+                              <span className="text-[9px] font-mono font-black text-black bg-neutral-200/80 rounded px-1">{thermStats.realizedContasPercent}%</span>
+                            </div>
+                          </div>
+                          <div className="p-2 border border-neutral-300 bg-white/60 rounded-xl space-y-0.5 shadow-3xs">
+                            <span className="text-[8px] font-black uppercase text-black tracking-wider">🌟 Efetivações Coletivas</span>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <strong className="text-xs font-black text-black">{thermStats.totalEfetivacoesRealized} / {thermStats.totalEfetivacoesTarget}</strong>
+                              <span className="text-[9px] font-mono font-black text-black bg-neutral-200/80 rounded px-1">{thermStats.realizedEfetivacoesPercent}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="lg:col-span-12 xl:col-span-6 space-y-2 p-5 rounded-xl border border-neutral-300 bg-white/80">
+                        <div className="flex justify-between items-end">
+                          <div className="space-y-0.5">
+                            <span className="text-[8px] font-black uppercase block text-black">AVANÇO REAL COMERCIAL</span>
+                            <span className="font-mono font-black text-xs text-black">{thermStats.realizedProgress}% Concluído</span>
+                          </div>
+                          <div className="text-right space-y-0.5">
+                            <span className="text-[8px] font-black uppercase block text-black">ALVO TEÓRICO LINEAR</span>
+                            <span className="font-mono text-xs font-black text-black">{thermStats.expectedProgress}%</span>
+                          </div>
+                        </div>
+
+                        <div className="relative w-full h-4 rounded-full overflow-hidden border bg-neutral-200 border-neutral-300">
+                          <div 
+                            className="h-full rounded-full transition-all duration-500 bg-black" 
+                            style={{ width: `${Math.min(100, thermStats.realizedProgress)}%` }}
+                          ></div>
+                          <div 
+                            className="absolute top-0 bottom-0 w-1 bg-amber-500 border-r border-dashed border-white"
+                            style={{ left: `${Math.min(99, thermStats.expectedProgress)}%` }}
+                            title="Alvo cronograma linear"
+                          ></div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[10px] font-mono font-bold leading-none text-black">
+                          <span>Mês {currentMonth}</span>
+                          <span className="text-black font-black">
+                            Ritmo: {thermStats.progressGap > 0 ? '+' : ''}{thermStats.progressGap}% {thermStats.progressGap >= 0 ? 'Adiantado' : 'Atrasado'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PREDICTIVE FORECASTING SALES RUN-RATE PANEL */}
+                  {activeSDRsCount > 0 && (
                 <div className="bg-white border-2 border-neutral-900 rounded-2xl p-6 space-y-5 shadow-xs">
                   <div className="flex flex-col md:flex-row md:items-center justify-between border-b-2 border-neutral-900 pb-4 gap-3">
                     <div>
@@ -1138,7 +1254,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="flex-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      <div className="flex-1 space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
                         {sdrPredictions.filter(p => p.statusPreditivo === 'EM_RISCO').length === 0 ? (
                           <div className="text-center py-8 text-neutral-400 text-xs font-bold uppercase tracking-wide">
                             Nenhum SDR em Risco
@@ -1147,30 +1263,54 @@ export default function App() {
                           sdrPredictions.filter(p => p.statusPreditivo === 'EM_RISCO').map(sdr => {
                             const trendPercent = sdr.metaAgendamentos > 0 ? Math.round((sdr.forecastValue / sdr.metaAgendamentos) * 100) : 0;
                             return (
-                              <div key={sdr.id} className="bg-white border border-red-300 p-3 rounded-lg flex flex-col justify-between hover:border-red-500 transition-all shadow-3xs">
+                              <div key={sdr.id} className="bg-white border border-red-300 p-3.5 rounded-xl flex flex-col justify-between hover:border-red-500 transition-all shadow-3xs space-y-3">
                                 <div className="flex justify-between items-start gap-1 pb-1.5 border-b border-dashed border-neutral-100">
                                   <div>
                                     <span className="text-xs font-extrabold text-neutral-900 block">{sdr.name}</span>
                                     <span className="text-[8px] font-bold text-neutral-450 uppercase">{sdr.team || 'Sem Equipe'}</span>
                                   </div>
-                                  <span className="text-[9px] font-mono font-black text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
+                                  <span className="text-[9px] font-mono font-black text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 shrink-0">
                                     {trendPercent}% da Meta
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-3 gap-1 pt-2 text-[10.5px] font-mono leading-none">
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">REALIZADO</span>
-                                    <strong className="text-neutral-800 font-extrabold">{sdr.agendamentosCount}/{sdr.metaAgendamentos}</strong>
+
+                                <div className="space-y-2">
+                                  {/* Metric 1: Agendamentos */}
+                                  <div className="flex items-center justify-between text-[11px] border-b border-neutral-50 pb-1">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">📅 Agendamentos</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.agendamentosCount}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-red-700 font-black">{sdr.forecastValue.toFixed(0)} ({sdr.forecastPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">MÉDIA DIÁRIA</span>
-                                    <strong className="text-red-700 font-extrabold">{sdr.dailyAvg.toFixed(1)}/d</strong>
+                                  {/* Metric 2: Contas Abertas */}
+                                  <div className="flex items-center justify-between text-[11px] border-b border-neutral-50 pb-1">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">🏦 Contas Abertas</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.contasAbertasCount || 0}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-800 font-black">{sdr.forecastContas.toFixed(0)} ({sdr.forecastContasPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">PREVISTO</span>
-                                    <strong className="text-red-900 font-black font-sans">{sdr.forecastValue.toFixed(1)}</strong>
+                                  {/* Metric 3: Efetivações */}
+                                  <div className="flex items-center justify-between text-[11px] pb-0.5">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">🌟 Efetivações</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.efetivacoesCount || 0}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-800 font-black">{sdr.forecastEfetiv.toFixed(0)} ({sdr.forecastEfetivPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
                                 </div>
+
+                                {/* Intelligent AI action plan inside prediction card */}
+                                {sdr.aiActionPlan && (
+                                  <div className="p-2.5 bg-red-50/70 border border-red-150 rounded-lg text-[9.5px] text-neutral-700 leading-normal font-sans space-y-1">
+                                    <div className="flex items-center gap-1 font-black uppercase text-red-950 tracking-wider">
+                                      <Sparkles className="w-3 h-3 text-red-700 animate-pulse" />
+                                      Roteiro Corretivo IA
+                                    </div>
+                                    <p className="whitespace-pre-line text-neutral-600 leading-relaxed font-medium">{sdr.aiActionPlan}</p>
+                                  </div>
+                                )}
                               </div>
                             );
                           })
@@ -1192,7 +1332,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="flex-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      <div className="flex-1 space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
                         {sdrPredictions.filter(p => p.statusPreditivo === 'NO_CAMINHO').length === 0 ? (
                           <div className="text-center py-8 text-neutral-400 text-xs font-bold uppercase tracking-wide">
                             Nenhum SDR no caminho
@@ -1201,30 +1341,54 @@ export default function App() {
                           sdrPredictions.filter(p => p.statusPreditivo === 'NO_CAMINHO').map(sdr => {
                             const realTrendPercent = sdr.metaAgendamentos > 0 ? Math.round((sdr.forecastValue / sdr.metaAgendamentos) * 100) : 0;
                             return (
-                              <div key={sdr.id} className="bg-white border border-neutral-250 p-3 rounded-lg flex flex-col justify-between hover:border-neutral-950 transition-all shadow-3xs">
+                              <div key={sdr.id} className="bg-white border border-neutral-250 p-3.5 rounded-xl flex flex-col justify-between hover:border-neutral-950 transition-all shadow-3xs space-y-3">
                                 <div className="flex justify-between items-start gap-1 pb-1.5 border-b border-dashed border-neutral-200">
                                   <div>
                                     <span className="text-xs font-extrabold text-neutral-900 block">{sdr.name}</span>
                                     <span className="text-[8px] font-bold text-neutral-450 uppercase">{sdr.team || 'Sem Equipe'}</span>
                                   </div>
-                                  <span className="text-[9px] font-mono font-black text-neutral-900 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-300">
+                                  <span className="text-[9px] font-mono font-black text-neutral-900 bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-300 shrink-0">
                                     {realTrendPercent}% da Meta
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-3 gap-1 pt-2 text-[10.5px] font-mono leading-none">
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">REALIZADO</span>
-                                    <strong className="text-neutral-800 font-extrabold">{sdr.agendamentosCount}/{sdr.metaAgendamentos}</strong>
+
+                                <div className="space-y-2">
+                                  {/* Metric 1: Agendamentos */}
+                                  <div className="flex items-center justify-between text-[11px] border-b border-neutral-50 pb-1">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">📅 Agendamentos</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.agendamentosCount}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-900 font-black">{sdr.forecastValue.toFixed(0)} ({sdr.forecastPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">MÉDIA DIÁRIA</span>
-                                    <strong className="text-neutral-800 font-bold">{sdr.dailyAvg.toFixed(1)}/d</strong>
+                                  {/* Metric 2: Contas Abertas */}
+                                  <div className="flex items-center justify-between text-[11px] border-b border-neutral-50 pb-1">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">🏦 Contas Abertas</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.contasAbertasCount || 0}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-800 font-black">{sdr.forecastContas.toFixed(0)} ({sdr.forecastContasPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">PREVISTO</span>
-                                    <strong className="text-neutral-900 font-black font-sans">{sdr.forecastValue.toFixed(1)}</strong>
+                                  {/* Metric 3: Efetivações */}
+                                  <div className="flex items-center justify-between text-[11px] pb-0.5">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">🌟 Efetivações</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.efetivacoesCount || 0}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-800 font-black">{sdr.forecastEfetiv.toFixed(0)} ({sdr.forecastEfetivPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
                                 </div>
+
+                                {/* Intelligent AI action plan inside prediction card */}
+                                {sdr.aiActionPlan && (
+                                  <div className="p-2.5 bg-neutral-50/80 border border-neutral-200 rounded-lg text-[9.5px] text-neutral-700 leading-normal font-sans space-y-1">
+                                    <div className="flex items-center gap-1 font-black uppercase text-neutral-800 tracking-wider">
+                                      <Sparkles className="w-3 h-3 text-indigo-600 animate-pulse" />
+                                      Plano de Ação Corretivo IA
+                                    </div>
+                                    <p className="whitespace-pre-line text-neutral-600 leading-relaxed font-medium">{sdr.aiActionPlan}</p>
+                                  </div>
+                                )}
                               </div>
                             );
                           })
@@ -1246,7 +1410,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="flex-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      <div className="flex-1 space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
                         {sdrPredictions.filter(p => p.statusPreditivo === 'OUTLIER').length === 0 ? (
                           <div className="text-center py-8 text-neutral-400 text-xs font-bold uppercase tracking-wide">
                             Nenhum SDR em nível Outlier
@@ -1256,13 +1420,13 @@ export default function App() {
                             const trendPercent = sdr.metaAgendamentos > 0 ? Math.round((sdr.forecastValue / sdr.metaAgendamentos) * 100) : 0;
                             const surplusPercent = trendPercent - 100;
                             return (
-                              <div key={sdr.id} className="bg-white border-2 border-emerald-600 p-3 rounded-lg flex flex-col justify-between hover:border-emerald-700 transition-all shadow-3xs">
+                              <div key={sdr.id} className="bg-white border-2 border-emerald-600 p-3.5 rounded-xl flex flex-col justify-between hover:border-emerald-700 transition-all shadow-3xs space-y-3">
                                 <div className="flex justify-between items-start gap-1 pb-1.5 border-b border-dashed border-emerald-100">
                                   <div>
                                     <span className="text-xs font-extrabold text-neutral-900 block">{sdr.name}</span>
                                     <span className="text-[8px] font-bold text-neutral-450 uppercase">{sdr.team || 'Sem Equipe'}</span>
                                   </div>
-                                  <div className="flex flex-col items-end gap-0.5">
+                                  <div className="flex flex-col items-end gap-0.5 shrink-0">
                                     <span className="text-[9px] font-mono font-black text-emerald-850 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">
                                       {trendPercent}% da Meta
                                     </span>
@@ -1273,20 +1437,44 @@ export default function App() {
                                     )}
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-1 pt-2 text-[10.5px] font-mono leading-none">
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">REALIZADO</span>
-                                    <strong className="text-neutral-800 font-extrabold">{sdr.agendamentosCount}/{sdr.metaAgendamentos}</strong>
+
+                                <div className="space-y-2">
+                                  {/* Metric 1: Agendamentos */}
+                                  <div className="flex items-center justify-between text-[11px] border-b border-neutral-50 pb-1">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">📅 Agendamentos</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.agendamentosCount}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-emerald-700 font-black">{sdr.forecastValue.toFixed(0)} ({sdr.forecastPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">MÉDIA DIÁRIA</span>
-                                    <strong className="text-emerald-700 font-extrabold">{sdr.dailyAvg.toFixed(1)}/d</strong>
+                                  {/* Metric 2: Contas Abertas */}
+                                  <div className="flex items-center justify-between text-[11px] border-b border-neutral-50 pb-1">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">🏦 Contas Abertas</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.contasAbertasCount || 0}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-800 font-black">{sdr.forecastContas.toFixed(0)} ({sdr.forecastContasPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
-                                  <div className="space-y-0.5">
-                                    <span className="text-[8px] text-neutral-400 font-bold block uppercase">PREVISTO</span>
-                                    <strong className="text-emerald-800 font-black font-sans">{sdr.forecastValue.toFixed(1)}</strong>
+                                  {/* Metric 3: Efetivações */}
+                                  <div className="flex items-center justify-between text-[11px] pb-0.5">
+                                    <span className="font-extrabold text-neutral-800 flex items-center gap-1">🌟 Efetivações</span>
+                                    <div className="font-mono text-[10.5px] flex items-center gap-1.5">
+                                      <span className="text-neutral-400">R: <strong className="text-neutral-700 font-black">{sdr.efetivacoesCount || 0}</strong></span>
+                                      <span className="text-neutral-400">Ptv: <strong className="text-neutral-800 font-black">{sdr.forecastEfetiv.toFixed(0)} ({sdr.forecastEfetivPercent.toFixed(0)}%)</strong></span>
+                                    </div>
                                   </div>
                                 </div>
+
+                                {/* Intelligent AI action plan inside prediction card */}
+                                {sdr.aiActionPlan && (
+                                  <div className="p-2.5 bg-emerald-50/70 border border-emerald-150 rounded-lg text-[9.5px] text-neutral-700 leading-normal font-sans space-y-1">
+                                    <div className="flex items-center gap-1 font-black uppercase text-emerald-950 tracking-wider">
+                                      <Sparkles className="w-3 h-3 text-emerald-700 animate-pulse" />
+                                      Plano de Ação Corretivo IA
+                                    </div>
+                                    <p className="whitespace-pre-line text-neutral-600 leading-relaxed font-medium">{sdr.aiActionPlan}</p>
+                                  </div>
+                                )}
                               </div>
                             );
                           })
@@ -1299,18 +1487,24 @@ export default function App() {
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {activeTab === 'assessores' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
-            <AssessorSection 
-              assessores={filteredAssessores}
+
+
+          {activeTab === 'central-metas' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
+            <GoalsPlanEditor />
+          )}
+
+          {(activeTab === 'reports' || activeTab === 'relatorios') && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
+            <ReportsSection 
               sdrs={derivedSdrsForActiveMonth}
-              onAddAssessor={addAssessor}
-              onDeleteAssessor={deleteAssessor}
-              onToggleActiveAssessor={toggleActiveAssessor}
-              onUpdateAssessor={updateAssessor}
-              teams={teams}
-              currentUser={currentUser}
-              onViewProfile={(type, id) => setSelectedProfileEntity({ type, id })}
+              assessores={filteredAssessores}
+              matches={filteredMatches}
+              startDate={startDate}
+              endDate={endDate}
+              onResetToDefaults={resetToDefaults}
+              currentMonth={currentMonth}
             />
           )}
 
@@ -1323,16 +1517,10 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'reports' && (
-            <ReportsSection 
-              sdrs={derivedSdrsForActiveMonth}
-              assessores={filteredAssessores}
-              matches={filteredMatches}
-              startDate={startDate}
-              endDate={endDate}
-              onResetToDefaults={handleResetToDefaults}
-              currentMonth={currentMonth}
-            />
+
+
+          {activeTab === 'system-audit' && (currentUser.role === 'admin' || currentUser.role === 'leader') && (
+            <SystemAuditSection />
           )}
 
         </div>
@@ -1356,74 +1544,6 @@ export default function App() {
           </div>
         </div>
       </footer>
-
-      {/* FLOATING BANNER ALERT FOR CRITICAL SDRs */}
-      {criticalSDRs.length > 0 && !isBannerDismissed && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-neutral-950 text-brand-sand border-2 border-neutral-900 rounded-2xl shadow-2xl p-5 animate-fade-in select-none">
-          <div className="flex items-start justify-between border-b border-neutral-800 pb-3 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-              </span>
-              <h3 className="text-xs font-black uppercase tracking-widest text-brand-sand font-mono">
-                Alerta de Performance Crítica
-              </h3>
-            </div>
-            <button 
-              onClick={() => setIsBannerDismissed(true)}
-              className="text-neutral-400 hover:text-neutral-200 transition-colors p-0.5 cursor-pointer"
-              title="Dispensar Notificação"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {(() => {
-            const first = criticalSDRs[0];
-            const sdr = first.sdr;
-            const perf = first.perf;
-            
-            const callsPerScheduled = perf.callsPerScheduled > 0 ? perf.callsPerScheduled : 12;
-            const progressPercent = Math.round(((sdr.agendamentosCount || 0) / (sdr.metaAgendamentos || 20)) * 100);
-            const daysLeft = DateService.getElapsedBusinessDays(currentMonth).totalBusinessDays - DateService.getElapsedBusinessDays(currentMonth).elapsedBusinessDays;
-            const dailySDRRateRequired = daysLeft > 0 ? parseFloat((perf.gapToMeta / daysLeft).toFixed(1)) : perf.gapToMeta;
-
-            return (
-              <div className="space-y-3">
-                <p className="text-xs text-neutral-300 leading-relaxed font-sans">
-                  SDR <strong className="text-white font-extrabold">{sdr.name}</strong> está com ritmo crítico. Entregou <span className="text-red-450 font-bold">{sdr.agendamentosCount || 0} de {sdr.metaAgendamentos} agendamentos</span> ({progressPercent}% da meta) com projeção de fechar o mês com apenas <strong className="text-red-450">{perf.monthlyProjection}</strong>.
-                </p>
-
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-[10px] space-y-2 leading-relaxed">
-                  <span className="text-[9px] uppercase font-black text-amber-400 tracking-wider font-mono block">🎯 Ação Sugerida pelo Sistema:</span>
-                  <p className="text-neutral-300 font-medium">
-                    Inicie uma intervenção rápida de feedback. Recomendamos agendar um <strong className="text-white">Alinhamento 1:1</strong> focado em funil telefônico. 
-                    Estimule o aumento para <strong className="text-white">{Math.ceil(dailySDRRateRequired * callsPerScheduled)} ligações diárias individuais</strong> para superar o gap de <strong className="text-amber-400">{perf.gapToMeta} agendamentos</strong> restantes.
-                  </p>
-                </div>
-
-                <div className="flex gap-2.5 pt-1 items-center">
-                  {criticalSDRs.length > 1 && (
-                    <span className="text-[9px] font-bold text-neutral-400 uppercase font-mono">
-                      + {criticalSDRs.length - 1} outros críticos
-                    </span>
-                  )}
-                  <button
-                    onClick={() => {
-                      setActiveTab('sdrs');
-                    }}
-                    className="ml-auto flex items-center gap-1 bg-white hover:bg-neutral-200 text-neutral-950 font-black text-[10px] uppercase tracking-wider py-2 px-3.5 rounded-lg transition-colors cursor-pointer animate-pulse"
-                  >
-                    Intervir 1:1
-                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
 
       {/* INDIVIDUAL HISTORICAL PROFILE MODAL FOR SDR, ASSESSOR AND CONSULTOR */}
       {selectedProfileEntity && (

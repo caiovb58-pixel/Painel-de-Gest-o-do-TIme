@@ -17,6 +17,9 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 
+// New Modular Executive Dashboard Components
+import { WealthExecutiveDashboard } from './WealthExecutiveDashboard';
+
 interface InfoTooltipProps {
   title: string;
   formula: string;
@@ -88,64 +91,101 @@ export default function ReportsSection({
   const [exportAuditLogs, setExportAuditLogs] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
 
-  // Team Selection and Date Interval Filters
-  const [selectedTeam, setSelectedTeam] = useState<string>('todos');
+  // Team, Leader, Member, and Date Interval Filters
+  const currentUser = useAppStore(state => state.currentUser);
+  const rawLeaders = useAppStore(state => state.leaders) || [];
+  const isLeader = currentUser && currentUser.role === 'leader' && currentUser.teamName;
+  const [selectedTeam, setSelectedTeam] = useState<string>(() => {
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      return currentUser.teamName;
+    }
+    return 'TODAS';
+  });
+  const activeTeamValue = isLeader ? (currentUser.teamName || 'PF') : selectedTeam;
+
+  const [selectedLeader, setSelectedLeader] = useState<string>('TODOS');
+  const [selectedMember, setSelectedMember] = useState<string>('TODOS');
+
   const [startDateFilter, setStartDateFilter] = useState<string>(startDate || '2026-06-01');
   const [endDateFilter, setEndDateFilter] = useState<string>(endDate || '2026-06-30');
 
-  // Dynamic set of teams calculated directly from incoming SDRs and Assessores records
+  // Dynamic set of valid teams (PF, PJ, Advisor)
   const teams = React.useMemo(() => {
-    const tSet = new Set<string>();
-    rawSdrs.forEach(s => { if (s.team) tSet.add(s.team); });
-    rawAssessores.forEach(a => { if (a.team) tSet.add(a.team); });
-    tSet.add('Equipe Alpha');
-    tSet.add('Equipe Beta');
-    tSet.add('Equipe Delta');
-    tSet.add('Equipe do Caio');
-    return Array.from(tSet).sort();
-  }, [rawSdrs, rawAssessores]);
+    return ['TODAS', 'PF', 'PJ', 'Advisor'];
+  }, []);
 
-  // Derived filtered collections referenced downstream smoothly using the same names
+  // Filtered SDRs list responding to Team, Leader, and Member filters
   const sdrs = React.useMemo(() => {
-    return rawSdrs.filter(s => selectedTeam === 'todos' || s.team === selectedTeam) || [];
-  }, [rawSdrs, selectedTeam]);
+    return rawSdrs.filter(s => {
+      // 1. Team filter
+      const teamMatch = activeTeamValue === 'TODAS' || activeTeamValue === 'todos' || (s.team || s.equipe || '') === activeTeamValue;
+      if (!teamMatch) return false;
+
+      // 2. Leader filter
+      if (selectedLeader !== 'TODOS') {
+        const leadObj = rawLeaders.find(l => l.id === selectedLeader);
+        const isLeaderDirectMatch = s.leaderId === selectedLeader || s.liderId === selectedLeader;
+        const isLeaderTeamMatch = leadObj?.teamName && (s.team || s.equipe) === leadObj.teamName;
+        if (!isLeaderDirectMatch && !isLeaderTeamMatch) return false;
+      }
+
+      // 3. Member filter
+      if (selectedMember !== 'TODOS') {
+        if (s.id !== selectedMember) return false;
+      }
+
+      return true;
+    }) || [];
+  }, [rawSdrs, activeTeamValue, selectedLeader, selectedMember, rawLeaders]);
 
   const assessores = React.useMemo(() => {
-    return rawAssessores.filter(a => selectedTeam === 'todos' || a.team === selectedTeam) || [];
-  }, [rawAssessores, selectedTeam]);
+    return rawAssessores.filter(a => activeTeamValue === 'TODAS' || activeTeamValue === 'todos' || (a.team || a.equipe || '') === activeTeamValue) || [];
+  }, [rawAssessores, activeTeamValue]);
 
   const matches = React.useMemo(() => {
     return rawMatches.filter(m => {
       const sdrObj = rawSdrs.find(s => s.id === m.sdrId || s.name === m.sdrName);
       const assessorObj = rawAssessores.find(a => a.id === m.assessorId || a.name === m.assessorName);
-      const teamMatchSdr = sdrObj && (selectedTeam === 'todos' || sdrObj.team === selectedTeam);
-      const teamMatchAssessor = assessorObj && (selectedTeam === 'todos' || assessorObj.team === selectedTeam);
+      const teamMatchSdr = sdrObj && (activeTeamValue === 'TODAS' || activeTeamValue === 'todos' || sdrObj.team === activeTeamValue);
+      const teamMatchAssessor = assessorObj && (activeTeamValue === 'TODAS' || activeTeamValue === 'todos' || assessorObj.team === activeTeamValue);
       return teamMatchSdr || teamMatchAssessor;
     }) || [];
-  }, [rawMatches, rawSdrs, rawAssessores, selectedTeam]);
+  }, [rawMatches, rawSdrs, rawAssessores, activeTeamValue]);
 
   // Get raw records because the PDF and display calculations will use these hook-bound objects
   const rawOneOnOneLogs = useAppStore(state => state.oneOnOneLogs) || [];
   const rawAuditLogs = useAppStore(state => state.auditLogs) || [];
-  const teamGoals = useAppStore(state => state.teamGoals);
+  const rawTeamGoals = useAppStore(state => state.teamGoals);
+  const teamGoals = React.useMemo(() => {
+    if (currentUser && currentUser.role === 'leader' && currentUser.teamName) {
+      const specific = rawTeamGoals.teamSpecificGoals?.[currentUser.teamName];
+      if (specific) {
+        return {
+          ...rawTeamGoals,
+          ...specific,
+        };
+      }
+    }
+    return rawTeamGoals;
+  }, [rawTeamGoals, currentUser]);
 
   const oneOnOneLogs = React.useMemo(() => {
     return rawOneOnOneLogs.filter(log => {
       const sdrObj = rawSdrs.find(s => s.id === log.sdrId || s.name === log.sdrName);
-      const teamMatch = selectedTeam === 'todos' || (sdrObj && sdrObj.team === selectedTeam);
+      const teamMatch = activeTeamValue === 'todos' || (sdrObj && sdrObj.team === activeTeamValue);
       const dateStr = log.timestamp.substring(0, 10);
       return teamMatch && dateStr >= startDateFilter && dateStr <= endDateFilter;
     }) || [];
-  }, [rawOneOnOneLogs, rawSdrs, selectedTeam, startDateFilter, endDateFilter]);
+  }, [rawOneOnOneLogs, rawSdrs, activeTeamValue, startDateFilter, endDateFilter]);
 
   const auditLogs = React.useMemo(() => {
     return rawAuditLogs.filter(log => {
       const sdrObj = rawSdrs.find(s => s.id === log.sdrId || s.name === log.sdrName);
-      const teamMatch = selectedTeam === 'todos' || (sdrObj && sdrObj.team === selectedTeam);
+      const teamMatch = activeTeamValue === 'todos' || (sdrObj && sdrObj.team === activeTeamValue);
       const dateStr = log.timestamp.substring(0, 10);
       return teamMatch && dateStr >= startDateFilter && dateStr <= endDateFilter;
     }) || [];
-  }, [rawAuditLogs, rawSdrs, selectedTeam, startDateFilter, endDateFilter]);
+  }, [rawAuditLogs, rawSdrs, activeTeamValue, startDateFilter, endDateFilter]);
 
   const handlePresetChange = (preset: 'este-mes' | '30-dias' | '3-meses' | 'geral') => {
     const [yearStr, monthStr] = (currentMonth || '2026-06').split('-');
@@ -224,20 +264,44 @@ export default function ReportsSection({
           <!-- SECTION 1: EXECUTIVE BRIEFING -->
           <div style="margin-bottom: 25px;">
             <h2 style="font-size: 13px; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin: 0 0 12px 0; color: #111827; letter-spacing: 0.05em;">
-              📊 Resumo Executivo e Metas do Time
+              📊 Resumo Executivo de Desempenho SDR
             </h2>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-              <div style="padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
-                <span style="font-size: 8.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 3px;">SDRs Ativos</span>
-                <span style="font-size: 16px; font-weight: 900; color: #111827;">${activeSDRs.length} Ativos</span>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">1. Total de Ligações</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${totalLigacoesReport.toLocaleString('pt-BR')}</span>
               </div>
-              <div style="padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
-                <span style="font-size: 8.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 3px;">Assessores Conectados</span>
-                <span style="font-size: 16px; font-weight: 900; color: #111827;">${activeAssessores.length} Parceiros</span>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">2. Total Clientes Trabalhados</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${totalClientesReport.toLocaleString('pt-BR')}</span>
               </div>
-              <div style="padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
-                <span style="font-size: 8.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 3px;">Meta de Agendamentos</span>
-                <span style="font-size: 16px; font-weight: 900; color: #111827;">${teamGoals?.agendamentos || 0} Reuniões</span>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">3. Total de Agendamentos</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${totalAgendamentoReport.toLocaleString('pt-BR')}</span>
+              </div>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">4. Total de Efetivações</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${totalEfetivacaoReport.toLocaleString('pt-BR')}</span>
+              </div>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">5. Conversão Geral (Efet/Agend)</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${taxaConversaoGeralReport}</span>
+              </div>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">6. Conversão por Ligação (Efet/Lig)</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${taxaConversaoPorLigacaoReport}</span>
+              </div>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">7. Taxa Agendamento (Agend/Lig)</span>
+                <span style="font-size: 15px; font-weight: 900; color: #111827;">${taxaAgendamentoReport}</span>
+              </div>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">8. Movimentação da Equipe</span>
+                <span style="font-size: 13px; font-weight: 900; color: #111827;">+${entradaSaidaSdrsReport.admitidos} Adm / -${entradaSaidaSdrsReport.inativos} Saídas</span>
+              </div>
+              <div style="padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb; text-align: left;">
+                <span style="font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; display: block; margin-bottom: 2px;">9. Crescimento da Equipe</span>
+                <span style="font-size: 15px; font-weight: 900; color: #059669;">${crescimentoPercentualTimeReport}</span>
               </div>
             </div>
           </div>
@@ -547,10 +611,10 @@ export default function ReportsSection({
     const filteredNegocios = rawNegocios.filter(n => {
       const sdrObj = rawSdrs.find(s => s.id === n.sdrId || s.name === n.sdrName);
       const assessorObj = rawAssessores.find(a => a.id === n.assessorId || a.name === n.assessorName);
-      const teamMatchSdr = sdrObj && (selectedTeam === 'todos' || sdrObj.team === selectedTeam);
-      const teamMatchAssessor = assessorObj && (selectedTeam === 'todos' || assessorObj.team === selectedTeam);
+      const teamMatchSdr = sdrObj && (activeTeamValue === 'todos' || sdrObj.team === activeTeamValue);
+      const teamMatchAssessor = assessorObj && (activeTeamValue === 'todos' || assessorObj.team === activeTeamValue);
       
-      if (selectedTeam !== 'todos' && !teamMatchSdr && !teamMatchAssessor) return false;
+      if (activeTeamValue !== 'todos' && !teamMatchSdr && !teamMatchAssessor) return false;
 
       const dateStr = n.dataFechamento ? n.dataFechamento.substring(0, 10) : n.dataCriacaoLead ? n.dataCriacaoLead.substring(0, 10) : '';
       if (!dateStr) return false;
@@ -703,7 +767,7 @@ export default function ReportsSection({
       negocios: filteredNegocios,
       cohortMatrix,
     };
-  }, [rawSdrs, rawAssessores, selectedTeam, startDateFilter, endDateFilter]);
+  }, [rawSdrs, rawAssessores, activeTeamValue, startDateFilter, endDateFilter]);
   const addNegocio = useAppStore(state => state.addNegocio);
   const deleteNegocio = useAppStore(state => state.deleteNegocio);
   const updateNegocio = useAppStore(state => state.updateNegocio);
@@ -725,6 +789,11 @@ export default function ReportsSection({
   const [filterOrigem, setFilterOrigem] = useState<string>('todos');
   const [filterSituacao, setFilterSituacao] = useState<string>('todos');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
+
+  // Selected Assessor for Profile Card and detailed metas (Blocos 4 and 5)
+  const [selectedAssessorId, setSelectedAssessorId] = useState<string>('');
+  // Selected indicator for the ranking table (Bloco 8)
+  const [rankingIndicator, setRankingIndicator] = useState<'score' | 'net' | 'receita' | 'contas' | 'indicacoes'>('score');
 
   const [selectedProducts, setSelectedProducts] = useState<Array<{ produtoCategoria: ProductType; receitaEstimada: string }>>([
     { produtoCategoria: 'INVESTIMENTOS_XP', receitaEstimada: '50000' }
@@ -1119,7 +1188,12 @@ export default function ReportsSection({
     teamsMap[t].metaAgendamentos += filtered.metaAgendamentos || 20;
   });
 
-  const teamList = Object.values(teamsMap);
+  const teamList = Object.values(teamsMap).filter(t => {
+    if (currentUser?.role === 'leader' && currentUser.teamName) {
+      return t.teamName === currentUser.teamName;
+    }
+    return true;
+  });
 
   // Calculate historical comparative performance for all active SDRs using custom filtering if range isn't restricted to one month
   const sdrComparativeData = activeSDRs.map(sdr => {
@@ -1136,6 +1210,57 @@ export default function ReportsSection({
       contas: totalContasHist,
     };
   });
+
+  // 8 Specific Required SDR Report Metrics
+  const totalLigacoesReport = React.useMemo(() => {
+    return activeSDRs.reduce((sum, s) => sum + (sdrFilteredStatsMap[s.id]?.callsCount || 0), 0);
+  }, [activeSDRs, sdrFilteredStatsMap]);
+
+  const totalClientesReport = React.useMemo(() => {
+    return activeSDRs.reduce((sum, s) => sum + (sdrFilteredStatsMap[s.id]?.contasAbertasCount || 0), 0);
+  }, [activeSDRs, sdrFilteredStatsMap]);
+
+  const totalAgendamentoReport = React.useMemo(() => {
+    return activeSDRs.reduce((sum, s) => sum + (sdrFilteredStatsMap[s.id]?.agendamentosCount || 0), 0);
+  }, [activeSDRs, sdrFilteredStatsMap]);
+
+  const totalEfetivacaoReport = React.useMemo(() => {
+    return activeSDRs.reduce((sum, s) => sum + (sdrFilteredStatsMap[s.id]?.efetivacoesCount || 0), 0);
+  }, [activeSDRs, sdrFilteredStatsMap]);
+
+  // Conversions and Ratios
+  const taxaConversaoGeralReport = React.useMemo(() => {
+    if (totalAgendamentoReport === 0) return '0%';
+    return `${Math.round((totalEfetivacaoReport / totalAgendamentoReport) * 100)}%`;
+  }, [totalAgendamentoReport, totalEfetivacaoReport]);
+
+  const taxaConversaoPorLigacaoReport = React.useMemo(() => {
+    if (totalLigacoesReport === 0) return '0.0%';
+    return `${((totalEfetivacaoReport / totalLigacoesReport) * 100).toFixed(1)}%`;
+  }, [totalLigacoesReport, totalEfetivacaoReport]);
+
+  const taxaAgendamentoReport = React.useMemo(() => {
+    if (totalLigacoesReport === 0) return '0.0%';
+    return `${((totalAgendamentoReport / totalLigacoesReport) * 100).toFixed(1)}%`;
+  }, [totalLigacoesReport, totalAgendamentoReport]);
+
+  const entradaSaidaSdrsReport = React.useMemo(() => {
+    const admitidos = rawSdrs.filter(s => s.admissionDate && s.admissionDate >= startDateFilter && s.admissionDate <= endDateFilter).length;
+    const inativos = rawSdrs.filter(s => !s.active).length;
+    return { admitidos, inativos, totalAtivos: activeSDRs.length, saldo: admitidos - inativos };
+  }, [rawSdrs, startDateFilter, endDateFilter, activeSDRs.length]);
+
+  const crescimentoPercentualTimeReport = React.useMemo(() => {
+    const admitidos = entradaSaidaSdrsReport.admitidos;
+    const inativos = entradaSaidaSdrsReport.inativos;
+    const totalAtual = entradaSaidaSdrsReport.totalAtivos;
+    const totalInicial = (totalAtual - admitidos) + inativos;
+    if (totalInicial <= 0) {
+      return totalAtual > 0 ? '+100%' : '0%';
+    }
+    const pct = Math.round(((totalAtual - totalInicial) / totalInicial) * 100);
+    return pct >= 0 ? `+${pct}%` : `${pct}%`;
+  }, [entradaSaidaSdrsReport]);
 
   const formatDateVal = (dateStr: string) => {
     if (!dateStr) return 'Não definida';
@@ -1581,32 +1706,75 @@ export default function ReportsSection({
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
           {/* Seletor de Equipe */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase font-mono font-black text-neutral-500 block">
-              Filtrar por Equipe / Time
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-600 dark:text-neutral-300 block">
+              Equipe (PF, PJ, Advisor)
             </label>
             <div className="relative">
-              <select
-                value={selectedTeam}
-                onChange={(e) => setSelectedTeam(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs hover:bg-white dark:hover:bg-neutral-850 transition"
-              >
-                <option value="todos">🌟 Todos os Times (Geral)</option>
-                {teams.map((tName) => (
-                  <option key={tName} value={tName}>
-                    👥 {tName}
-                  </option>
-                ))}
-              </select>
+              {currentUser?.role === 'leader' ? (
+                <div className="w-full bg-neutral-100 dark:bg-neutral-800 border-2 border-neutral-300 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-mono font-black text-neutral-850 dark:text-neutral-200">
+                  🔒 {currentUser.teamName?.toUpperCase()}
+                </div>
+              ) : (
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs hover:bg-white dark:hover:bg-neutral-850 transition"
+                >
+                  {teams.map((tName) => (
+                    <option key={tName} value={tName}>
+                      👥 {tName}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
+          </div>
+
+          {/* Seletor de Líder */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-600 dark:text-neutral-300 block">
+              Líder
+            </label>
+            <select
+              value={selectedLeader}
+              onChange={(e) => setSelectedLeader(e.target.value)}
+              className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs hover:bg-white dark:hover:bg-neutral-850 transition"
+            >
+              <option value="TODOS">👑 Todos os Líderes</option>
+              {rawLeaders.map((lead) => (
+                <option key={lead.id} value={lead.id}>
+                  {lead.name} ({lead.teamName || 'Líder'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Seletor de Membro */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-600 dark:text-neutral-300 block">
+              Membro Específico
+            </label>
+            <select
+              value={selectedMember}
+              onChange={(e) => setSelectedMember(e.target.value)}
+              className="w-full bg-neutral-50 dark:bg-neutral-900 border-2 border-neutral-900 dark:border-neutral-700 p-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 cursor-pointer shadow-3xs hover:bg-white dark:hover:bg-neutral-850 transition"
+            >
+              <option value="TODOS">🎯 Todos os Membros</option>
+              {rawSdrs.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.team || 'SDR'})
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Data Inicial */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase font-mono font-black text-neutral-500 block">
-              Data de Início do Período
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-600 dark:text-neutral-300 block">
+              Data Inicial
             </label>
             <div className="relative">
               <input
@@ -1620,8 +1788,8 @@ export default function ReportsSection({
 
           {/* Data Final */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase font-mono font-black text-neutral-500 block">
-              Data de Término do Período
+            <label className="text-[10px] uppercase font-mono font-black text-neutral-600 dark:text-neutral-300 block">
+              Data Final
             </label>
             <div className="relative">
               <input
@@ -1636,7 +1804,7 @@ export default function ReportsSection({
 
         {/* Shortcuts for intervals */}
         <div className="pt-2 border-t border-dashed border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-mono font-black text-neutral-400 uppercase tracking-widest mr-2">
+          <span className="text-[10px] font-mono font-black text-neutral-600 dark:text-neutral-300 uppercase tracking-widest mr-2">
             Atalhos rápidos de período:
           </span>
           <button
@@ -1667,6 +1835,137 @@ export default function ReportsSection({
           >
             🌍 Todo o Período
           </button>
+        </div>
+      </div>
+
+      {/* Dashboard Executivo de Indicadores Solicitados */}
+      <div className="bg-white dark:bg-[#121318] border-2 border-neutral-900 dark:border-neutral-700 p-6 rounded-2xl space-y-4">
+        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1 px-2.5 bg-amber-500 text-black text-[9px] font-black uppercase tracking-widest rounded leading-none">
+              Dashboard Executivo
+            </span>
+            <h3 className="text-sm font-black uppercase tracking-tight text-neutral-950 dark:text-white font-display">
+              Indicadores Consolidados de Performance
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePrintPdf()}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-[10px] uppercase rounded-lg tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
+            >
+              <Download className="w-3.5 h-3.5 text-white" /> Baixar Relatório (PDF)
+            </button>
+            <button
+              onClick={() => handleExportSdrCSV()}
+              className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-amber-400 font-extrabold text-[10px] uppercase rounded-lg tracking-wider transition cursor-pointer flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" /> Baixar Dados (CSV)
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+          {/* 1. Total de Ligações */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              1. Total de Ligações
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {totalLigacoesReport.toLocaleString('pt-BR')}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Volume operacional de ligações</p>
+          </div>
+
+          {/* 2. Total de Clientes Trabalhados */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              2. Total de Clientes Trabalhados
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {totalClientesReport.toLocaleString('pt-BR')}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Contas e indicações trabalhadas</p>
+          </div>
+
+          {/* 3. Total de Agendamentos */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              3. Total de Agendamentos
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {totalAgendamentoReport.toLocaleString('pt-BR')}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Reuniões agendadas no funil</p>
+          </div>
+
+          {/* 4. Total de Efetivações */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              4. Total de Efetivações
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {totalEfetivacaoReport.toLocaleString('pt-BR')}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Reuniões efetivamente realizadas</p>
+          </div>
+
+          {/* 5. Taxa de Conversão Geral */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              5. Taxa de Conversão Geral
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {taxaConversaoGeralReport}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Efetivações ÷ Agendamentos</p>
+          </div>
+
+          {/* 6. Taxa de Conversão por Ligação */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              6. Conversão por Ligação
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {taxaConversaoPorLigacaoReport}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Efetivações ÷ Ligações</p>
+          </div>
+
+          {/* 7. Taxa de Agendamento */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              7. Taxa de Agendamento
+            </span>
+            <div className="text-2xl font-black text-neutral-900 dark:text-white mt-1 font-display">
+              {taxaAgendamentoReport}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Agendamentos ÷ Ligações</p>
+          </div>
+
+          {/* 8. Movimentação da Equipe */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              8. Movimentação da Equipe
+            </span>
+            <div className="text-base font-black text-neutral-900 dark:text-white mt-1 font-display">
+              +{entradaSaidaSdrsReport.admitidos} Admitidos / -{entradaSaidaSdrsReport.inativos} Saídas
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">
+              Saldo Líquido: <strong className="text-neutral-900 dark:text-white">{entradaSaidaSdrsReport.saldo >= 0 ? `+${entradaSaidaSdrsReport.saldo}` : entradaSaidaSdrsReport.saldo}</strong> ({entradaSaidaSdrsReport.totalAtivos} ativos)
+            </p>
+          </div>
+
+          {/* 9. Crescimento da Equipe */}
+          <div className="p-4 rounded-xl border-2 border-neutral-900 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+            <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider block">
+              9. Crescimento da Equipe
+            </span>
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-display">
+              {crescimentoPercentualTimeReport}
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-0.5">Crescimento de equipe no período</p>
+          </div>
         </div>
       </div>
 
@@ -1928,44 +2227,65 @@ export default function ReportsSection({
       )}
 
       {activeSubTab === 'wealth' ? (
+        <WealthExecutiveDashboard
+          pacing={pacing}
+          activeSDRs={activeSDRs}
+          activeAssessores={activeAssessores}
+          teamGoals={teamGoals}
+          currentUser={currentUser}
+          currentMonth={currentMonth}
+          selectedAssessorId={selectedAssessorId}
+          setSelectedAssessorId={setSelectedAssessorId}
+          rankingIndicator={rankingIndicator}
+          setRankingIndicator={setRankingIndicator}
+          showLaunchForm={showLaunchForm}
+          setShowLaunchForm={setShowLaunchForm}
+          editingNegocioId={editingNegocioId}
+          setEditingNegocioId={setEditingNegocioId}
+          newClient={newClient}
+          setNewClient={setNewClient}
+          newVolume={newVolume}
+          setNewVolume={setNewVolume}
+          selectedProducts={selectedProducts}
+          setSelectedProducts={setSelectedProducts}
+          newSdrId={newSdrId}
+          setNewSdrId={setNewSdrId}
+          newAssessorId={newAssessorId}
+          setNewAssessorId={setNewAssessorId}
+          newStatus={newStatus}
+          setNewStatus={setNewStatus}
+          newOrigemCliente={newOrigemCliente}
+          setNewOrigemCliente={setNewOrigemCliente}
+          newSituacaoCliente={newSituacaoCliente}
+          setNewSituacaoCliente={setNewSituacaoCliente}
+          newCreateDate={newCreateDate}
+          setNewCreateDate={setNewCreateDate}
+          newCloseDate={newCloseDate}
+          setNewCloseDate={setNewCloseDate}
+          deletingNegocioId={deletingNegocioId}
+          setDeletingNegocioId={setDeletingNegocioId}
+          filterOrigem={filterOrigem}
+          setFilterOrigem={setFilterOrigem}
+          filterSituacao={filterSituacao}
+          setFilterSituacao={setFilterSituacao}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          addProductRow={addProductRow}
+          updateProductRow={updateProductRow}
+          removeProductRow={removeProductRow}
+          handleLaunchSubmit={handleLaunchSubmit}
+          handleStartEditNegocio={handleStartEditNegocio}
+          updateNegocio={updateNegocio}
+          deleteNegocio={deleteNegocio}
+          totalAgendamentos={totalAgendamentos}
+          totalMetaAgendamentos={totalMetaAgendamentos}
+          targetAgendamentosProgress={targetAgendamentosProgress}
+          totalEfetivacoes={totalEfetivacoes}
+          totalMetaEfetivacoes={totalMetaEfetivacoes}
+          targetEfetivacoesProgress={targetEfetivacoesProgress}
+        />
+      ) : (activeSubTab as string) === 'wealth_deprecated_sections' ? (
         <div className="space-y-6">
-          
-          {/* Top Symmetrical Dashboard BRL Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
-              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-1">Receita Comercial (Ganho)</span>
-              <div className="text-3xl font-black text-black tracking-tight font-display">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(pacing.summary.totalRevenue)}
-              </div>
-              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Volume direto originado e ganho na base de wealth management.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Captação Total (Net New Money)</span>
-              <div className="text-3xl font-black text-black tracking-tight font-display text-emerald-650">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(pacing.summary.totalVolume)}
-              </div>
-              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Volume financeiro líquido alocado e faturado corporativo.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Contratos Ganhos</span>
-              <div className="text-3xl font-black text-black tracking-tight font-display">
-                {pacing.summary.wonCount} <span className="text-xs text-neutral-400 font-normal">deals</span>
-              </div>
-              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Transações com status GAINED concluídas com sucesso.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl border-2 border-neutral-900 p-5 relative shadow-3xs">
-              <span className="text-[10px] font-black text-amber-600 bg-amber-50 rounded border border-amber-200 px-1.5 py-0.5 leading-none uppercase tracking-widest inline-block mb-1.5 font-mono text-[9px] font-extrabold">
-                ⚡ Predictor Pacing
-              </span>
-              <div className="text-3xl font-black text-black tracking-tight font-display">
-                {pacing.summary.avgSalesCycleGlobal} <span className="text-xs text-neutral-400 font-normal">dias úteis</span>
-              </div>
-              <p className="text-[10.5px] text-neutral-500 mt-1 leading-normal">Média global do ciclo de vendas (lead creation ➔ win).</p>
-            </div>
-          </div>
 
           {/* Quick-Access Deal Registry (Lançador de Negócios) Form Drawer */}
           <div className="bg-white rounded-2xl border-2 border-neutral-900 p-6 shadow-3xs" id="contrato-form-container">

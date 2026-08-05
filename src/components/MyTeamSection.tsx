@@ -84,6 +84,8 @@ export default function MyTeamSection() {
   const [editAdmissionDate, setEditAdmissionDate] = useState('');
   const [editProfile, setEditProfile] = useState('');
   const [editAgendaLink, setEditAgendaLink] = useState('');
+  const [editTeamState, setEditTeamState] = useState('');
+  const [editRoleState, setEditRoleState] = useState<'sdr' | 'assessor' | 'consultor'>('sdr');
 
   // Editing values for SDR
   const [editSdrAgendamentos, setEditSdrAgendamentos] = useState(0);
@@ -412,6 +414,8 @@ export default function MyTeamSection() {
     setEditAdmissionDate(member.admissionDate || '');
     setEditProfile(member.professionalProfile || 'Comercial');
     setEditAgendaLink(member.agendaLink || '');
+    setEditTeamState(member.team || '');
+    setEditRoleState(roleType);
 
     if (roleType === 'sdr') {
       setEditSdrAgendamentos(member.agendamentosCount ?? 0);
@@ -456,70 +460,128 @@ export default function MyTeamSection() {
     e.preventDefault();
     if (!editingMemberId) return;
 
-    if (editingMemberRole === 'sdr') {
-      updateSDR(editingMemberId, {
-        name: editName.trim(),
-        active: editActive,
-        admissionDate: editAdmissionDate,
-        professionalProfile: editProfile,
-        agendamentosCount: Number(editSdrAgendamentos),
-        efetivacoesCount: Number(editSdrEfetivacoes),
-        callsCount: Number(editSdrCalls),
-        contasAbertasCount: Number(editSdrContasAbertas),
-        metaAgendamentos: Number(editSdrMetaAgendamentos),
-        metaEfetivacoes: Number(editSdrMetaEfetivacoes),
-        metaEfetivacaoRate: Number(editSdrMetaEfetivacaoRate),
-        metaContasAbertas: Number(editSdrMetaContasAbertas),
-      });
+    const normalizedNewRole = editRoleState === 'sdr' ? 'sdr' : 'assessor';
+    const normalizedOldRole = editingMemberRole === 'sdr' ? 'sdr' : 'assessor';
+    const hasRoleChanged = normalizedNewRole !== normalizedOldRole;
+
+    if (hasRoleChanged) {
+      if (normalizedOldRole === 'sdr') {
+        // SDR -> Assessor/Consultor
+        deleteSDR(editingMemberId);
+        addAssessor({
+          name: editName.trim(),
+          active: editActive,
+          admissionDate: editAdmissionDate,
+          professionalProfile: editProfile,
+          team: editTeamState,
+          roleType: editRoleState === 'consultor' ? 'consultor' : 'assessor',
+          agendaLink: editAgendaLink.trim(),
+          participatesInRotation: true,
+          captacaoMes: 0,
+          crossSellCount: 0,
+          crossSellDetails: '',
+          metaLigacoes: Number(editAssMetaLigacoes),
+          realizadoLigacoes: Number(editAssRealizadoLigacoes),
+          metaReunioesAgendadas: Number(editAssMetaReunioesAgendadas),
+          realizadoReunioesAgendadas: Number(editAssRealizadoReunioesAgendadas),
+          metaReunioesRealizadas: Number(editAssMetaReunioesRealizadas),
+          realizadoReunioesRealizadas: Number(editAssRealizadoReunioesRealizadas),
+          metaContasAbertas: Number(editAssMetaContasAbertas),
+          realizadoContasAbertas: Number(editAssRealizadoContasAbertas),
+          metaNet: Number(editAssMetaNet),
+          realizadoNet: Number(editAssRealizadoNet),
+          metaCrossSell: Number(editAssMetaCrossSell),
+          realizadoCrossSell: Number(editAssRealizadoCrossSell)
+        });
+      } else {
+        // Assessor/Consultor -> SDR
+        deleteAssessor(editingMemberId);
+        addSDR({
+          name: editName.trim(),
+          active: editActive,
+          admissionDate: editAdmissionDate,
+          professionalProfile: editProfile,
+          team: editTeamState,
+          agendamentosCount: Number(editSdrAgendamentos),
+          efetivacoesCount: Number(editSdrEfetivacoes),
+          callsCount: Number(editSdrCalls),
+          contasAbertasCount: Number(editSdrContasAbertas),
+          metaAgendamentos: Number(editSdrMetaAgendamentos),
+          metaEfetivacoes: Number(editSdrMetaEfetivacoes),
+          metaEfetivacaoRate: Number(editSdrMetaEfetivacaoRate),
+          metaContasAbertas: Number(editSdrMetaContasAbertas),
+        });
+      }
     } else {
-      updateAssessor(editingMemberId, {
-        name: editName.trim(),
-        active: editActive,
-        admissionDate: editAdmissionDate,
-        professionalProfile: editProfile,
-        agendaLink: editAgendaLink.trim(),
-        
-        metaLigacoes: Number(editAssMetaLigacoes),
-        realizadoLigacoes: Number(editAssRealizadoLigacoes),
-        metaReunioesAgendadas: Number(editAssMetaReunioesAgendadas),
-        realizadoReunioesAgendadas: Number(editAssRealizadoReunioesAgendadas),
-        metaReunioesRealizadas: Number(editAssMetaReunioesRealizadas),
-        realizadoReunioesRealizadas: Number(editAssRealizadoReunioesRealizadas),
-        metaContasAbertas: Number(editAssMetaContasAbertas),
-        realizadoContasAbertas: Number(editAssRealizadoContasAbertas),
-        metaNet: Number(editAssMetaNet),
-        realizadoNet: Number(editAssRealizadoNet),
-        metaCrossSell: Number(editAssMetaCrossSell),
-        realizadoCrossSell: Number(editAssRealizadoCrossSell),
-
-        // Product Cross Sell
-        crossSellSeguroMeta: Number(editCSSeguroMeta),
-        crossSellSeguroRealizado: Number(editCSSeguroReal),
-        crossSellConsorcioMeta: Number(editCSConsorcioMeta),
-        crossSellConsorcioRealizado: Number(editCSConsorcioReal),
-        crossSellContabilidadeMeta: Number(editCSContabilidadeMeta),
-        crossSellContabilidadeRealizado: Number(editCSContabilidadeReal),
-        crossSellPlanoSaudeMeta: Number(editCSSaudeMeta),
-        crossSellPlanoSaudeRealizado: Number(editCSSaudeReal),
-        crossSellCambioMeta: Number(editCSCambioMeta),
-        crossSellCambioRealizado: Number(editCSCambioReal),
-        crossSellOutrosMeta: Number(editCSOutrosMeta),
-        crossSellOutrosRealizado: Number(editCSOutrosReal),
-
-        // Update customized monitor helper arrays as well
-        customMonitorMetrics: [
-          { key: 'ligacoes', name: 'Ligações', target: Number(editAssMetaLigacoes), real: Number(editAssRealizadoLigacoes) },
-          { key: 'agendadas', name: 'Reun. Agendadas', target: Number(editAssMetaReunioesAgendadas), real: Number(editAssRealizadoReunioesAgendadas) },
-          { key: 'realizadas', name: 'Reuniões Realizadas', target: Number(editAssMetaReunioesRealizadas), real: Number(editAssRealizadoReunioesRealizadas) },
-          { key: 'contas_abertas', name: 'Contas Novas', target: Number(editAssMetaContasAbertas), real: Number(editAssRealizadoContasAbertas) },
-          { key: 'net', name: 'Captação Líquida (NET)', target: Number(editAssMetaNet), real: Number(editAssRealizadoNet) },
-          { key: 'cross_sell', name: 'Qtd. Cross-Sell', target: Number(editAssMetaCrossSell), real: Number(editAssRealizadoCrossSell) },
-        ]
-      });
+      // Role didn't change (only values, team or subclass assessor<->consultor changed)
+      if (editingMemberRole === 'sdr') {
+        updateSDR(editingMemberId, {
+          name: editName.trim(),
+          active: editActive,
+          admissionDate: editAdmissionDate,
+          professionalProfile: editProfile,
+          team: editTeamState,
+          agendamentosCount: Number(editSdrAgendamentos),
+          efetivacoesCount: Number(editSdrEfetivacoes),
+          callsCount: Number(editSdrCalls),
+          contasAbertasCount: Number(editSdrContasAbertas),
+          metaAgendamentos: Number(editSdrMetaAgendamentos),
+          metaEfetivacoes: Number(editSdrMetaEfetivacoes),
+          metaEfetivacaoRate: Number(editSdrMetaEfetivacaoRate),
+          metaContasAbertas: Number(editSdrMetaContasAbertas),
+        });
+      } else {
+        updateAssessor(editingMemberId, {
+          name: editName.trim(),
+          active: editActive,
+          admissionDate: editAdmissionDate,
+          professionalProfile: editProfile,
+          agendaLink: editAgendaLink.trim(),
+          team: editTeamState,
+          roleType: editRoleState === 'consultor' ? 'consultor' : 'assessor',
+          
+          metaLigacoes: Number(editAssMetaLigacoes),
+          realizadoLigacoes: Number(editAssRealizadoLigacoes),
+          metaReunioesAgendadas: Number(editAssMetaReunioesAgendadas),
+          realizadoReunioesAgendadas: Number(editAssRealizadoReunioesAgendadas),
+          metaReunioesRealizadas: Number(editAssMetaReunioesRealizadas),
+          realizadoReunioesRealizadas: Number(editAssRealizadoReunioesRealizadas),
+          metaContasAbertas: Number(editAssMetaContasAbertas),
+          realizadoContasAbertas: Number(editAssRealizadoContasAbertas),
+          metaNet: Number(editAssMetaNet),
+          realizadoNet: Number(editAssRealizadoNet),
+          metaCrossSell: Number(editAssMetaCrossSell),
+          realizadoCrossSell: Number(editAssRealizadoCrossSell),
+          
+          // Product Cross Sell
+          crossSellSeguroMeta: Number(editCSSeguroMeta),
+          crossSellSeguroRealizado: Number(editCSSeguroReal),
+          crossSellConsorcioMeta: Number(editCSConsorcioMeta),
+          crossSellConsorcioRealizado: Number(editCSConsorcioReal),
+          crossSellContabilidadeMeta: Number(editCSContabilidadeMeta),
+          crossSellContabilidadeRealizado: Number(editCSContabilidadeReal),
+          crossSellPlanoSaudeMeta: Number(editCSSaudeMeta),
+          crossSellPlanoSaudeRealizado: Number(editCSSaudeReal),
+          crossSellCambioMeta: Number(editCSCambioMeta),
+          crossSellCambioRealizado: Number(editCSCambioReal),
+          crossSellOutrosMeta: Number(editCSOutrosMeta),
+          crossSellOutrosRealizado: Number(editCSOutrosReal),
+  
+          // Update customized monitor helper arrays as well
+          customMonitorMetrics: [
+            { key: 'ligacoes', name: 'Ligações', target: Number(editAssMetaLigacoes), real: Number(editAssRealizadoLigacoes) },
+            { key: 'agendadas', name: 'Reun. Agendadas', target: Number(editAssMetaReunioesAgendadas), real: Number(editAssRealizadoReunioesAgendadas) },
+            { key: 'realizadas', name: 'Reuniões Realizadas', target: Number(editAssMetaReunioesRealizadas), real: Number(editAssRealizadoReunioesRealizadas) },
+            { key: 'contas_abertas', name: 'Contas Novas', target: Number(editAssMetaContasAbertas), real: Number(editAssRealizadoContasAbertas) },
+            { key: 'net', name: 'Captação Líquida (NET)', target: Number(editAssMetaNet), real: Number(editAssRealizadoNet) },
+            { key: 'cross_sell', name: 'Qtd. Cross-Sell', target: Number(editAssMetaCrossSell), real: Number(editAssRealizadoCrossSell) },
+          ]
+        });
+      }
     }
 
     setEditingMemberId(null);
-    alert("Dados e metas do integrante do time salvos com sucesso.");
+    alert("Dados, cargo e equipe do integrante do time salvos com sucesso.");
   };
 
   const handleDeleteMember = (memberId: string, role: 'sdr' | 'advisor') => {
@@ -1117,7 +1179,7 @@ export default function MyTeamSection() {
                             <tr key={s.id} className="bg-neutral-50/70">
                               <td colSpan={10} className="p-4">
                                 <form onSubmit={handleSaveEditMemberSubmit} className="space-y-4">
-                                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                                     <div>
                                       <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Nome</label>
                                       <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full p-1.5 text-xs bg-white border border-neutral-300 rounded font-bold" />
@@ -1135,6 +1197,27 @@ export default function MyTeamSection() {
                                       <select value={editActive ? "true" : "false"} onChange={e => setEditActive(e.target.value === "true")} className="w-full p-1.5 text-xs bg-white border border-neutral-300 rounded font-bold">
                                         <option value="true">Sim (Produtivo)</option>
                                         <option value="false">Não (Bloqueado/Inativo)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Equipe liderada por</label>
+                                      <select 
+                                        value={editTeamState} 
+                                        onChange={e => setEditTeamState(e.target.value)} 
+                                        disabled={currentUser?.role === 'leader'}
+                                        className="w-full p-1.5 text-xs bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-350 rounded font-bold"
+                                      >
+                                        {teams.map(t => (
+                                          <option key={t} value={t}>{t}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Função / Cargo</label>
+                                      <select value={editRoleState} onChange={e => setEditRoleState(e.target.value as any)} className="w-full p-1.5 text-xs bg-white border border-neutral-350 rounded font-bold uppercase text-[10px]">
+                                        <option value="sdr">SDR (Prospector)</option>
+                                        <option value="assessor">Assessor de Investimentos</option>
+                                        <option value="consultor">Consultor Comercial</option>
                                       </select>
                                     </div>
                                   </div>
@@ -1325,7 +1408,7 @@ export default function MyTeamSection() {
                             <tr key={a.id} className="bg-neutral-50/70">
                               <td colSpan={11} className="p-4">
                                 <form onSubmit={handleSaveEditMemberSubmit} className="space-y-4">
-                                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                                     <div>
                                       <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Nome</label>
                                       <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full p-1.5 text-xs bg-white border border-neutral-300 rounded font-bold" />
@@ -1343,6 +1426,27 @@ export default function MyTeamSection() {
                                       <select value={editActive ? "true" : "false"} onChange={e => setEditActive(e.target.value === "true")} className="w-full p-1.5 text-xs bg-white border border-neutral-300 rounded font-bold">
                                         <option value="true">Ativo (Em Rodízio)</option>
                                         <option value="false">Bloqueado (Inativo)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Equipe liderada por</label>
+                                      <select 
+                                        value={editTeamState} 
+                                        onChange={e => setEditTeamState(e.target.value)} 
+                                        disabled={currentUser?.role === 'leader'}
+                                        className="w-full p-1.5 text-xs bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-350 rounded font-bold"
+                                      >
+                                        {teams.map(t => (
+                                          <option key={t} value={t}>{t}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Função / Cargo</label>
+                                      <select value={editRoleState} onChange={e => setEditRoleState(e.target.value as any)} className="w-full p-1.5 text-xs bg-white border border-neutral-350 rounded font-bold uppercase text-[10px]">
+                                        <option value="sdr">SDR (Prospector)</option>
+                                        <option value="assessor">Assessor de Investimentos</option>
+                                        <option value="consultor">Consultor Comercial</option>
                                       </select>
                                     </div>
                                   </div>
@@ -1661,7 +1765,7 @@ export default function MyTeamSection() {
                             <tr key={c.id} className="bg-neutral-50/70">
                               <td colSpan={11} className="p-4">
                                 <form onSubmit={handleSaveEditMemberSubmit} className="space-y-4">
-                                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                                     <div>
                                       <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Nome</label>
                                       <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="w-full p-1.5 text-xs bg-white border border-neutral-300 rounded font-bold" />
@@ -1679,6 +1783,27 @@ export default function MyTeamSection() {
                                       <select value={editActive ? "true" : "false"} onChange={e => setEditActive(e.target.value === "true")} className="w-full p-1.5 text-xs bg-white border border-neutral-300 rounded font-bold">
                                         <option value="true">Ativo (Em Rodízio)</option>
                                         <option value="false">Bloqueado (Inativo)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Equipe liderada por</label>
+                                      <select 
+                                        value={editTeamState} 
+                                        onChange={e => setEditTeamState(e.target.value)} 
+                                        disabled={currentUser?.role === 'leader'}
+                                        className="w-full p-1.5 text-xs bg-white disabled:bg-neutral-100 disabled:text-neutral-500 border border-neutral-350 rounded font-bold"
+                                      >
+                                        {teams.map(t => (
+                                          <option key={t} value={t}>{t}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1">Função / Cargo</label>
+                                      <select value={editRoleState} onChange={e => setEditRoleState(e.target.value as any)} className="w-full p-1.5 text-xs bg-white border border-neutral-350 rounded font-bold uppercase text-[10px]">
+                                        <option value="sdr">SDR (Prospector)</option>
+                                        <option value="assessor">Assessor de Investimentos</option>
+                                        <option value="consultor">Consultor Comercial</option>
                                       </select>
                                     </div>
                                   </div>
